@@ -1,13 +1,13 @@
 #
 # Aerospike Server Dockerfile
 #
-# http://github.com/aerospike/aerospike-docker/aerospike-server
+# http://github.com/aerospike/aerospike-server.docker
 #
 
 FROM ubuntu:14.04
 
 # Add Aerospike package and run script
-ADD http://aerospike.com/download/server/latest/artifact/ubuntu12 /tmp/aerospike.tgz
+ADD http://aerospike.com/download/server/3.3.12/artifact/ubuntu12 /tmp/aerospike.tgz
 
 # Work from /tmp
 WORKDIR /tmp
