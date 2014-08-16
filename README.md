@@ -24,7 +24,7 @@ The following will run `asd` with all the exposed ports forward to the host mach
 
 	docker run -tid --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server
 	
-**NOTE** Although this is the simplest method to getting Aerospike up and running, but it is not the prefered method. To properly run the container, please specify an **alternative configuration** with the **access-address** defined.
+**NOTE** Although this is the simplest method to getting Aerospike up and running, but it is not the prefered method. To properly run the container, please specify an **custom configuration** with the **access-address** defined.
 
 ### Advanced Usage 
 
@@ -45,6 +45,21 @@ A full example:
 
 	docker run -tid -v <DIRECTORY>:/opt/aerospike/etc --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
 
+#### access-address Configuration
+
+In order for Aerospike to properly broadcast its address to the cluster or applications, the **access-address** needs to be set in the configuration file. If it is not set, then the IP address within the container will be used, which is not accessible to other nodes.
+
+To specify **access-address** in aerospike.conf:
+
+	network {
+	  service {
+	    address any                  # Listening IP Address
+	    port 3000                    # Listening Port
+	    access-address 192.168.1.100 # IP Address to be used by applications
+	                                 # and other nodes in the cluster.
+	  }
+	  ...
+
 
 #### Persistent Data Directory
 
@@ -59,11 +74,11 @@ A full example:
 	docker run -tid -v <DIRECTORY>:/opt/aerospike/data --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server
 
 
-#### Multicast Networking
+#### Clustering
 
-We are currently working to figure out how to best support multicast. For the time being, it will be best to setup Mesh networking (see below). We are open to pull-requests with proposals on how to implement multicast for our Dockerfile.
+Aerospike recommends using multicast clustering whenever possible, however, we are currently working to figure out how to best support multicast via Docker. For the time being, it will be best to setup Mesh Clustering. We are open to pull-requests with proposals on how to implement multicast for our Dockerfile.
 
-#### Mesh Networking
+##### Mesh Clustering
 
 Mesh networking requires setting up links between each node in the cluster. This can be achieved in two ways:
 
