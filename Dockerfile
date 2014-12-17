@@ -7,7 +7,7 @@
 FROM ubuntu:14.04
 
 # Add Aerospike package and run script
-ADD http://aerospike.com/download/server/3.3.26/artifact/ubuntu12 /tmp/aerospike.tgz
+ADD http://aerospike.com/download/server/3.4.0/artifact/ubuntu12 /tmp/aerospike.tgz
 
 # Work from /tmp
 WORKDIR /tmp
