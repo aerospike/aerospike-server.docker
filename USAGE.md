@@ -2,8 +2,8 @@
 
 The following will run `asd` with all the exposed ports forward to the host machine.
 
-  docker run -tid --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server
-  
+	docker run -tid --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server
+	
 **NOTE** Although this is the simplest method to getting Aerospike up and running, but it is not the prefered method. To properly run the container, please specify an **custom configuration** with the **access-address** defined.
 
 # Advanced Usage 
@@ -13,17 +13,17 @@ The following will run `asd` with all the exposed ports forward to the host mach
 
 By default, `asd` will use the configuration file in `/etc/aerospike/aerospike.conf`, which is added to the directory by the Dockerfile. To provide a custom configuration, you should first mount a directory containing the file using the `-v` option for `docker`:
 
-  -v <DIRECTORY>:/opt/aerospike/etc
+	-v <DIRECTORY>:/opt/aerospike/etc
 
 Where `<DIRECTORY>` is the path to a directory containing your custom configuration file. Next, you will want to tell `asd` to use a configuration file from `/opt/aerospike/etc`, by using the `--config-file` option for `aerospike/aerospike-server`:
  
-  --config-file /opt/aerospike/etc/aerospike.conf
+	--config-file /opt/aerospike/etc/aerospike.conf
 
 This will use tell `asd` to use the file in `/opt/aerospike/etc/aerospike.conf`, which is mapped to `<DIRECTORY>/aerospike.conf`.
 
 A full example:
 
-  docker run -tid -v <DIRECTORY>:/opt/aerospike/etc --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
+	docker run -tid -v <DIRECTORY>:/opt/aerospike/etc --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
 
 ## access-address Configuration
 
@@ -31,27 +31,27 @@ In order for Aerospike to properly broadcast its address to the cluster or appli
 
 To specify **access-address** in aerospike.conf:
 
-  network {
-    service {
-      address any                  # Listening IP Address
-      port 3000                    # Listening Port
-      access-address 192.168.1.100 # IP Address to be used by applications
-                                   # and other nodes in the cluster.
-    }
-    ...
+	network {
+		service {
+			address any                  # Listening IP Address
+			port 3000                    # Listening Port
+			access-address 192.168.1.100 # IP Address to be used by applications
+																	 # and other nodes in the cluster.
+		}
+		...
 
 
 ## Persistent Data Directory
 
 With Docker, the files within the container are not persisted. To persist the data, you will want to mount a directory from the host to the guest's `/opt/aerospike/data` using the `-v` option:
 
-  -v <DIRECTORY>:/opt/aerospike/data
+	-v <DIRECTORY>:/opt/aerospike/data
 
 Where `<DIRECTORY>` is the path to a directory containing your data files.
 
 A full example:
 
-  docker run -tid -v <DIRECTORY>:/opt/aerospike/data --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server
+	docker run -tid -v <DIRECTORY>:/opt/aerospike/data --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server
 
 
 ## Clustering
