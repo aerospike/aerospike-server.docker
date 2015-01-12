@@ -4,7 +4,7 @@ This repository contains the Dockerfile for building a Docker image for running 
 
 ## Dependencies
 
-- [ubuntu:14.04](https://registry.hub.docker.com/_/ubuntu/)
+- [debian:7](https://registry.hub.docker.com/_/ubuntu/)
 
 ## Installation
 
