@@ -4,10 +4,8 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:14.04
+FROM debian:7
 
-# Add Aerospike package and run script
-ADD http://aerospike.com/download/server/3.4.0/artifact/ubuntu12 /tmp/aerospike.tgz
 
 # Work from /tmp
 WORKDIR /tmp
@@ -15,9 +13,13 @@ WORKDIR /tmp
 # Install Aerospike
 RUN \
   apt-get update -y \
-  && tar xzf aerospike.tgz \
+  && apt-get install -y wget logrotate \
+  && wget --no-check-certificate https://www.aerospike.com/artifacts/aerospike-server-community/3.4.0/aerospike-server-community-3.4.0-debian7.tgz \
+  && wget --no-check-certificate -O /tmp/CHECKSUM https://www.aerospike.com/artifacts/aerospike-server-community/3.4.0/aerospike-server-community-3.4.0-debian7.tgz.sha256  \
+  && sha256sum -c /tmp/CHECKSUM \
+  && tar xzf aerospike-server-community-*.tgz \
   && cd aerospike-server-community-* \
-  && sudo dpkg -i aerospike-server-* 
+  && dpkg -i aerospike-server-* 
 
 # Add the Aerospike configuration specific to this dockerfile
 ADD aerospike.conf /etc/aerospike/aerospike.conf
@@ -35,6 +37,4 @@ VOLUME ["/opt/aerospike/data"]
 EXPOSE 3000 3001 3002 3003
 
 # Execute the run script
-# We use the `ENTRYPOINT` because it allows us to forward additional
-# arguments to `asd`
-ENTRYPOINT ["/usr/bin/asd","--foreground"]
+CMD ["/usr/bin/asd","--foreground"]
