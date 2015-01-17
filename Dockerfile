@@ -14,8 +14,8 @@ WORKDIR /tmp
 RUN \
   apt-get update -y \
   && apt-get install -y wget logrotate \
-  && wget --no-check-certificate https://www.aerospike.com/artifacts/aerospike-server-community/3.4.0/aerospike-server-community-3.4.0-debian7.tgz \
-  && wget --no-check-certificate -O /tmp/CHECKSUM https://www.aerospike.com/artifacts/aerospike-server-community/3.4.0/aerospike-server-community-3.4.0-debian7.tgz.sha256  \
+  && wget --no-check-certificate https://www.aerospike.com/artifacts/aerospike-server-community/3.4.1/aerospike-server-community-3.4.1-debian7.tgz \
+  && wget --no-check-certificate -O /tmp/CHECKSUM https://www.aerospike.com/artifacts/aerospike-server-community/3.4.1/aerospike-server-community-3.4.1-debian7.tgz.sha256  \
   && sha256sum -c /tmp/CHECKSUM \
   && tar xzf aerospike-server-community-*.tgz \
   && cd aerospike-server-community-* \
