@@ -13,13 +13,14 @@ WORKDIR /tmp
 # Install Aerospike
 RUN \
   apt-get update -y \
-  && apt-get install -y wget logrotate \
-  && wget --no-check-certificate https://www.aerospike.com/artifacts/aerospike-server-community/3.4.1/aerospike-server-community-3.4.1-debian7.tgz \
-  && wget --no-check-certificate -O /tmp/CHECKSUM https://www.aerospike.com/artifacts/aerospike-server-community/3.4.1/aerospike-server-community-3.4.1-debian7.tgz.sha256  \
+  && apt-get install -y wget logrotate ca-certificates \
+  && wget https://www.aerospike.com/artifacts/aerospike-server-community/3.4.1/aerospike-server-community-3.4.1-debian7.tgz \
+  && wget -O /tmp/CHECKSUM https://www.aerospike.com/artifacts/aerospike-server-community/3.4.1/aerospike-server-community-3.4.1-debian7.tgz.sha256  \
   && sha256sum -c /tmp/CHECKSUM \
   && tar xzf aerospike-server-community-*.tgz \
   && cd aerospike-server-community-* \
-  && dpkg -i aerospike-server-* 
+  && dpkg -i aerospike-server-* \
+  && rm -rf /var/lib/apt/lists/*
 
 # Add the Aerospike configuration specific to this dockerfile
 ADD aerospike.conf /etc/aerospike/aerospike.conf
