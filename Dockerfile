@@ -6,21 +6,20 @@
 
 FROM debian:7
 
-
-# Work from /tmp
-WORKDIR /tmp
+ENV AEROSPIKE_VERSION 3.4.1
+ENV AEROSPIKE_SHA256 b37abccf7003d8193cb594ac8d693e42df6b94dca83fb2c21df6ef8041d92642
 
 # Install Aerospike
 RUN \
   apt-get update -y \
   && apt-get install -y wget logrotate ca-certificates \
-  && wget https://www.aerospike.com/artifacts/aerospike-server-community/3.4.1/aerospike-server-community-3.4.1-debian7.tgz \
-  && wget -O /tmp/CHECKSUM https://www.aerospike.com/artifacts/aerospike-server-community/3.4.1/aerospike-server-community-3.4.1-debian7.tgz.sha256  \
-  && sha256sum -c /tmp/CHECKSUM \
-  && tar xzf aerospike-server-community-*.tgz \
-  && cd aerospike-server-community-* \
-  && dpkg -i aerospike-server-* \
-  && rm -rf /var/lib/apt/lists/*
+  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian7.tgz" -O aerospike-server.tgz \
+  && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
+  && mkdir aerospike \
+  && tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
+  && dpkg -i aerospike/aerospike-server-*.deb \
+  && apt-get purge -y --auto-remove wget ca-certificates \
+  && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/*
 
 # Add the Aerospike configuration specific to this dockerfile
 ADD aerospike.conf /etc/aerospike/aerospike.conf
