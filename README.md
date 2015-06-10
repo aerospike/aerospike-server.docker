@@ -32,7 +32,7 @@ This will use tell `asd` to use the file in `/opt/aerospike/etc/aerospike.conf`,
 
 A full example:
 
-	docker run -tid -v <DIRECTORY>:/opt/aerospike/etc --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
+	docker run -tid -v <DIRECTORY>:/opt/aerospike/etc --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server /usr/bin/asd --foreground --config-file /opt/aerospike/etc/aerospike.conf
 
 ## access-address Configuration
 
