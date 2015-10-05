@@ -38,8 +38,10 @@ VOLUME ["/opt/aerospike/data"]
 #
 EXPOSE 3000 3001 3002 3003
 
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+
 # Run commands in the container as the aerospike user by default
 USER aerospike
 
-# Execute the run script in foreground mode
-CMD ["/usr/bin/asd","--foreground"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["asd"]
