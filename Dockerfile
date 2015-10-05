@@ -21,8 +21,8 @@ RUN \
   && apt-get purge -y --auto-remove wget ca-certificates \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/*
 
-# Add the Aerospike configuration specific to this dockerfile
-ADD aerospike.conf /etc/aerospike/aerospike.conf
+# Copy the Aerospike configuration specific to this dockerfile
+COPY aerospike.conf /etc/aerospike/aerospike.conf
 
 # Mount the Aerospike data directory
 VOLUME ["/opt/aerospike/data"]
