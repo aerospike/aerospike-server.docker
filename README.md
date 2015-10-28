@@ -75,7 +75,11 @@ Mesh networking requires setting up links between each node in the cluster. This
 
 2. Use `asinfo` to send the `tip` command, to make the node aware of another node, as defined in [tip command in asinfo](http://www.aerospike.com/docs/tools/asinfo/#tip).
 
+### Heartbeat configuration
 
+There is two ways to do clustering on Docker :
+* Using `--net=host` to advertise the IP address of the Docker host.
+* Using `interface-address`to advertise the IP of the Docker host. See [GitHub issue](https://github.com/aerospike/aerospike-server.docker/issues/9).
 
 
 
