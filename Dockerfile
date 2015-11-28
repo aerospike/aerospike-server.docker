@@ -22,10 +22,12 @@ RUN \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/*
 
 # Add the Aerospike configuration specific to this dockerfile
-ADD aerospike.conf /etc/aerospike/aerospike.conf
-
+COPY aerospike.conf /etc/aerospike/aerospike.conf
+COPY entrypoint.sh /entrypoint.sh
 # Mount the Aerospike data directory
 VOLUME ["/opt/aerospike/data"]
+VOLUME ["/etc/aerospike/"]
+
 
 # Expose Aerospike ports
 #
@@ -37,4 +39,5 @@ VOLUME ["/opt/aerospike/data"]
 EXPOSE 3000 3001 3002 3003
 
 # Execute the run script in foreground mode
-CMD ["/usr/bin/asd","--foreground"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["asd"]
