@@ -14,4 +14,5 @@ if [ "$1" = 'asd' ]; then
 fi
 
 # the command isn't asd so run the command the user specified
+
 exec "$@"
