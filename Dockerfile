@@ -26,7 +26,7 @@ COPY aerospike.conf /etc/aerospike/aerospike.conf
 COPY entrypoint.sh /entrypoint.sh
 # Mount the Aerospike data directory
 VOLUME ["/opt/aerospike/data"]
-VOLUME ["/etc/aerospike/"]
+# VOLUME ["/etc/aerospike/"]
 
 
 # Expose Aerospike ports
