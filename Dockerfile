@@ -10,8 +10,10 @@ ENV AEROSPIKE_VERSION 3.8.2.3
 ENV AEROSPIKE_SHA256 aacce58f1fdde5d0b9ad28c5e33863b5ccf6d780c182495d166411dd8f26be5c         
 
 # Install Aerospike
+
 RUN \
-  apt-get install -y wget logrotate ca-certificates \
+  apt-get update -y \
+  &&  apt-get install -y wget logrotate ca-certificates \
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian8.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
