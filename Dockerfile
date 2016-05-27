@@ -4,23 +4,25 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:latest
+FROM ubuntu:latest
 
 ENV AEROSPIKE_VERSION 3.8.2.3
-ENV AEROSPIKE_SHA256 aacce58f1fdde5d0b9ad28c5e33863b5ccf6d780c182495d166411dd8f26be5c         
+ENV AEROSPIKE_SHA256 f22f6737156692bbfb9dd0e8f0e410817cc5a503974d45d896065345f099072b         
 
 # Install Aerospike
 
 RUN \
   apt-get update -y \
   &&  apt-get install -y wget logrotate ca-certificates \
-  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian8.tgz" -O aerospike-server.tgz \
+  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu14.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
   && tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
   && dpkg -i aerospike/aerospike-server-*.deb \
-  && apt-get purge -y --auto-remove wget ca-certificates \
+  && mkdir -p /var/log/aerospike/ \
+  && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/*
+ 
 
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.conf /etc/aerospike/aerospike.conf
