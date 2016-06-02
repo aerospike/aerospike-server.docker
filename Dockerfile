@@ -4,7 +4,7 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:latest
+FROM ubuntu:xenial
 
 ENV AEROSPIKE_VERSION 3.8.2.3
 ENV AEROSPIKE_SHA256 f22f6737156692bbfb9dd0e8f0e410817cc5a503974d45d896065345f099072b         
