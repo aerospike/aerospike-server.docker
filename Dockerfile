@@ -6,15 +6,15 @@
 
 FROM ubuntu:xenial
 
-ENV AEROSPIKE_VERSION 3.8.2.3
-ENV AEROSPIKE_SHA256 f22f6737156692bbfb9dd0e8f0e410817cc5a503974d45d896065345f099072b         
+ENV AEROSPIKE_VERSION 3.8.4
+ENV AEROSPIKE_SHA256 d9d78eafd7905d521646591d242f6dcf2ef9ca90f1187eb00f46e9613fee189f          
 
 # Install Aerospike
 
 RUN \
   apt-get update -y \
   &&  apt-get install -y wget logrotate ca-certificates \
-  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu14.04.tgz" -O aerospike-server.tgz \
+  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
   && tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
