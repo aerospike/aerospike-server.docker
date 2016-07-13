@@ -13,7 +13,7 @@ ENV AEROSPIKE_SHA256 2da6d4f98c7dfd30b865fd7977860f77529ae52cd115ac3faee68b78a29
 
 RUN \
   apt-get update -y \
-  &&  apt-get install -y wget logrotate ca-certificates \
+  &&  apt-get install -y wget python logrotate ca-certificates \
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
