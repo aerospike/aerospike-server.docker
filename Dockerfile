@@ -12,8 +12,7 @@ ENV AEROSPIKE_SHA256 05d049f83a1fce9d4acc6ad6f1fbbe86af2dfb462d47eafbfae1ae4dbbb
 # Install Aerospike
 
 RUN \
-  apt update -y \
-  && apt upgrade -y \
+  apt-get update -y \
   && apt-get install -y wget python logrotate ca-certificates \
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
@@ -22,8 +21,10 @@ RUN \
   && dpkg -i aerospike/aerospike-server-*.deb \
   && mkdir -p /var/log/aerospike/ \
   && mkdir -p /var/run/aerospike/ \
-  && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/*
- 
+  && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
+  && dpkg -r openssl ca-certificates \
+  && dpkg --purge openssl ca-certificates
+
 
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.conf /etc/aerospike/aerospike.conf
