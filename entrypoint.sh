@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
-
+# adding sleep to wait for network interfaces to be available
+sleep 12
 # if command starts with an option, prepend asd
 if [ "${1:0:1}" = '-' ]; then
 	set -- asd "$@"
