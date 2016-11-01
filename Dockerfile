@@ -6,8 +6,8 @@
 
 FROM ubuntu:xenial
 
-ENV AEROSPIKE_VERSION 3.10.0.1
-ENV AEROSPIKE_SHA256 464f8327665ad7cf695a6706787b0be6bf3a940049600659a14c2fec07299010           
+ENV AEROSPIKE_VERSION 3.10.0.3
+ENV AEROSPIKE_SHA256 0625a38b6bbef7686ef6fa2fd451ea35e93c50fc418eadfc3d7e5181451ed672            
 
 # Install Aerospike
 
@@ -24,7 +24,8 @@ RUN \
   && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
   && dpkg -r wget openssl ca-certificates \
-  && dpkg --purge wget openssl ca-certificates
+  && dpkg --purge wget ca-certificates openssl \
+  && apt-get purge -y
 
 
 # Add the Aerospike configuration specific to this dockerfile
