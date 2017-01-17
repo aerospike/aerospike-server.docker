@@ -14,7 +14,7 @@ ENV AEROSPIKE_SHA256 a6dfff8d278f628ca681ec92cdefaef9f8a7c534e5c9feece5060ac7d3b
 
 RUN \
   apt-get update -y \
-  && apt-get install -y wget python python-argparse python-bcrypt logrotate net-tools iproute2 iputils-ping \
+  && apt-get install -y wget python python-argparse python-bcrypt openssl python-openssl logrotate net-tools iproute2 iputils-ping \
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
@@ -24,8 +24,8 @@ RUN \
   && mkdir -p /var/log/aerospike/ \
   && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
-  && dpkg -r wget openssl ca-certificates \
-  && dpkg --purge wget ca-certificates openssl \
+  && dpkg -r wget ca-certificates \
+  && dpkg --purge wget ca-certificates \
   && apt-get purge -y
 
 
