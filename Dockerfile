@@ -7,7 +7,7 @@
 FROM ubuntu:xenial
 
 ENV AEROSPIKE_VERSION 3.11.0.2
-ENV AEROSPIKE_SHA256 a6dfff8d278f628ca681ec92cdefaef9f8a7c534e5c9feece5060ac7d3b65453            
+ENV AEROSPIKE_SHA256 a9a3f9e72b49995df77427b0dcced047bc99c80fd217be2a3cd2b9f4350f9f28             
 
 # Install Aerospike Server and Tools
 
