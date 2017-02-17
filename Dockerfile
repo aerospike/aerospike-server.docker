@@ -6,15 +6,16 @@
 
 FROM ubuntu:xenial
 
-ENV AEROSPIKE_VERSION 3.11.0.2
-ENV AEROSPIKE_SHA256 a9a3f9e72b49995df77427b0dcced047bc99c80fd217be2a3cd2b9f4350f9f28             
+ENV AEROSPIKE_VERSION 3.11.1.1
+ENV AEROSPIKE_SHA256 70d96d031125c98f0e6c7b45d267d28423359a6975d3ec3307f5a0d384e99206             
+
 
 # Install Aerospike Server and Tools
 
 
 RUN \
   apt-get update -y \
-  && apt-get install -y wget python python-argparse python-bcrypt openssl python-openssl logrotate net-tools iproute2 iputils-ping \
+  && apt-get install -y wget python python-argparse python-bcrypt python-openssl logrotate net-tools iproute2 iputils-ping \
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
