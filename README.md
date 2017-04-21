@@ -62,6 +62,22 @@ A full example:
 
 	docker run -tid -v <DIRECTORY>:/opt/aerospike/data --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server
 
+## Persistent Lua Cache
+Upon restart, your lua cache will become emptied. To persist the cache, you will want to mount a directory from the host to the guest's `/opt/aerospike/usr/udf/lua` using the `-v` option:
+
+	-v <DIRECTORY_LUA>:/opt/aerospike/usr/udf/lua
+	
+Where `<DIRECTORY_LUA>` is the path to a directory used as a persistent lua cache directory.
+
+In case you did modify the default lua path within the `mod-lua`-block in your server configuration, match the path accordingly:
+
+	- v <DIRECTORY_LUA>:<YOUR_DEFINED_LUA_PATH>
+	
+Where `<DIRECTORY_LUA>` is the path to a directory used as a persistent lua cache directory and `<YOUR_DEFINED_LUA_PATH>` is the lua path set in your server configuration's `mod-lua`-block.
+
+A full example:
+
+	docker run -tid -v <DIRECTORY>:/opt/aerospike/data -v <DIRECTORY_LUA>:/opt/aerospike/usr/udf/lua --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike/aerospike-server
 
 ## Clustering
 
