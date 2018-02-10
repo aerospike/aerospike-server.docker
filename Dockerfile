@@ -15,7 +15,7 @@ ENV AEROSPIKE_SHA256 9b533226d4cc5473fc25f6cc4f81fdd5ba0864aeedef7adf14bdaa4ff1a
 
 RUN \
   apt-get update -y \
-  && apt-get install -y wget python python-argparse python-bcrypt python-openssl logrotate net-tools iproute2 iputils-ping \
+  && apt-get install -y wget python python-argparse python-bcrypt python-openssl logrotate net-tools iproute2 iputils-ping gettext-base\
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
@@ -31,7 +31,7 @@ RUN \
 
 
 # Add the Aerospike configuration specific to this dockerfile
-COPY aerospike.conf /etc/aerospike/aerospike.conf
+COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 COPY entrypoint.sh /entrypoint.sh
 # Mount the Aerospike data directory
 VOLUME ["/opt/aerospike/data"]
