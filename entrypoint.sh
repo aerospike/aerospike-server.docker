@@ -21,7 +21,9 @@ export DEFAULT_TTL=${DEFAULT_TTL:-30d}
 export STORAGE_GB=${STORAGE_GB:-4}
 
 # Fill out conffile with above values
-envsubst < /etc/aerospike/aerospike.template.conf > /etc/aerospike/aerospike.conf
+if [ -f /etc/aerospike/aerospike.template.conf ]; then
+        envsubst < /etc/aerospike/aerospike.template.conf > /etc/aerospike/aerospike.conf
+fi
 
 # if command starts with an option, prepend asd
 if [ "${1:0:1}" = '-' ]; then
