@@ -6,8 +6,8 @@
 
 FROM ubuntu:xenial
 
-ENV AEROSPIKE_VERSION 4.2.0.5
-ENV AEROSPIKE_SHA256 196955d4ece4a322a261edaa0b4e9041a708df894aa7bcaf3af3f36add27098f
+ENV AEROSPIKE_VERSION 4.3.0.2
+ENV AEROSPIKE_SHA256 f1921af1b07ab01380e13da07dce60e79083e2efb149b6e7ca63463274329c8a
 
 
 # Install Aerospike Server and Tools
@@ -15,7 +15,7 @@ ENV AEROSPIKE_SHA256 196955d4ece4a322a261edaa0b4e9041a708df894aa7bcaf3af3f36add2
 
 RUN \
   apt-get update -y \
-  && apt-get install -y wget python python-argparse python-bcrypt python-openssl logrotate net-tools iproute2 iputils-ping gettext-base\
+  && apt-get install -y wget python net-tools iproute2 iputils-ping gettext-base\
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
@@ -25,6 +25,7 @@ RUN \
   && mkdir -p /var/log/aerospike/ \
   && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
+  && rm -rf /opt/aerospike/lib/java \
   && dpkg -r wget ca-certificates \
   && dpkg --purge wget ca-certificates \
   && apt-get purge -y
