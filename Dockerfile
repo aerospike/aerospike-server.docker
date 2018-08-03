@@ -4,10 +4,10 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:xenial
+FROM ubuntu:bionic
 
 ENV AEROSPIKE_VERSION 4.3.0.2
-ENV AEROSPIKE_SHA256 f1921af1b07ab01380e13da07dce60e79083e2efb149b6e7ca63463274329c8a
+ENV AEROSPIKE_SHA256 2da3d1c9af3edecd5a55d02da4e0314966b58fe2cd2487c8c8bfda625c9691ca 
 
 
 # Install Aerospike Server and Tools
@@ -15,8 +15,8 @@ ENV AEROSPIKE_SHA256 f1921af1b07ab01380e13da07dce60e79083e2efb149b6e7ca634632743
 
 RUN \
   apt-get update -y \
-  && apt-get install -y wget python net-tools iproute2 iputils-ping gettext-base\
-  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
+  && apt-get install -y wget python gettext-base \
+  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu18.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
   && tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
@@ -28,7 +28,8 @@ RUN \
   && rm -rf /opt/aerospike/lib/java \
   && dpkg -r wget ca-certificates \
   && dpkg --purge wget ca-certificates \
-  && apt-get purge -y
+  && apt-get purge -y \
+  && apt update;apt upgrade -y;apt autoremove -y
 
 
 # Add the Aerospike configuration specific to this dockerfile
