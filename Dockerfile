@@ -4,19 +4,20 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:bionic
+FROM debian:9.5-slim 
 
-ENV AEROSPIKE_VERSION 4.2.0.10
-ENV AEROSPIKE_SHA256 72669ba02bbb2a458684eff7a547eb3bb095284d685de5d43b7656a15431b6b4
+ENV AEROSPIKE_VERSION 4.3.0.4
+ENV AEROSPIKE_SHA256 d2201a4614e8e020918c65fc1472eab1fe6c704f70bf900737c59f959d41360f
 
 
 # Install Aerospike Server and Tools
 
 
+
 RUN \
   apt-get update -y \
   && apt-get install -y wget python gettext-base \
-  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu18.04.tgz" -O aerospike-server.tgz \
+  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian9.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
   && tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
@@ -30,6 +31,12 @@ RUN \
   && dpkg --purge wget ca-certificates \
   && apt-get purge -y \
   && apt update;apt upgrade -y;apt autoremove -y
+
+#RUN \
+#  echo "deb http://ftp.debian.org/debian sid main" >> /etc/apt/sources.list \
+#  && apt-get update -y \
+#  && apt-get -t sid install libc6 libc6-dev libc6-dbg -y 
+  
 
 
 # Add the Aerospike configuration specific to this dockerfile
