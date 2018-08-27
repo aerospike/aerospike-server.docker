@@ -6,7 +6,7 @@
 
 FROM debian:9.5-slim 
 
-ENV AEROSPIKE_VERSION 4.3.0.6
+ENV AEROSPIKE_VERSION C-4.3.0.6
 ENV AEROSPIKE_SHA256 e8f898211a5fd01c14da8ae1f71468d26cb7d7bac04d9f4674ee61383e8f5de6
 
 
@@ -27,15 +27,11 @@ RUN \
   && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
   && rm -rf /opt/aerospike/lib/java \
-  && dpkg -r wget ca-certificates xz-utils\
+  && dpkg -r wget ca-certificates openssl xz-utils\
   && dpkg --purge wget ca-certificates openssl xz-utils\
   && apt-get purge -y \
-  && apt update;apt upgrade -y;apt autoremove -y
+  && apt autoremove -y
 
-#RUN \
-#  echo "deb http://ftp.debian.org/debian sid main" >> /etc/apt/sources.list \
-#  && apt-get update -y \
-#  && apt-get -t sid install libc6 libc6-dev libc6-dbg -y 
   
 
 
