@@ -6,8 +6,8 @@
 
 FROM debian:9.5-slim 
 
-ENV AEROSPIKE_VERSION 4.3.0.4
-ENV AEROSPIKE_SHA256 d2201a4614e8e020918c65fc1472eab1fe6c704f70bf900737c59f959d41360f
+ENV AEROSPIKE_VERSION 4.3.0.6
+ENV AEROSPIKE_SHA256 e8f898211a5fd01c14da8ae1f71468d26cb7d7bac04d9f4674ee61383e8f5de6
 
 
 # Install Aerospike Server and Tools
@@ -16,7 +16,7 @@ ENV AEROSPIKE_SHA256 d2201a4614e8e020918c65fc1472eab1fe6c704f70bf900737c59f959d4
 
 RUN \
   apt-get update -y \
-  && apt-get install -y wget python gettext-base \
+  && apt-get install -y wget python lua5.2 gettext-base \
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian9.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
@@ -27,8 +27,8 @@ RUN \
   && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
   && rm -rf /opt/aerospike/lib/java \
-  && dpkg -r wget ca-certificates \
-  && dpkg --purge wget ca-certificates \
+  && dpkg -r wget ca-certificates xz-utils\
+  && dpkg --purge wget ca-certificates openssl xz-utils\
   && apt-get purge -y \
   && apt update;apt upgrade -y;apt autoremove -y
 
