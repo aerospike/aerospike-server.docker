@@ -4,20 +4,19 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:9.5-slim 
+FROM ubuntu:xenial
 
-ENV AEROSPIKE_VERSION 4.3.0.6
-ENV AEROSPIKE_SHA256 e8f898211a5fd01c14da8ae1f71468d26cb7d7bac04d9f4674ee61383e8f5de6
+ENV AEROSPIKE_VERSION 4.0.0.6
+ENV AEROSPIKE_SHA256 9a861ec9c03eb85a0a7bdd301d9b247069cecc8e9c757b195a373605a33dacf4 
 
 
 # Install Aerospike Server and Tools
 
 
-
 RUN \
   apt-get update -y \
-  && apt-get install -y wget python lua5.2 gettext-base \
-  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian9.tgz" -O aerospike-server.tgz \
+  && apt-get install -y wget python gettext-base \
+  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
   && tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
@@ -27,12 +26,10 @@ RUN \
   && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
   && rm -rf /opt/aerospike/lib/java \
-  && dpkg -r wget ca-certificates openssl xz-utils\
-  && dpkg --purge wget ca-certificates openssl xz-utils\
+  && dpkg -r wget ca-certificates \
+  && dpkg --purge wget ca-certificates \
   && apt-get purge -y \
-  && apt autoremove -y
-
-  
+  && apt update;apt upgrade -y;apt autoremove -y
 
 
 # Add the Aerospike configuration specific to this dockerfile
