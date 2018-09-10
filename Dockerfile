@@ -6,8 +6,8 @@
 
 FROM debian:9.5-slim 
 
-ENV AEROSPIKE_VERSION 4.3.0.6
-ENV AEROSPIKE_SHA256 e8f898211a5fd01c14da8ae1f71468d26cb7d7bac04d9f4674ee61383e8f5de6
+ENV AEROSPIKE_VERSION 4.1.0.6
+ENV AEROSPIKE_SHA256 98e6d3a4e95bd8119b1d8b3b353a2b06ededd8ee9409401c2a6fc827881b4055
 
 
 # Install Aerospike Server and Tools
@@ -30,7 +30,7 @@ RUN \
   && dpkg -r wget ca-certificates openssl xz-utils\
   && dpkg --purge wget ca-certificates openssl xz-utils\
   && apt-get purge -y \
-  && apt autoremove -y
+  && apt autoremove -y 
 
   
 
