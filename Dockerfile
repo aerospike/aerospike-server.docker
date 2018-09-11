@@ -6,8 +6,8 @@
 
 FROM debian:9.5-slim 
 
-ENV AEROSPIKE_VERSION 4.3.0.7
-ENV AEROSPIKE_SHA256 7586e21fc9c53a152cdd58fb39e9d073ebc71d2898f6e134ae3b1b2deae44022
+ENV AEROSPIKE_VERSION 4.1.0.6
+ENV AEROSPIKE_SHA256 98e6d3a4e95bd8119b1d8b3b353a2b06ededd8ee9409401c2a6fc827881b4055
 
 
 # Install Aerospike Server and Tools
@@ -26,10 +26,11 @@ RUN \
   && mkdir -p /var/log/aerospike/ \
   && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
+  && rm -rf /opt/aerospike/lib/java \
   && dpkg -r wget ca-certificates openssl xz-utils\
   && dpkg --purge wget ca-certificates openssl xz-utils\
   && apt-get purge -y \
-  && apt autoremove -y
+  && apt autoremove -y 
 
   
 
