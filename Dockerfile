@@ -29,10 +29,19 @@ RUN \
   && dpkg --purge wget ca-certificates \
   && apt-get purge -y
 
+RUN apt-get update -y && apt-get install python-pip -y
+COPY src/requirements.txt /requirements.txt
+RUN pip install --trusted-host pypi.python.org -r /requirements.txt
 
 # Add the Aerospike configuration specific to this dockerfile
-COPY aerospike.conf /etc/aerospike/aerospike.conf
+ADD src /
 COPY entrypoint.sh /entrypoint.sh
+COPY aerospike.conf /etc/aerospike/aerospike.conf
+COPY aerospike_multicast.conf /etc/aerospike/aerospike_multicast.conf
+COPY aerospike_mesh.conf /etc/aerospike/aerospike_mesh.conf
+COPY start.sh /start.sh
+COPY run.sh /run.sh
+
 # Mount the Aerospike data directory
 VOLUME ["/opt/aerospike/data"]
 # VOLUME ["/etc/aerospike/"]
@@ -47,6 +56,8 @@ VOLUME ["/opt/aerospike/data"]
 #
 EXPOSE 3000 3001 3002 3003
 
+RUN chmod +x /start.sh
+RUN chmod +x /run.sh
+
 # Execute the run script in foreground mode
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["asd"]
+CMD ["/run.sh"]

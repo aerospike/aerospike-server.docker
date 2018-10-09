@@ -1,0 +1,6 @@
+[submodule "src/ha_lib"]
+	path = src/ha_lib
+	url = git@github.com:CacheboxInc/ha-lib.git
+[submodule "src/etcd_py"]
+	path = src/etcd_py
+	url = git@github.com:CacheboxInc/etcd_py.git
