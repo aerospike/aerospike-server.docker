@@ -16,6 +16,7 @@ import falcon
 from threading import Lock, Thread
 
 from ha_lib.python.ha_lib import *
+from utils import *
 
 #
 # Global services dictionary.
@@ -25,6 +26,8 @@ COMPONENT_SERVICE = "aerospike"
 VERSION           = "v1.0"
 HTTP_OK           = falcon.HTTP_200
 HTTP_UNAVAILABLE  = falcon.HTTP_503
+HTTP_ERROR        = falcon.HTTP_400
+UDF_DIR           = "/etc/aerospike"
 
 MESH_CONFIG_FILE       = "/etc/aerospike/aerospike_mesh.conf"
 MULTICAST_CONFIG_FILE  = "/etc/aerospike/aerospike_multicast.conf"
@@ -35,18 +38,6 @@ class ComponentStop(object):
 
     def on_get(self, req, resp):
         resp.status = HTTP_OK
-
-def dummy1():
-    pass
-
-def dummy2():
-    pass
-
-services = {
-            'component_stop' : ComponentStop(),
-            'dummy1' : dummy1(),
-            'dummy2' : dummy2(),
-           }
 
 def is_service_up():
     cmd = "pidof asd"
@@ -127,6 +118,85 @@ def start_asd_service():
     print(cmd)
     return os.system(cmd)
 
+def is_service_avaliable():
+    cmd = "aql -c \"show namespaces\""
+    ret = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            shell=True)
+    out, err = ret.communicate()
+    status = ret.returncode
+    if status:
+        return False
+
+    return True
+
+class RegisterUDF(object):
+
+    def on_post(self, req, resp):
+
+        log.debug("In RegisterUDF")
+        data = req.stream.read()
+        data = data.decode()
+
+        # We may be running Register UDF just after starting the docker
+        # where asd service may not been started yet, wait for some time
+        retry_cnt = 10
+        while retry_cnt:
+           if is_service_avaliable():
+              break
+           else:
+              time.sleep(5)
+              retry_cnt = retry_cnt - 1
+              log.debug("Register UDF retrying for : %s" %udf_path)
+
+        if retry_cnt == 0:
+           resp.status = HTTP_UNAVAILABLE
+           return
+
+        data_dict = load_data(data)
+        udf_file  = data_dict['udf_file']
+        log.debug("Register UDF file : %s" %udf_file)
+        udf_path = '%s/%s' %(UDF_DIR, udf_file)
+        log.debug("Register UDF path : %s" %udf_path)
+
+        if os.path.isfile(udf_path) == False:
+            log.debug("Register UDF file not present: %s" %udf_path)
+            resp.status = HTTP_ERROR
+            return
+
+        cmd = "aql -c \"register module '%s'\"" %udf_path
+        log.debug("Register UDF cmd is : %s" %cmd)
+        ret = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            shell=True)
+        out, err = ret.communicate()
+        status = ret.returncode
+        if status:
+            resp.status = HTTP_ERROR
+
+        resp.status = HTTP_OK
+
+class UnRegisterUDF(object):
+
+    def on_post(self, req, resp):
+
+        log.debug("In UnRegisterUDF")
+        data = req.stream.read()
+        data = data.decode()
+
+        data_dict = load_data(data)
+        udf_file  = data_dict['udf_file']
+        log.debug("UnRegister UDF: %s" %udf_file)
+        cmd = "aql -c \"remove module %s\"" %udf_file
+        log.debug("UnRegister UDF cmd : %s" %cmd)
+        ret = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            shell=True)
+        out, err = ret.communicate()
+        status = ret.returncode
+        #Ignore error case for now
+        if status:
+            resp.status = HTTP_OK
+
+        resp.status = HTTP_OK
+
 #
 # ComponentMgr Class:
 # Creates an instance of halib with itself.
@@ -173,6 +243,13 @@ class ComponentMgr(Thread):
         print("%s service is down" %COMPONENT_SERVICE)
         self.halib.set_health(False)
         return
+
+services = {
+	'register_udf': RegisterUDF(),
+	'unregister_udf': UnRegisterUDF(),
+	'component_stop' : ComponentStop(),
+       }
+
 
 args = ["etcdip", "svc_label", "svc_idx", "mode","ip", "port"]
 
