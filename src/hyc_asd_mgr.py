@@ -146,6 +146,7 @@ class RegisterUDF(object):
            else:
               time.sleep(5)
               retry_cnt = retry_cnt - 1
+              log.debug("Register UDF retrying for : %s" %udf_path)
 
         if retry_cnt == 0:
            resp.status = HTTP_UNAVAILABLE
@@ -157,7 +158,7 @@ class RegisterUDF(object):
         udf_path = '%s/%s' %(UDF_DIR, udf_file)
         log.debug("Register UDF path : %s" %udf_path)
 
-	if os.path.isfile(udf_path) == False:
+        if os.path.isfile(udf_path) == False:
             log.debug("Register UDF file not present: %s" %udf_path)
             resp.status = HTTP_ERROR
             return
@@ -190,8 +191,9 @@ class UnRegisterUDF(object):
             shell=True)
         out, err = ret.communicate()
         status = ret.returncode
+        #Ignore error case for now
         if status:
-            resp.status = HTTP_ERROR
+            resp.status = HTTP_OK
 
         resp.status = HTTP_OK
 
