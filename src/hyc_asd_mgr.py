@@ -39,12 +39,6 @@ class ComponentStop(object):
     def on_get(self, req, resp):
         resp.status = HTTP_OK
 
-services = {
-            'register_udf': RegisterUDF(),
-            'unregister_udf': UnRegisterUDF(),
-            'component_stop' : ComponentStop(),
-           }
-
 def is_service_up():
     cmd = "pidof asd"
     ret = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -247,6 +241,13 @@ class ComponentMgr(Thread):
         print("%s service is down" %COMPONENT_SERVICE)
         self.halib.set_health(False)
         return
+
+services = {
+	'register_udf': RegisterUDF(),
+	'unregister_udf': UnRegisterUDF(),
+	'component_stop' : ComponentStop(),
+       }
+
 
 args = ["etcdip", "svc_label", "svc_idx", "mode","ip", "port"]
 
