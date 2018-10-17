@@ -146,7 +146,7 @@ class RegisterUDF(object):
            else:
               time.sleep(5)
               retry_cnt = retry_cnt - 1
-              log.debug("Retying, Aerospike daemon is still not up.")
+              log.debug("Retrying, Aerospike daemon is still not up.")
 
         if retry_cnt == 0:
            resp.status = HTTP_UNAVAILABLE
