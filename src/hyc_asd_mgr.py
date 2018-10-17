@@ -139,17 +139,18 @@ class RegisterUDF(object):
 
         # We may be running Register UDF just after starting the docker
         # where asd service may not been started yet, wait for some time
-        retry_cnt = 10
+        retry_cnt = 12
         while retry_cnt:
            if is_service_avaliable():
               break
            else:
               time.sleep(5)
               retry_cnt = retry_cnt - 1
-              log.debug("Register UDF retrying for : %s" %udf_path)
+              log.debug("Retying, Aerospike daemon is still not up.")
 
         if retry_cnt == 0:
            resp.status = HTTP_UNAVAILABLE
+           log.debug("UDF apply failed because Aerospike daemon is not running.")
            return
 
         data_dict = load_data(data)
