@@ -80,7 +80,7 @@ def create_mesh_config(mesh_addrs, mesh_port):
                 output_file.write(filedata[n])
                 continue
 
-    print("Mesh config created")
+    log.debug("Mesh config created")
     return
 
 def create_multicast_config(multi_addr, multi_port):
@@ -106,7 +106,7 @@ def create_multicast_config(multi_addr, multi_port):
                 output_file.write(filedata[n])
                 continue
 
-    print("Multicast config created")
+    log.debug("Multicast config created")
     return
 
 def start_asd_service():
@@ -115,7 +115,7 @@ def start_asd_service():
     else:
         cmd = "/usr/bin/asd"
 
-    print(cmd)
+    log.debug("Executing %s" %cmd)
     return os.system(cmd)
 
 def is_service_avaliable():
@@ -139,17 +139,18 @@ class RegisterUDF(object):
 
         # We may be running Register UDF just after starting the docker
         # where asd service may not been started yet, wait for some time
-        retry_cnt = 10
+        retry_cnt = 12
         while retry_cnt:
            if is_service_avaliable():
               break
            else:
               time.sleep(5)
               retry_cnt = retry_cnt - 1
-              log.debug("Register UDF retrying for : %s" %udf_path)
+              log.debug("Retrying register_udf. Aerospike daemon is still not up.")
 
         if retry_cnt == 0:
            resp.status = HTTP_UNAVAILABLE
+           log.debug("UDF apply failed because Aerospike daemon is not running.")
            return
 
         data_dict = load_data(data)
@@ -213,18 +214,19 @@ class ComponentMgr(Thread):
 
         self.halib = HALib(etcd_server_ip, VERSION, service_type, services,
                                 service_idx)
-        print("HALib started")
+        log.debug("HALib started")
 
     def on_post(self, req, resp, doc):
         if not self.started:
             ret = start_asd_service()
             if ret:
-                print("Failed to start asd service")
+                log.debug("Failed to start asd service")
                 resp.status = HTTP_UNAVAILABLE
                 return
 
             self.started = True
             self.start()
+            log.debug("Waiting for asd service to come up")
             time.sleep(10)
             resp.status  = HTTP_OK
 
@@ -236,11 +238,12 @@ class ComponentMgr(Thread):
     def run(self):
         while (is_service_up()):
             self.halib.set_health(True)
+            log.debug("Updated health lease")
             time.sleep(self.halib.get_health_lease()/ 3)
 
-        print("asd health is down")
+        log.debug("asd health is down")
         self.started = False
-        print("%s service is down" %COMPONENT_SERVICE)
+        log.debug("%s service is down" %COMPONENT_SERVICE)
         self.halib.set_health(False)
         return
 
