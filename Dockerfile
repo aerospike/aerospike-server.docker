@@ -12,19 +12,19 @@ ENV AEROSPIKE_SHA256 0ba99d3b9218978f9fde77f84840d33dba9c12b10a75b1e290565cdfe0e
 
 # Install Aerospike Server and Tools
 
-
+ADD aerospike aerospike
 RUN \
   apt-get update -y \
   && apt-get install -y wget python python-argparse python-bcrypt python-openssl logrotate net-tools iproute2 iputils-ping \
-  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
-  && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
-  && mkdir aerospike \
-  && tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
-  && dpkg -i aerospike/aerospike-server-*.deb \
-  && dpkg -i aerospike/aerospike-tools-*.deb \
+  #&& wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-ubuntu16.04.tgz" -O aerospike-server.tgz \
+  #&& echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
+  #&& mkdir aerospike \
+  #&& tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
+  && dpkg -i /aerospike/aerospike-server-community_3.14.1.5-1_amd64.deb \
+  && dpkg -i /aerospike/aerospike-tools_3.13.0.1_amd64.deb \
   && mkdir -p /var/log/aerospike/ \
   && mkdir -p /var/run/aerospike/ \
-  && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
+  #&& rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
   && dpkg -r wget ca-certificates \
   && dpkg --purge wget ca-certificates \
   && apt-get purge -y
