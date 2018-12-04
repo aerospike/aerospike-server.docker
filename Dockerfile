@@ -4,7 +4,7 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:9.5-slim 
+FROM debian:stretch-slim 
 
 ENV AEROSPIKE_VERSION 4.4.0.5
 ENV AEROSPIKE_SHA256 036b52b4098ba11a4cabe31f1469c7a211e6591413f30c7fd6fa1f510e86aeea
