@@ -39,6 +39,7 @@ COPY entrypoint.sh /entrypoint.sh
 COPY aerospike.conf /etc/aerospike/aerospike.conf
 COPY aerospike_multicast.conf /etc/aerospike/aerospike_multicast.conf
 COPY aerospike_mesh.conf /etc/aerospike/aerospike_mesh.conf
+COPY aerospike.logrotate.txt /etc/logrotate.d/aerospike
 COPY udf/* /etc/aerospike/
 COPY start.sh /start.sh
 COPY run.sh /run.sh

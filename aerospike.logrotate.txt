@@ -1,0 +1,13 @@
+/var/log/aerospike/aerospike.log {
+    su root root
+    rotate 5
+    dateext
+    size 50M
+    compress
+    olddir /var/log/aerospike/
+    postrotate
+        /bin/kill -HUP `pidof asd`
+    endscript
+}
+
+
