@@ -50,7 +50,7 @@ config_high = { "max-write-cache" : 536870912,
             }
 
 config_low  = { "max-write-cache" : 268435456,
-                "post-write-queue" : 1024,
+                "post-write-queue" : 256,
                 "memory_per_ns" : 2,
                 "system" : 1,
             }
@@ -77,7 +77,7 @@ def get_memory_config(memory, disks):
         config = config_high
 
     min_req    = disks * (config['max-write-cache'] >> 20) / 1024
-    min_req    = min_req + disks * (config['post-write-queue'] >> 10) + config['system']
+    min_req    = min_req + ((disks * config['post-write-queue']) >> 10) + config['system']
     avail_mem  = memory - min_req
 
     log.debug("min_req: %s avail_mem: %s" %(min_req, avail_mem))
