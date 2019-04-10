@@ -31,11 +31,26 @@ function hyc_delete_rec(rec, input_ids)
 	if vmdkid == -1 or ckpt_id == -1 or offset == -1 or count ~= 3 then
 		trace("HYC_UDF Error, Invalid record format");
 	else
-		local id
-		for id in list.iterator(input_ids) do
-			id = tonumber(id)
-			if rec_vmdkid == id then
-				trace("HYC_UDF found match with :: %d", tonumber(id));
+		local elem
+		local result
+		local input_vmdkid = -1; input_ckptid = -1
+		count = 0
+		for elm in list.iterator(input_ids) do
+			result = split(elm, ":")
+			for _,val in ipairs(result) do
+				if count == 0 then
+					input_vmdkid = tonumber(val)
+				elseif count == 1 then
+					input_ckptid = tonumber(val)
+				end
+				count = count + 1
+			end
+
+			trace("HYC_UDF input_vmdkid: %d rec_vmdkid: %d", tonumber(input_vmdkid), tonumber(rec_vmdkid));
+			trace("HYC_UDF input_ckptid: %d rec_ckptid: %d", tonumber(input_ckptid), tonumber(rec_ckptid));
+
+			if rec_vmdkid == input_vmdkid and (input_ckptid == 0 or rec_ckptid == input_ckptid) then
+				trace("HYC_UDF found match ckpt ID :: %d, offset : %d", tonumber(rec_ckptid), rec_offset);
 				aerospike:remove(rec)
 			end
 		end
