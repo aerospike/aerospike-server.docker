@@ -34,9 +34,10 @@ function hyc_delete_rec(rec, input_ids)
 		local elem
 		local result
 		local input_vmdkid = -1; input_ckptid = -1
-		count = 0
 		for elm in list.iterator(input_ids) do
 			result = split(elm, ":")
+			trace("HYC_UDF result:: (%s)--------------------", tostring(result));
+			count = 0
 			for _,val in ipairs(result) do
 				if count == 0 then
 					input_vmdkid = tonumber(val)
