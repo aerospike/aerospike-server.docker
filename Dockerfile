@@ -36,7 +36,6 @@ COPY src/requirements.txt /requirements.txt
 RUN pip install -r /requirements.txt
 
 # Add the Aerospike configuration specific to this dockerfile
-ADD src /
 COPY entrypoint.sh /entrypoint.sh
 COPY aerospike.template.conf /etc/aerospike/aerospike.conf
 COPY aerospike_multicast.conf /etc/aerospike/aerospike_multicast.conf
@@ -63,6 +62,7 @@ EXPOSE 3000 3001 3002 3003
 
 RUN chmod +x /start.sh
 RUN chmod +x /run.sh
+ADD src /
 
 # Execute the run script in foreground mode
 CMD ["/run.sh"]

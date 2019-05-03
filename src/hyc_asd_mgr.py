@@ -290,9 +290,13 @@ class RegisterUDF(object):
         out, err = ret.communicate()
         status = ret.returncode
         if status:
+            log.error("Error in registering udf with aerospike cmd: %s" %cmd)
             resp.status = HTTP_ERROR
+            return
 
         resp.status = HTTP_OK
+        log.info(" UDF: %s registered successfully." %udf_file)
+        return
 
 class UnRegisterUDF(object):
 
@@ -339,23 +343,30 @@ class ComponentMgr(Thread):
         if not self.started:
             ret = start_asd_service()
             if ret:
-                log.debug("Failed to start asd service")
+                log.error("Failed to start asd service")
                 resp.status = HTTP_UNAVAILABLE
                 return
 
+            st = is_service_avaliable()
+            while not st:
+                log.debug("Waiting for asd service to come up")
+                time.sleep(10)
+                st = is_service_avaliable()
+
             self.started = True
             self.start()
-            log.debug("Waiting for asd service to come up")
-            time.sleep(10)
             resp.status  = HTTP_OK
+            log.debug("Aerospike started and running!!")
+            return
 
         else:
             #Nothing to do. Return Success
             resp.status  = HTTP_OK
+            log.info("component_start received again!!!")
             pass
 
     def run(self):
-        while (is_service_up()):
+        while (is_service_up() and is_service_avaliable()):
             self.halib.set_health(True)
             log.debug("Updated health lease")
             time.sleep(self.halib.get_health_lease()/ 3)
