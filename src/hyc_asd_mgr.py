@@ -70,6 +70,7 @@ def is_service_up():
 def get_memory_config(memory, disks):
 
     log.debug("Total: %s" %memory)
+    config = config_low
     if memory >= 10 and memory < 20:
         config = config_low
 
