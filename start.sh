@@ -85,4 +85,4 @@ while true ; do
       esac
 done
 
-gunicorn -b 0.0.0.0:$HA_PORT hyc_asd_mgr:app etcdip=$ETCDIP svc_label=$SVCLABEL svc_idx=$SVCIDX mode=$MODE ip=$IP port=$PORT memory=$MEMORY disks=$DISKS
+gunicorn -b 0.0.0.0:$HA_PORT --certfile=/tmp/server_certificate.pem --keyfile=/tmp/server_key.pem hyc_asd_mgr:app etcdip=$ETCDIP svc_label=$SVCLABEL svc_idx=$SVCIDX mode=$MODE ip=$IP port=$PORT memory=$MEMORY disks=$DISKS
