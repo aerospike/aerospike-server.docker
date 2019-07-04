@@ -19,7 +19,6 @@ export REPL_FACTOR=${REPL_FACTOR:-2}
 export MEM_GB=${MEM_GB:-1}
 export DEFAULT_TTL=${DEFAULT_TTL:-30d}
 export STORAGE_GB=${STORAGE_GB:-4}
-export STORAGE_GB=${STORAGE_GB:-4}
 export APP_USER=$(whoami)
 export APP_GROUP=${APP_GROUP:=root}
 
