@@ -25,6 +25,7 @@ from utils import *
 COMPONENT_SERVICE = "aerospike"
 VERSION           = "v1.0"
 HTTP_OK           = falcon.HTTP_200
+HTTP_ACCEPTED     = falcon.HTTP_202
 HTTP_UNAVAILABLE  = falcon.HTTP_503
 HTTP_ERROR        = falcon.HTTP_400
 UDF_DIR           = "/etc/aerospike"
@@ -348,16 +349,8 @@ class ComponentMgr(Thread):
                 resp.status = HTTP_UNAVAILABLE
                 return
 
-            st = is_service_avaliable()
-            while not st:
-                log.debug("Waiting for asd service to come up")
-                time.sleep(10)
-                st = is_service_avaliable()
-
-            self.started = True
             self.start()
-            resp.status  = HTTP_OK
-            log.debug("Aerospike started and running!!")
+            resp.status  = HTTP_ACCEPTED
             return
 
         else:
@@ -366,15 +359,41 @@ class ComponentMgr(Thread):
             log.info("component_start received again!!!")
             pass
 
+    def on_get(self, req, resp):
+        log.debug("In get comp_start")
+
+        if not is_service_up():
+            st_msg = "Aerospike service down. Component_start failed!!"
+            log.error(st_msg)
+            resp.body = json.dumps({"status": 2, "status_msg": st_msg})
+
+        if is_service_avaliable():
+            st_msg = "Aerospike service started successfully"
+            resp.body = json.dumps({"status": 1, "status_msg": st_msg})
+        else:
+            st_msg = "Aerospike service start in progress"
+            resp.body = json.dumps({"status": 0, "status_msg": st_msg})
+
+        resp.status = HTTP_OK
+
     def run(self):
+        log.debug("Starting hb thread")
+        st = is_service_avaliable()
+        while not st:
+            log.debug("Waiting for asd service to come up")
+            time.sleep(10)
+            st = is_service_avaliable()
+
+        self.started = True
+        log.debug("Aerospike started and running!!")
         while (is_service_up() and is_service_avaliable()):
             self.halib.set_health(True)
             log.debug("Updated health lease")
             time.sleep(self.halib.get_health_lease()/ 3)
 
-        log.debug("asd health is down")
+        log.error("asd health is down")
         self.started = False
-        log.debug("%s service is down" %COMPONENT_SERVICE)
+        log.error("%s service is down" %COMPONENT_SERVICE)
         self.halib.set_health(False)
         return
 
