@@ -1,8 +1,8 @@
 #!/bin/sh
 
 echo "ASD package start"
-OPTIONS=e:l:n:m:i:p:h:y:d:
-LONGOPTS=etcdip:,svc_label:,svc_idx:,mode:,ip:,port:,ha_port:,memory_size_gb:,disks:
+OPTIONS=e:l:n:m:i:p:h:y:d:r:
+LONGOPTS=etcdip:,svc_label:,svc_idx:,mode:,ip:,port:,ha_port:,memory_size_gb:,disks:,migration_profile:
 
 ! PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTS --name "$0" -- "$@")
 eval set -- "$PARSED"
@@ -16,6 +16,7 @@ PORT=""
 HA_PORT=8000
 MEMORY=10
 DISKS=2
+MIGRATION_PROFILE="lite"
 
 while true ; do
       case $1 in
@@ -73,6 +74,12 @@ while true ; do
                   shift 2
                   ;;
 
+            -r|--migration_profile)
+                  echo "Setting migration profile to [$2] !"
+                  MIGRATION_PROFILE=$2
+                  shift 2
+                  ;;
+
             --)
                   shift
                   break
@@ -85,4 +92,4 @@ while true ; do
       esac
 done
 
-gunicorn -b 0.0.0.0:$HA_PORT --certfile=/etc/certs/server_certificate.pem --keyfile=/etc/certs/server_key.pem hyc_asd_mgr:app etcdip=$ETCDIP svc_label=$SVCLABEL svc_idx=$SVCIDX mode=$MODE ip=$IP port=$PORT memory=$MEMORY disks=$DISKS
+gunicorn -b 0.0.0.0:$HA_PORT --certfile=/etc/certs/server_certificate.pem --keyfile=/etc/certs/server_key.pem hyc_asd_mgr:app etcdip=$ETCDIP svc_label=$SVCLABEL svc_idx=$SVCIDX mode=$MODE ip=$IP port=$PORT memory=$MEMORY disks=$DISKS migration_profile=$MIGRATION_PROFILE
