@@ -91,7 +91,7 @@ def get_memory_config(unused):
     return copy.copy(memory_config[SELECTED_PROFILE])
 
 def get_disks_for_config(no_disks):
-    disks = ['sdb', 'sdc', 'sdd', 'sde', 'sdf', 'sdg', 'sdh', 'sdi', 'sdj', 'sdk']
+    disks = ['sdc', 'sdd', 'sde', 'sdf', 'sdg', 'sdh', 'sdi', 'sdj', 'sdk', 'sdl']
     dev_str = "\t\tdevice /dev/"
 
     no_disks = int(no_disks)
