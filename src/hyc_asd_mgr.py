@@ -44,6 +44,7 @@ DIRTY_DISKS_MARKER = "DIRTY_DISKS"
 MEMORY_PER_NS_MARKER = "MEMORY_PER_NS"
 MWC_MEMORY_MARKER = "MWC_MEMORY"
 PWQ_MEMORY_MARKER = "PWQ_MEMORY"
+DIRTY_REP_FACTOR_MARKER = "DIRTY_REP_FACTOR"
 
 memory_config = {
     "lite" : {
@@ -51,18 +52,21 @@ memory_config = {
         "post-write-queue" : 64,
         "memory_per_ns": 3,
         "system" : 1,
+        "dirty-rep-factor" : 1,
     },
     "standard": {
         "max-write-cache" : 256*1024*1024,
         "post-write-queue" : 256,
         "memory_per_ns": 4,
         "system" : 2,
+        "dirty-rep-factor" : 2,
     },
     "performance": {
         "max-write-cache" : 512*1024*1024,
         "post-write-queue" : 1024,
         "memory_per_ns": 8,
         "system" : 4,
+        "dirty-rep-factor" : 2,
     },
 }
 
@@ -170,6 +174,11 @@ def create_mesh_config(mesh_addrs, mesh_port, memory, disks):
                 output_file.write(new_str)
                 continue
 
+            elif line.strip().startswith(DIRTY_REP_FACTOR_MARKER):
+                new_str = "\treplication-factor %s\n" %mem_config["dirty-rep-factor"]
+                output_file.write(new_str)
+                continue
+
             else:
                 output_file.write(filedata[n])
                 continue
@@ -222,6 +231,10 @@ def create_multicast_config(multi_addr, multi_port, memory, disks):
                 continue
             elif line.strip().startswith(PWQ_MEMORY_MARKER):
                 new_str = "\t\tpost-write-queue %s\n" %mem_config["post-write-queue"]
+                output_file.write(new_str)
+                continue
+            elif line.strip().startswith(DIRTY_REP_FACTOR_MARKER):
+                new_str = "\treplication-factor %s\n" %mem_config["dirty-rep-factor"]
                 output_file.write(new_str)
                 continue
             else:
