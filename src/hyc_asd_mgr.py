@@ -47,8 +47,8 @@ PWQ_MEMORY_MARKER = "PWQ_MEMORY"
 
 memory_config = {
     "lite" : {
-        "max-write-cache" : 128*1024*1024,
-        "post-write-queue" : 1,
+        "max-write-cache" : 256*1024*1024,
+        "post-write-queue" : 64,
         "memory_per_ns": 3,
         "system" : 1,
     },
