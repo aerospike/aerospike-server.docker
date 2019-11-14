@@ -55,7 +55,7 @@ memory_config = {
         "dirty-rep-factor" : 1,
     },
     "standard": {
-        "max-write-cache" : 256*1024*1024,
+        "max-write-cache" : 512*1024*1024,
         "post-write-queue" : 256,
         "memory_per_ns": 4,
         "system" : 2,
