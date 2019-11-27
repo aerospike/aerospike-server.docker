@@ -59,14 +59,14 @@ memory_config = {
         "post-write-queue" : 256,
         "memory_per_ns": 4,
         "system" : 2,
-        "dirty-rep-factor" : 2,
+        "dirty-rep-factor" : 1,
     },
     "performance": {
         "max-write-cache" : 512*1024*1024,
         "post-write-queue" : 1024,
         "memory_per_ns": 8,
         "system" : 4,
-        "dirty-rep-factor" : 2,
+        "dirty-rep-factor" : 1,
     },
 }
 
