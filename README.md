@@ -30,23 +30,26 @@ You can provide environment variables to the running container via the `-e` flag
 
 List of Environment Variables:
 
-  * SERVICE_THREADS - Default: Number of vCPUs
-  * TRANSACTION_QUEUES - Default: Number of vCPUs
-  * TRANSACTION_THREADS_PER_QUEUE - Default: 4
-  * LOGFILE - Default: /dev/null, do not log to file, log to stdout
-  * SERVICE_ADDRESS - Default: any
-  * SERVICE_PORT - Default: 3000
-  * HB_ADDRESS - Default: any
-  * HB_PORT - Default: 3002
-  * FABRIC_ADDRESS - Default: any
-  * FABRIC_PORT - Default: 3001
-  * INFO_ADDRESS - Default: any
-  * INFO_PORT - Default: 3003
-  * NAMESPACE - Default: test
-  * REPL_FACTOR - Default: 2
-  * MEM_GB - Default: 1, the unit is always `G` (GB)
-  * DEFAULT_TTL - Default: 30d
-  * STORAGE_GB - Default: 4, the unit is always `G` (GB)
+| Name        | Default           | Note  |
+| ------------- |:-------------:| -----|
+| SERVICE_THREADS | Number of vCPUs |
+| TRANSACTION_QUEUES | Number of vCPUs |
+| TRANSACTION_THREADS_PER_QUEUE | 4 |
+| LOGFILE | /dev/null |do not log to file, log to stdout |
+| SERVICE_ADDRESS | any |
+| SERVICE_PORT | 3000 |
+| HB_ADDRESS | any |
+| HB_PORT | 3002 |
+| FABRIC_ADDRESS | any |
+| FABRIC_PORT | 3001 |
+| INFO_ADDRESS | any |
+| INFO_PORT | 3003 |
+| NAMESPACE | test |
+| REPL_FACTOR | 2 |
+| MEM_GB | 1 | the unit is always `G` (GB) |
+| DEFAULT_TTL | 30d |
+| STORAGE_GB | 4 | the unit is always `G` (GB) |
+| SECURITY_ENABLED | false |
 
 See the [configuration reference](https://www.aerospike.com/docs/reference/configuration/index.html) for what each controls.
 

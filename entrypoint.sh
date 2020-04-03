@@ -19,6 +19,7 @@ export REPL_FACTOR=${REPL_FACTOR:-2}
 export MEM_GB=${MEM_GB:-1}
 export DEFAULT_TTL=${DEFAULT_TTL:-30d}
 export STORAGE_GB=${STORAGE_GB:-4}
+export SECURITY_ENABLED=${SECURITY_ENABLED:-false}
 
 # Fill out conffile with above values
 if [ -f /etc/aerospike/aerospike.template.conf ]; then
