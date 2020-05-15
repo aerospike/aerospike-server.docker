@@ -47,6 +47,7 @@ List of Environment Variables:
   * MEM_GB - Default: 1, the unit is always `G` (GB)
   * DEFAULT_TTL - Default: 30d
   * STORAGE_GB - Default: 4, the unit is always `G` (GB)
+  * NSUP_PERIOD - Default: 120 , nsup-period in seconds 
 
 See the [configuration reference](https://www.aerospike.com/docs/reference/configuration/index.html) for what each controls.
 
