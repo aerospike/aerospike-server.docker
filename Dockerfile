@@ -6,15 +6,15 @@
 
 FROM debian:stretch-slim 
 
-ENV AEROSPIKE_VERSION 5.0.0.10
-ENV AEROSPIKE_SHA256 cf56e1dfabf73508491c669a9eaf32b97ddb91863e4bd78cd0cec64bc53fd0ca
+ENV AEROSPIKE_VERSION 5.0.0.11
+ENV AEROSPIKE_SHA256 1df0eb6d966397572a5a350c72d76013eb7357c8d9614730a8e2b560c85d793a
 
 # Install Aerospike Server and Tools
 
 
 RUN \
   apt-get update -y \
-  && apt-get install -y wget python lua5.2 gettext-base \
+  && apt-get install -y wget python lua5.2 gettext-base libcurl4-openssl-dev  \
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian9.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
