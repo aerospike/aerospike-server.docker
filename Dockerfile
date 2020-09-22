@@ -36,8 +36,10 @@ RUN \
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 COPY entrypoint.sh /entrypoint.sh
+
 # Mount the Aerospike data directory
-VOLUME ["/opt/aerospike/data"]
+# VOLUME ["/opt/aerospike/data"]
+# Mount the Aerospike config directory
 # VOLUME ["/etc/aerospike/"]
 
 
