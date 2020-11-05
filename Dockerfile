@@ -6,15 +6,15 @@
 
 FROM debian:stretch-slim 
 
-ENV AEROSPIKE_VERSION 5.2.0.4
-ENV AEROSPIKE_SHA256 36e03a4370e111e0512a3061d8bd1c1927934ac70e6777a9940fb633b61eee65
+ENV AEROSPIKE_VERSION 4.8.0.18
+ENV AEROSPIKE_SHA256 7289b7f02e7a45ec85f2d9ea00e1e0853fb31b576bc2c00d755df7ae29f564ea
 
 # Install Aerospike Server and Tools
 
 
 RUN \
   apt-get update -y \
-  && apt-get install -y wget python lua5.2 gettext-base libcurl4-openssl-dev  \
+  && apt-get install -y iproute2 procps dumb-init wget python lua5.2 gettext-base libcurl4-openssl-dev  \
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian9.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
@@ -52,6 +52,9 @@ COPY entrypoint.sh /entrypoint.sh
 #
 EXPOSE 3000 3001 3002 3003
 
+# Runs as PID 1 /usr/bin/dumb-init -- /my/script --with --args"
+# https://github.com/Yelp/dumb-init
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 # Execute the run script in foreground mode
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["asd"]
+CMD ["/entrypoint.sh","asd"]
