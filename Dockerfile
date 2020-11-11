@@ -6,8 +6,8 @@
 
 FROM debian:stretch-slim 
 
-ENV AEROSPIKE_VERSION 5.2.0.6
-ENV AEROSPIKE_SHA256 2535189dcb55c6bdb46fd4785fb50a353ad82e3ab1d1be7fc6410a07b59ee2c2
+ENV AEROSPIKE_VERSION 4.7.0.22
+ENV AEROSPIKE_SHA256 efb1dab6fe852ca5d857071ba42adb07e9cdf4f20812d5be1495e9678388f79b
 
 # Install Aerospike Server and Tools
 
@@ -55,6 +55,7 @@ EXPOSE 3000 3001 3002 3003
 # Runs as PID 1 /usr/bin/dumb-init -- /my/script --with --args"
 # https://github.com/Yelp/dumb-init
 
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/entrypoint.sh"]
 # Execute the run script in foreground mode
-CMD ["/entrypoint.sh","asd"]
+CMD ["asd"]
+
