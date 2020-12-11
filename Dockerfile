@@ -14,7 +14,7 @@ ENV AEROSPIKE_SHA256 aacdf1699aab4c84cfdd0f9bd1169c2239cab9aeccbab50aba1dd9ece96
 
 RUN \
   apt-get update -y \
-  && apt-get install -y iproute2 procps dumb-init wget python lua5.2 gettext-base libcurl4-openssl-dev  \
+  && apt-get install -y iproute2 procps dumb-init wget python python3 lua5.2 gettext-base libcurl4-openssl-dev  \
   && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian9.tgz" -O aerospike-server.tgz \
   && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
