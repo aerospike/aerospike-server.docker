@@ -4,7 +4,7 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:stretch-slim 
+FROM debian:stretch-slim
 
 ENV AEROSPIKE_VERSION 5.5.0.3
 ENV AEROSPIKE_SHA256 5649c59750042c8926af6ea2120a9ce6de008e9e4fede1329735b32a82f6dec2
@@ -28,9 +28,14 @@ RUN \
   && dpkg -r wget ca-certificates openssl xz-utils\
   && dpkg --purge wget ca-certificates openssl xz-utils\
   && apt-get purge -y \
-  && apt autoremove -y 
-
-  
+  && apt autoremove -y \
+  # Remove symbolic links of aerospike tool binaries
+  # Move aerospike tool binaries to /usr/bin/
+  # Remove /opt/aerospike/bin
+  && find /usr/bin/ -lname '/opt/aerospike/bin/*' -delete \
+  && find /opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} + \
+  && mv /opt/aerospike/bin/* /usr/bin/ \
+  && rm -rf /opt/aerospike/bin
 
 
 # Add the Aerospike configuration specific to this dockerfile
@@ -58,4 +63,3 @@ EXPOSE 3000 3001 3002 3003
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/entrypoint.sh"]
 # Execute the run script in foreground mode
 CMD ["asd"]
-
