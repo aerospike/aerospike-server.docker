@@ -53,9 +53,8 @@ COPY entrypoint.sh /entrypoint.sh
 #   3000 – service port, for client connections
 #   3001 – fabric port, for cluster communication
 #   3002 – mesh port, for cluster heartbeat
-#   3003 – info port
 #
-EXPOSE 3000 3001 3002 3003
+EXPOSE 3000 3001 3002
 
 # Runs as PID 1 /usr/bin/dumb-init -- /my/script --with --args"
 # https://github.com/Yelp/dumb-init
