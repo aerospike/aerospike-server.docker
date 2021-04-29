@@ -39,7 +39,7 @@ Edition.
 ### Running an Aerospike node <a id="running-an-aerospike-node"></a>
 
 ```sh
-docker run -tid --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
+docker run -d --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
 ```
 
 ## Connecting to your Aerospike contianer <a id="connecting-to-you-aerospike-container"></a>
@@ -124,7 +124,7 @@ For example, to set the default [namespace](https://www.aerospike.com/docs/archi
 name to _demo_:
 
 ```sh
-docker run -tid --name aerospike -e "NAMESPACE=demo" -p 3000-3002:3000-3002 -v /my/dir:/opt/aerospike/etc/ aerospike/aerospike-server
+docker run -d --name aerospike -e "NAMESPACE=demo" -p 3000-3002:3000-3002 -v /my/dir:/opt/aerospike/etc/ aerospike/aerospike-server
 ```
 
 Injecting configuration parameters into the configuration template isn't
@@ -163,7 +163,7 @@ container the configuration file is (the default path is
 For example:
 
 ```sh
-docker run -tid -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
+docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
 ```
 
 ### Persistent data directory <a id="persistent-data-directory"></a>
@@ -175,7 +175,7 @@ host to the container's /opt/aerospike/data using the `-v` option:
 For example:
 
 ```sh
-docker run -tid  -v /opt/aerospike/data:/opt/aerospike/data  -v /opt/aerospike/etc:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
+docker run -d  -v /opt/aerospike/data:/opt/aerospike/data  -v /opt/aerospike/etc:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
 ```
 
 The example above uses the configuration template, where the single defined
@@ -201,7 +201,7 @@ In this example we also mount the data directory in a similar way, using a
 custom configuration file
 
 ```sh
-docker run -tid -v /opt/aerospike/data:/opt/aerospike/data -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
+docker run -d -v /opt/aerospike/data:/opt/aerospike/data -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
 ```
 
 ### Block Storage <a id="block-storage"></a>
@@ -225,7 +225,7 @@ namespace test {
 Now to map a host drive /dev/sdc to /dev/xvdc on a container
 
 ```sh
-docker run -tid --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
+docker run -d --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
 ```
 
 ### Persistent Lua cache <a id="persistent-lua-cache"></a>
@@ -235,7 +235,7 @@ will want to mount a directory from the host to the container's
 `/opt/aerospike/usr/udf/lua` using the `-v` option:
 
 ```sh
-docker run -tid -v /opt/aerospike/lua:/opt/aerospike/usr/udf/lua -v /opt/aerospike/data:/opt/aerospike/data --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
+docker run -d -v /opt/aerospike/lua:/opt/aerospike/usr/udf/lua -v /opt/aerospike/data:/opt/aerospike/data --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
 ```
 
 ### A note about security <a id="a-note-about-security"></a>
