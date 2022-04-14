@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-fullVersion="$(curl -sSL 'https://www.aerospike.com/artifacts/aerospike-server-community/' | grep -E '<a href="[0-9.-]+/"' | sed -r 's!.*<a href="([0-9.-]+)/".*!\1!' | sort -V | tail -1)"
+fullVersion="$(curl -sSL 'https://www.aerospike.com/artifacts/aerospike-server-community/' | grep -E '<a href="[0-9.-]+[-].*/"' | sed -r 's!.*<a href="([0-9.-]+[-].*)/".*!\1!' | sort -V | tail -1)"
 
 sha256="$(curl -sSL "https://www.aerospike.com/artifacts/aerospike-server-community/${fullVersion}/aerospike-server-community-${fullVersion}-ubuntu20.04.tgz.sha256" | cut -d' ' -f1)"
 
