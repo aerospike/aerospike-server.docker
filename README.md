@@ -287,7 +287,7 @@ These images are based on [debian:strech-slim](https://hub.docker.com/_/debian).
 
 ## Reporting Issues <a id="reporting-issues"></a>
 
-If you have any problems with or questions about this image, please contact us on the [Aerospike Forums](discuss.aerospike.com) or open an issue in [aerospike/aerospike-server.docker](https://github.com/aerospike/aerospike-server.docker/issues).
+If you have any problems with or questions about this image, please contact us on the [Aerospike Forums](https://discuss.aerospike.com/) or open an issue in [aerospike/aerospike-server.docker](https://github.com/aerospike/aerospike-server.docker/issues).
 
 ## License <a id="license"></a>
 
