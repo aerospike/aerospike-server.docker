@@ -135,14 +135,9 @@ compatible with using a custom configuration file. You can use one or the other.
   * `LOGFILE` - the [`file`](https://docs.aerospike.com/reference/configuration#file) param of the `logging` context. Default: /dev/null, do not log to file, log to stdout
   * `SERVICE_ADDRESS` - the bind [`address`](https://docs.aerospike.com/reference/configuration#address) of the `networking.service` subcontext. Default: any
   * `SERVICE_PORT` - the [`port`](https://docs.aerospike.com/reference/configuration#port) of the `networking.service` subcontext. Default: 3000
-  * `HB_ADDRESS` - the `networking.heartbeat` [`address`](https://docs.aerospike.com/reference/configuration#address) for cross cluster mesh. Default: any
-  * `HB_PORT` -  the [`port`](https://docs.aerospike.com/reference/configuration#port) for `networking.heartbeat` communications. Default: 3002
-  * `FABRIC_ADDRESS` - the [`address`](https://docs.aerospike.com/reference/configuration#address) of the `networking.fabric` subcontext. Default: any
-  * `FABRIC_PORT` - the [`port`](https://docs.aerospike.com/reference/configuration#port) of the `networking.fabric` subcontext. Default: 3001
 
 The single preconfigured namespace is [in-memory with filesystem persistence](https://docs.aerospike.com/server/operations/configure/namespace/storage#recipe-for-an-hdd-storage-engine-with-data-in-memory)
   * `NAMESPACE` - the name of the namespace. Default: test
-  * `REPL_FACTOR` - the namespace [`replication-factor`](https://docs.aerospike.com/reference/configuration#replication-factor). Default: 2
   * `MEM_GB` - the namespace [`memory-size`](https://docs.aerospike.com/reference/configuration#memory-size). Default: 1, the unit is always `G` (GB)
   * `DEFAULT_TTL` - the namespace [`default-ttl`](https://docs.aerospike.com/reference/configuration#default-ttl). Default: 30d
   * `STORAGE_GB` - the namespace persistence `file` size. Default: 4, the unit is always `G` (GB)
