@@ -18,7 +18,7 @@
    * [Block Storage](#block-storage)
    * [Persistent Lua Cache](#persistent-lua-cache)
    * [A note about security](#a-note-about-security)
- * [Clustering](#clustering)
+ * [Networking](#networking)
    * [Configuring the node's access address](#configuring-the-nodes-access-address)
    * [Mesh Clustering](#mesh-clustering)
  * [Sending Performance Data to Aerospike](#sending-performance-data-to-aerospike)
@@ -88,7 +88,7 @@ Admin> info
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Network Information (2021-04-20 01:57:37 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
            Node|         Node ID|             IP|    Build|Migrations|~~~~~~~~~~~~~~~~~~Cluster~~~~~~~~~~~~~~~~~~|Client|  Uptime
                |                |               |         |          |Size|         Key|Integrity|      Principal| Conns|        
-172.17.0.2:3000|*BB9020011AC4202|172.17.0.2:3000|C-5.5.0.9|   0.000  |   1|3FA2C989BDC9|True     |BB9020011AC4202|     4|00:06:54
+172.17.0.2:3000|*BB9020011AC4202|172.17.0.2:3000|C-5.7.0.9|   0.000  |   1|3FA2C989BDC9|True     |BB9020011AC4202|     4|00:06:54
 Number of rows: 1
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Namespace Usage Information (2021-04-20 01:57:37 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -240,7 +240,7 @@ that bad things can happen to good people.
 Also see the knowledge base article
 [How To secure Aerospike database servers](https://discuss.aerospike.com/t/how-to-secure-aerospike-database-servers/7804).
 
-## Clustering <a id="clustering"></a>
+## Networking <a id="networking"></a>
 
 ### Configuring the node's access address <a id="configuring-the-nodes-access-address"></a>
 
@@ -261,13 +261,7 @@ accessible to other nodes.
 
 ### Mesh Clustering <a id="mesh-clustering"></a>
 
-Mesh networking requires setting up links between each node in the cluster.
-This can be achieved in two ways:
-
- 1. Add a configuration for each node in the cluster, as defined in [Network Heartbeat Configuration](https://docs.aerospike.com/server/operations/configure/network/heartbeat#mesh-unicast-heartbeat).
- 2. Use `asinfo` to send the `tip` command, to make the node aware of another node. See an example of sending the [tip command with asinfo](https://docs.aerospike.com/reference/info#tip).
-
-For more, see [How do I get a 2 nodes Aerospike cluster running quickly in Docker without editing a single file?](https://medium.com/aerospike-developer-blog/how-do-i-get-a-2-node-aerospike-cluster-running-quickly-in-docker-without-editing-a-single-file-1c2a94564a99?source=friends_link&sk=4ff6a22f0106596c42aa4b77d6cdc3a5)
+See [How do I get a 2 nodes Aerospike cluster running quickly in Docker without editing a single file?](https://medium.com/aerospike-developer-blog/how-do-i-get-a-2-node-aerospike-cluster-running-quickly-in-docker-without-editing-a-single-file-1c2a94564a99?source=friends_link&sk=4ff6a22f0106596c42aa4b77d6cdc3a5)
 
 ## Sending Performance Data to Aerospike <a id="sending-performance-data-to-aerospike"></a>
 
