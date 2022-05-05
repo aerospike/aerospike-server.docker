@@ -4,16 +4,12 @@ set -e
 export LOGFILE=${LOGFILE:-/dev/null}
 export SERVICE_ADDRESS=${SERVICE_ADDRESS:-any}
 export SERVICE_PORT=${SERVICE_PORT:-3000}
-export HB_ADDRESS=${HB_ADDRESS:-any}
-export HB_PORT=${HB_PORT:-3002}
-export FABRIC_ADDRESS=${FABRIC_ADDRESS:-any}
-export FABRIC_PORT=${FABRIC_PORT:-3001}
 export NAMESPACE=${NAMESPACE:-test}
-export REPL_FACTOR=${REPL_FACTOR:-2}
 export MEM_GB=${MEM_GB:-1}
 export DEFAULT_TTL=${DEFAULT_TTL:-30d}
 export STORAGE_GB=${STORAGE_GB:-4}
 export NSUP_PERIOD=${NSUP_PERIOD:-120}
+export DATA_IN_MEMORY=${DATA_IN_MEMORY:-true}
 
 
 # Fill out conffile with above values

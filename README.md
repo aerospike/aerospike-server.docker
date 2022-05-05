@@ -136,12 +136,13 @@ compatible with using a custom configuration file. You can use one or the other.
   * `SERVICE_ADDRESS` - the bind [`address`](https://docs.aerospike.com/reference/configuration#address) of the `networking.service` subcontext. Default: any
   * `SERVICE_PORT` - the [`port`](https://docs.aerospike.com/reference/configuration#port) of the `networking.service` subcontext. Default: 3000
 
-The single preconfigured namespace is [in-memory with filesystem persistence](https://docs.aerospike.com/server/operations/configure/namespace/storage#recipe-for-an-hdd-storage-engine-with-data-in-memory)
+The single preconfigured namespace has these variables:
   * `NAMESPACE` - the name of the namespace. Default: test
   * `MEM_GB` - the namespace [`memory-size`](https://docs.aerospike.com/reference/configuration#memory-size). Default: 1, the unit is always `G` (GB)
   * `DEFAULT_TTL` - the namespace [`default-ttl`](https://docs.aerospike.com/reference/configuration#default-ttl). Default: 30d
   * `STORAGE_GB` - the namespace persistence `file` size. Default: 4, the unit is always `G` (GB)
   * `NSUP_PERIOD` - the namespace [`nsup-period`](https://docs.aerospike.com/reference/configuration#nsup-period). Default: 120 , nsup-period in seconds 
+  * `DATA_IN_MEMORY` - the storage-engine [`data-in-memory`](https://docs.aerospike.com/reference/configuration#data-in-memory) setting. If `true` (default) the namespace storage is [in-memory with filesystem persistence](https://docs.aerospike.com/server/operations/configure/namespace/storage#recipe-for-an-hdd-storage-engine-with-data-in-memory) , meaning that the data is in-memory, persisted to disk. If you set it to `false` only the index will be kept in memory, reads and writes data fully from disk. If `false`, the namespace only stores the index in memory, and storage serves both reads and writes [from the filesystem](https://docs.aerospike.com/server/operations/configure/namespace/storage#recipe-for-a-persistent-memory-storage-engine).
 
 ### Using a custom configuration file <a id="using-a-custom-configuration-file"></a>
 You can override the use of the configuration file template by providing your own
