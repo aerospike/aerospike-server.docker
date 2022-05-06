@@ -5,11 +5,11 @@ export LOGFILE=${LOGFILE:-/dev/null}
 export SERVICE_ADDRESS=${SERVICE_ADDRESS:-any}
 export SERVICE_PORT=${SERVICE_PORT:-3000}
 export NAMESPACE=${NAMESPACE:-test}
-export MEM_GB=${MEM_GB:-1}
-export DEFAULT_TTL=${DEFAULT_TTL:-30d}
-export STORAGE_GB=${STORAGE_GB:-4}
-export NSUP_PERIOD=${NSUP_PERIOD:-120}
 export DATA_IN_MEMORY=${DATA_IN_MEMORY:-false}
+export DEFAULT_TTL=${DEFAULT_TTL:-30d}
+export MEM_GB=${MEM_GB:-1}
+export NSUP_PERIOD=${NSUP_PERIOD:-120}
+export STORAGE_GB=${STORAGE_GB:-4}
 if [ "$DATA_IN_MEMORY" == "true" ]; then
     export READ_PAGE_CACHE="false"
 else
