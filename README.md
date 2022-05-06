@@ -194,7 +194,7 @@ The example above uses the configuration template, where the single defined
 namespace is in-memory with file-based persistence. Just mounting the predefined
 /opt/aerospike/data directory enables the data to be persisted on the host.
 
-Alternatively, a custom configuration file is used with the parameter
+Alternatively, your custom configuration file is used with the parameter
 `file` set to be a file in the mounted /opt/aerospike/data, such as in the
 following config snippet:
 
@@ -213,7 +213,7 @@ In this example we also mount the data directory in a similar way, using a
 custom configuration file
 
 ```sh
-docker run -d -v /opt/aerospike/data:/opt/aerospike/data -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
+docker run -d -v /opt/aerospike/data:/opt/aerospike/data -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server
 ```
 
 ### Block storage <a id="block-storage"></a>
@@ -237,7 +237,7 @@ namespace test {
 Now to map a host drive /dev/sdc to /dev/xvdc on a container
 
 ```sh
-docker run -d --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
+docker run -d --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server
 ```
 
 ### Persistent Lua cache <a id="persistent-lua-cache"></a>
@@ -247,7 +247,7 @@ will want to mount a directory from the host to the container's
 `/opt/aerospike/usr/udf/lua` using the `-v` option:
 
 ```sh
-docker run -d -v /opt/aerospike/lua:/opt/aerospike/usr/udf/lua -v /opt/aerospike/data:/opt/aerospike/data --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
+docker run -d -v /opt/aerospike/lua:/opt/aerospike/usr/udf/lua -v /opt/aerospike/data:/opt/aerospike/data --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server
 ```
 
 ### A note about security <a id="a-note-about-security"></a>
@@ -290,7 +290,7 @@ identify issues, and create a better experience for the end user. [More Info](ht
 
 ## Image Versions <a id="image-versions"></a>
 
-These images are based on [debian:strech-slim](https://hub.docker.com/_/debian).
+These images are based on [debian:buster-slim](https://hub.docker.com/_/debian).
 
 ## Reporting Issues <a id="reporting-issues"></a>
 
