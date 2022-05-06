@@ -144,12 +144,13 @@ The single preconfigured namespace has the following variables:
 The name of the namespace. Default: *test*
 #### `DATA_IN_MEMORY`
 The storage-engine [`data-in-memory`](https://docs.aerospike.com/reference/configuration#data-in-memory) setting.
-If *true* (default) the namespace storage is
-[in-memory with filesystem persistence](https://docs.aerospike.com/server/operations/configure/namespace/storage#recipe-for-an-hdd-storage-engine-with-data-in-memory),
-meaning that reads and writes happen from a full in-memory copy, and a
-synchronous write persists to disk. If *false*, the namespace only stores the
+If *false* (default), the namespace only stores the
 index in memory, and all reads and writes are served
 [from the filesystem](https://docs.aerospike.com/server/operations/configure/namespace/storage#recipe-for-a-persistent-memory-storage-engine).
+If *true* the namespace storage is
+[in-memory with filesystem persistence](https://docs.aerospike.com/server/operations/configure/namespace/storage#recipe-for-an-hdd-storage-engine-with-data-in-memory),
+meaning that reads and writes happen from a full in-memory copy, and a
+synchronous write persists to disk.
 #### `DEFAULT_TTL`
 The namespace [`default-ttl`](https://docs.aerospike.com/reference/configuration#default-ttl).
 Default: *30d*
@@ -171,7 +172,7 @@ You should first `-v` map a local directory, which Docker will bind mount.
 Next, drop your aerospike.conf file into this directory.
 Finally, use the `--config-file` option to tell Aerospike where in the
 container the configuration file is (the default path is
-/etc/aerospike/aerospike.conf).
+*/etc/aerospike/aerospike.conf*).
 
 For example:
 
@@ -182,7 +183,7 @@ docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 300
 
 With Docker, the files within the container are not persisted past the life of
 the container. To persist data, you will want to mount a directory from the
-host to the container's /opt/aerospike/data using the `-v` option:
+host to the container's */opt/aerospike/data* using the `-v` option:
 
 For example:
 
@@ -192,10 +193,10 @@ docker run -d  -v /opt/aerospike/data:/opt/aerospike/data  -v /opt/aerospike/etc
 
 The example above uses the configuration template, where the single defined
 namespace is in-memory with file-based persistence. Just mounting the predefined
-/opt/aerospike/data directory enables the data to be persisted on the host.
+*/opt/aerospike/data* directory enables the data to be persisted on the host.
 
 Alternatively, your custom configuration file is used with the parameter
-`file` set to be a file in the mounted /opt/aerospike/data, such as in the
+`file` set to be a file in the mounted */opt/aerospike/data*, such as in the
 following config snippet:
 
 ```
@@ -244,7 +245,7 @@ docker run -d --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospik
 
 Upon restart, your Lua cache will become emptied. To persist the cache, you
 will want to mount a directory from the host to the container's
-`/opt/aerospike/usr/udf/lua` using the `-v` option:
+*/opt/aerospike/usr/udf/lua* using the `-v` option:
 
 ```sh
 docker run -d -v /opt/aerospike/lua:/opt/aerospike/usr/udf/lua -v /opt/aerospike/data:/opt/aerospike/data --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server
