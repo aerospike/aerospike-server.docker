@@ -12,6 +12,7 @@
    * [Using asadm](#using-asadm)
  * [Customizing the Default Developer Environment](#customizing-the-template)
    * [List of template variables](#list-of-template-variables)
+   * [Preconfigured namespace](#namespace-template-variables)
  * [Advanced Configuration](#advanced-configuration)
    * [Persistent data directory](#persistent-data-directory)
    * [Block storage](#block-storage)
@@ -139,7 +140,9 @@ of the `networking.service` subcontext. Default: *any*
 The [`port`](https://docs.aerospike.com/reference/configuration#port) of the
 `networking.service` subcontext. Default: *3000*
 
+### Preconfigured namespace <a id="namespace-template-variables"></a>
 The single preconfigured namespace has the following variables:
+
 #### `NAMESPACE`
 The name of the namespace. Default: *test*
 #### `DATA_IN_MEMORY`
