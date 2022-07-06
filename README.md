@@ -28,9 +28,10 @@
 
 ## Getting Started <a id="getting-started"></a>
 Aerospike Community Edition supports the same developer APIs as Aerospike
-Enterprise Edition, and differs in ease of operation and enterprise features.
-See the [product matrix](https://aerospike.com/products/features-and-pricing/) for
-more.
+Enterprise Edition (except durable deletes), and differs in ease of operation 
+and enterprise features.
+See the [product matrix](https://aerospike.com/products/features-and-pricing/) 
+for more.
 
 Anyone can [sign up](https://www.aerospike.com/lp/try-now/) to get an
 evaluation feature key file for a full-featured, single-node Aerospike Enterprise
@@ -109,7 +110,7 @@ Number of rows: 1
 ```
 
 ## Customizing the Default Developer Environment <a id="customizing-the-template"></a>
-The Aerospike EE Docker image comes with a default configuration file,
+The Aerospike CE Docker image comes with a default configuration file,
 which sets up a single node, single namespace developer environment.
 Alternatively, you can provide your own configuration file (see below).
 
@@ -128,8 +129,6 @@ compatible with providing a configuration file. You can use one or the other.
 
 ### List of template variables <a id="list-of-template-variables"></a>
 
-#### `FEATURE_KEY_FILE`
-The [`feature_key_file`](https://docs.aerospike.com/server/operations/configure/feature-key). Default: */etc/aerospike/features.conf*
 #### `LOGFILE`
 The [`file`](https://docs.aerospike.com/reference/configuration#file) param of
 the `logging` context. Default: */dev/null*, do not log to file, log to stdout.
