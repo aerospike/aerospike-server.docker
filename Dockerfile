@@ -34,7 +34,9 @@ RUN \
   # Remove /opt/aerospike/bin
   && find /usr/bin/ -lname '/opt/aerospike/bin/*' -delete \
   && find /opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} + \
+  && mv /opt/aerospike/bin/asadm /usr/lib/ \
   && mv /opt/aerospike/bin/* /usr/bin/ \
+  && ln -s /usr/lib/asadm/asadm /usr/bin/asadm \
   && rm -rf /opt/aerospike/bin
 
 
