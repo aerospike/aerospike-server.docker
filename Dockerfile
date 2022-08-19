@@ -39,12 +39,9 @@ RUN \
   then \
   mv /opt/aerospike/bin/asadm /usr/lib/; \
   ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
-#  mv /opt/aerospike/bin/* /usr/bin/; \
-#  rm -rf /opt/aerospike/bin; \
-#  else \
-  mv /opt/aerospike/bin/* /usr/bin/; \
-  rm -rf /opt/aerospike/bin; \
-  fi
+  fi \
+  && mv /opt/aerospike/bin/* /usr/bin/ \
+  && rm -rf /opt/aerospike/bin
 
 
 # Add the Aerospike configuration specific to this dockerfile
