@@ -34,8 +34,17 @@ RUN \
   # Remove /opt/aerospike/bin
   && find /usr/bin/ -lname '/opt/aerospike/bin/*' -delete \
   && find /opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} + \
-  && mv /opt/aerospike/bin/* /usr/bin/ \
-  && rm -rf /opt/aerospike/bin
+  # Since tools release 7.0.5, asadm has been moved from /opt/aerospike/bin/asadm to /opt/aerospike/bin/asadm/asadm (inside an asadm directory)
+  && if [ -d '/opt/aerospike/bin/asadm' ]; \
+  then \
+  mv /opt/aerospike/bin/asadm /usr/lib/; \
+  ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+  mv /opt/aerospike/bin/* /usr/bin/; \
+  rm -rf /opt/aerospike/bin; \
+  else \
+  mv /opt/aerospike/bin/* /usr/bin/; \
+  rm -rf /opt/aerospike/bin; \
+  fi
 
 
 # Add the Aerospike configuration specific to this dockerfile
