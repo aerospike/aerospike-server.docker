@@ -39,6 +39,11 @@ RUN \
   then \
   mv /opt/aerospike/bin/asadm /usr/lib/; \
   ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+    # Since tools release 7.1.1, asinfo has been moved from /opt/aerospike/bin/asinfo to /opt/aerospike/bin/asadm/asinfo (inside an asadm directory)
+    if [ -f /usr/lib/asadm/asinfo ]; \
+    then \
+    ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+    fi \
   fi \
   && mv /opt/aerospike/bin/* /usr/bin/ \
   && rm -rf /opt/aerospike/bin
