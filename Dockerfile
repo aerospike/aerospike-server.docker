@@ -4,31 +4,31 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:buster-slim
+
+FROM debian:bullseye-slim
 
 ENV AEROSPIKE_VERSION 6.1.0.2
-ENV AEROSPIKE_SHA256 de37fb05085a0cc4183660bb5df9d9aab8c02039af2eb544102925b11c5c216e
+ENV AEROSPIKE_SHA256 718be61a3a8f88a29024158c7d25e3ba9f6f715c6671b5623f6b30340d52f305
+
 
 # Install Aerospike Server and Tools
-
-
 RUN \
   apt-get update -y \
-  && apt-get install -y iproute2 procps dumb-init wget python python3 python3-distutils lua5.2 gettext-base libcurl4-openssl-dev  \
-  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian10.tgz" -O aerospike-server.tgz \
-  && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
+  && echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections \
+  && apt-get update && apt-get install -y --no-install-recommends apt-utils 2>&1 | grep -v "delaying package configuration" \
+  && apt-get install -y dumb-init gettext-base iproute2 libcurl4-openssl-dev lua5.2 procps python3 python3-distutils wget \
+  && wget "https://artifacts.aerospike.com/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian11.tgz" --progress=bar:force:noscroll -O aerospike-server.tgz 2>&1 \
+  && echo "$AEROSPIKE_SHA256 aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
   && tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
   && dpkg -i aerospike/aerospike-server-*.deb \
   && dpkg -i aerospike/aerospike-tools-*.deb \
-  && mkdir -p /var/log/aerospike/ \
-  && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
   && rm -rf /opt/aerospike/lib/java \
-  && dpkg -r wget ca-certificates openssl xz-utils\
-  && dpkg --purge wget ca-certificates openssl xz-utils\
+  && dpkg -r apt-utils ca-certificates openssl wget \
+  && dpkg --purge apt-utils ca-certificates openssl wget 2>&1 \
   && apt-get purge -y \
-  && apt autoremove -y \
+  && apt-get autoremove -y \
   # Remove symbolic links of aerospike tool binaries
   # Move aerospike tool binaries to /usr/bin/
   # Remove /opt/aerospike/bin
@@ -47,7 +47,6 @@ RUN \
   fi \
   && mv /opt/aerospike/bin/* /usr/bin/ \
   && rm -rf /opt/aerospike/bin
-
 
 
 # Add the Aerospike configuration specific to this dockerfile
