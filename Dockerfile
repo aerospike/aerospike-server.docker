@@ -13,10 +13,10 @@ ENV AEROSPIKE_SHA256 718be61a3a8f88a29024158c7d25e3ba9f6f715c6671b5623f6b30340d5
 
 # Install Aerospike Server and Tools
 RUN \
-  apt-get update -y \
-  && echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections \
-  && apt-get update && apt-get install -y --no-install-recommends apt-utils 2>&1 | grep -v "delaying package configuration" \
-  && apt-get install -y dumb-init gettext-base iproute2 libcurl4-openssl-dev lua5.2 procps python3 python3-distutils wget \
+  echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections \
+  && apt-get update -y \
+  && apt-get install -y --no-install-recommends apt-utils 2>&1 | grep -v "delaying package configuration" \
+  && apt-get install -y dumb-init gettext-base iproute2 lua5.2 procps python3 python3-distutils wget \
   && wget "https://artifacts.aerospike.com/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian11.tgz" --progress=bar:force:noscroll -O aerospike-server.tgz 2>&1 \
   && echo "$AEROSPIKE_SHA256 aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
@@ -25,8 +25,8 @@ RUN \
   && dpkg -i aerospike/aerospike-tools-*.deb \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
   && rm -rf /opt/aerospike/lib/java \
-  && dpkg -r apt-utils ca-certificates openssl wget \
-  && dpkg --purge apt-utils ca-certificates openssl wget 2>&1 \
+  && dpkg -r apt-utils ca-certificates wget \
+  && dpkg --purge apt-utils ca-certificates wget 2>&1 \
   && apt-get purge -y \
   && apt-get autoremove -y \
   # Remove symbolic links of aerospike tool binaries
@@ -67,9 +67,11 @@ COPY entrypoint.sh /entrypoint.sh
 #
 EXPOSE 3000 3001 3002
 
+
 # Runs as PID 1 /usr/bin/dumb-init -- /my/script --with --args"
 # https://github.com/Yelp/dumb-init
-
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/entrypoint.sh"]
+
+
 # Execute the run script in foreground mode
 CMD ["asd"]
