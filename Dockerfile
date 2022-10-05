@@ -4,31 +4,30 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:buster-slim
 
-ENV AEROSPIKE_VERSION 5.7.0.22
-ENV AEROSPIKE_SHA256 49c8246d54d44b28ed68e9985c78ec110e341cb78084d45c852ae3d910049ef3
+FROM debian:bullseye-slim
+
+ENV AEROSPIKE_VERSION 6.0.0.7
+ENV AEROSPIKE_SHA256 4a49cc8c92fff431c1bdbafef7ed914c3b17bb1689be5428f0f1a887d29f1725
 
 # Install Aerospike Server and Tools
-
-
 RUN \
-  apt-get update -y \
-  && apt-get install -y iproute2 procps dumb-init wget python python3 python3-distutils lua5.2 gettext-base libcurl4-openssl-dev  \
-  && wget "https://www.aerospike.com/artifacts/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian10.tgz" -O aerospike-server.tgz \
-  && echo "$AEROSPIKE_SHA256 *aerospike-server.tgz" | sha256sum -c - \
+  echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections \
+  && apt-get update -y \
+  && apt-get install -y --no-install-recommends apt-utils 2>&1 | grep -v "delaying package configuration" \
+  && apt-get install -y dumb-init gettext-base iproute2 lua5.2 procps python3 python3-distutils wget \
+  && wget "https://artifacts.aerospike.com/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian11.tgz" --progress=bar:force:noscroll -O aerospike-server.tgz 2>&1 \
+  && echo "$AEROSPIKE_SHA256 aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
   && tar xzf aerospike-server.tgz --strip-components=1 -C aerospike \
   && dpkg -i aerospike/aerospike-server-*.deb \
   && dpkg -i aerospike/aerospike-tools-*.deb \
-  && mkdir -p /var/log/aerospike/ \
-  && mkdir -p /var/run/aerospike/ \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
   && rm -rf /opt/aerospike/lib/java \
-  && dpkg -r wget ca-certificates openssl xz-utils\
-  && dpkg --purge wget ca-certificates openssl xz-utils\
+  && dpkg -r apt-utils ca-certificates wget \
+  && dpkg --purge apt-utils ca-certificates wget 2>&1 \
   && apt-get purge -y \
-  && apt autoremove -y \
+  && apt-get autoremove -y \
   # Remove symbolic links of aerospike tool binaries
   # Move aerospike tool binaries to /usr/bin/
   # Remove /opt/aerospike/bin
@@ -39,10 +38,14 @@ RUN \
   then \
   mv /opt/aerospike/bin/asadm /usr/lib/; \
   ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+    # Since tools release 7.1.1, asinfo has been moved from /opt/aerospike/bin/asinfo to /opt/aerospike/bin/asadm/asinfo (inside an asadm directory)
+    if [ -f /usr/lib/asadm/asinfo ]; \
+    then \
+    ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+    fi \
   fi \
   && mv /opt/aerospike/bin/* /usr/bin/ \
   && rm -rf /opt/aerospike/bin
-
 
 
 # Add the Aerospike configuration specific to this dockerfile
@@ -63,9 +66,11 @@ COPY entrypoint.sh /entrypoint.sh
 #
 EXPOSE 3000 3001 3002
 
+
 # Runs as PID 1 /usr/bin/dumb-init -- /my/script --with --args"
 # https://github.com/Yelp/dumb-init
-
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/entrypoint.sh"]
+
+
 # Execute the run script in foreground mode
 CMD ["asd"]
