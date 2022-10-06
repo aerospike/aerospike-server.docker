@@ -7,15 +7,15 @@
 
 FROM debian:bullseye-slim
 
-ENV AEROSPIKE_VERSION 6.0.0.7
-ENV AEROSPIKE_SHA256 4a49cc8c92fff431c1bdbafef7ed914c3b17bb1689be5428f0f1a887d29f1725
+ENV AEROSPIKE_VERSION 6.1.0.3
+ENV AEROSPIKE_SHA256 e4f9c152209547517951b78e42ca0251bd237fe1eba65b7bef81fea94ab653c9
 
 # Install Aerospike Server and Tools
 RUN \
   echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections \
   && apt-get update -y \
   && apt-get install -y --no-install-recommends apt-utils 2>&1 | grep -v "delaying package configuration" \
-  && apt-get install -y dumb-init gettext-base iproute2 lua5.2 procps python3 python3-distutils wget \
+  && apt-get install -y dumb-init gettext-base procps python3 wget \
   && wget "https://artifacts.aerospike.com/aerospike-server-community/${AEROSPIKE_VERSION}/aerospike-server-community-${AEROSPIKE_VERSION}-debian11.tgz" --progress=bar:force:noscroll -O aerospike-server.tgz 2>&1 \
   && echo "$AEROSPIKE_SHA256 aerospike-server.tgz" | sha256sum -c - \
   && mkdir aerospike \
@@ -23,7 +23,6 @@ RUN \
   && dpkg -i aerospike/aerospike-server-*.deb \
   && dpkg -i aerospike/aerospike-tools-*.deb \
   && rm -rf aerospike-server.tgz aerospike /var/lib/apt/lists/* \
-  && rm -rf /opt/aerospike/lib/java \
   && dpkg -r apt-utils ca-certificates wget \
   && dpkg --purge apt-utils ca-certificates wget 2>&1 \
   && apt-get purge -y \
