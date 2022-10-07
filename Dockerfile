@@ -44,7 +44,6 @@ RUN \
       ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
     fi \
   fi \
-  && mv /opt/aerospike/bin/* /usr/bin/ \
   && rm -rf /opt/aerospike/bin \
   && rm -rf aerospike
 
