@@ -1,7 +1,9 @@
 .git
+.github
 .gitignore
 Dockerfile.md
 LICENSE
-logo.png
 README-short.txt
 README.md
+logo.png
+test/

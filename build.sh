@@ -1,9 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -e
+
+edition="$(grep "ARG AEROSPIKE_EDITION" ./Dockerfile | cut -d = -f 2)"
 
 if [[ $# = 0 ]]; then
-    VERSION="$(grep "ENV AEROSPIKE_VERSION" ./Dockerfile | cut -d' ' -f 3)"
+    version="$(grep "ARG AEROSPIKE_VERSION" ./Dockerfile | cut -d = -f 2)"
 else
-    VERSION=$1
+    version=$1
 fi
 
-docker build -t aerospike/aerospike-server-community:$VERSION .
+docker build --progress plain -t "aerospike/aerospike-server-${edition}:${version}" .
