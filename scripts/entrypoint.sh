@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 export LOGFILE=${LOGFILE:-/dev/null}
 export SERVICE_ADDRESS=${SERVICE_ADDRESS:-any}
@@ -13,45 +13,43 @@ export NSUP_PERIOD=${NSUP_PERIOD:-120}
 export STORAGE_GB=${STORAGE_GB:-4}
 
 if [ "${DATA_IN_MEMORY}" = "true" ]; then
-    export READ_PAGE_CACHE="false"
+	export READ_PAGE_CACHE="false"
 else
-    export READ_PAGE_CACHE="true"
+	export READ_PAGE_CACHE="true"
 fi
 
 # Fill out conffile with above values
 if [ -f /etc/aerospike/aerospike.template.conf ]; then
-    envsubst < /etc/aerospike/aerospike.template.conf > /etc/aerospike/aerospike.conf
+	envsubst </etc/aerospike/aerospike.template.conf >/etc/aerospike/aerospike.conf
 fi
 
 # if command starts with an option, prepend asd
 if [ "${1:0:1}" = '-' ]; then
-    set -- asd "$@"
+	set -- asd "$@"
 fi
 
 # if asd is specified for the command, start it with any given options
 if [ "$1" = 'asd' ]; then
-    NETLINK=${NETLINK:-eth0}
+	NETLINK=${NETLINK:-eth0}
 
-    # We will wait a bit for the network link to be up.
-    NETLINK_UP=0
-    NETLINK_COUNT=0
+	# We will wait a bit for the network link to be up.
+	NETLINK_UP=0
+	NETLINK_COUNT=0
 
-    echo "link ${NETLINK} state $(cat /sys/class/net/"${NETLINK}"/operstate)"
+	echo "link ${NETLINK} state $(cat /sys/class/net/"${NETLINK}"/operstate)"
 
-    while [ ${NETLINK_UP} -eq 0 ] && [ ${NETLINK_COUNT} -lt 20 ]; do
-        if grep -q "up" /sys/class/net/"${NETLINK}"/operstate; then
-            NETLINK_UP=1
-        else
-                sleep 0.1
-                (( NETLINK_COUNT++ ))
-        fi
-    done
+	while [ ${NETLINK_UP} -eq 0 ] && [ ${NETLINK_COUNT} -lt 20 ]; do
+		if grep -q "up" /sys/class/net/"${NETLINK}"/operstate; then
+			NETLINK_UP=1
+		else
+			sleep 0.1
+			((NETLINK_COUNT++))
+		fi
+	done
 
-    echo "link ${NETLINK} state $(cat /sys/class/net/"${NETLINK}"/operstate) in ${NETLINK_COUNT}"
-
-    # asd should always run in the foreground.
-    set -- "$@" --foreground
-
+	echo "link ${NETLINK} state $(cat /sys/class/net/"${NETLINK}"/operstate) in ${NETLINK_COUNT}"
+	# asd should always run in the foreground.
+	set -- "$@" --foreground
 fi
 
 exec "$@"
