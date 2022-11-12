@@ -33,16 +33,14 @@ density per node.
 * [License](#license)
 
 ## Getting Started
+Aerospike Database Community Edition (CE) supports the same developer APIs as
+Aerospike Database Enterprise Edition (EE), except for durable deletes. They
+differ in ease of operation and [enterprise features](https://aerospike.com/products/features-and-editions/)
+, such as compression.
 
-Aerospike Community Edition supports the same developer APIs as Aerospike
-Enterprise Edition (except durable deletes), and differs in ease of operation
-and enterprise features.
-See the [product matrix](https://aerospike.com/products/features-and-pricing/)
-for more.
+Since server version 6.1, Aerospike EE starts in a single-node cluster
+evaluation mode, with all its enterprise features available.
 
-Anyone can [sign up](https://www.aerospike.com/lp/try-now/) to get an
-evaluation feature key file for a full-featured, single-node Aerospike
-Enterprise Edition.
 
 ### Running an Aerospike node
 
