@@ -6,15 +6,12 @@
 
 FROM debian:bullseye-20221114-slim
 
-FROM debian:bullseye-slim
-
-ENV AEROSPIKE_VERSION 6.1.0.3
-ENV AEROSPIKE_SHA256 e4f9c152209547517951b78e42ca0251bd237fe1eba65b7bef81fea94ab653c9
 ENV AEROSPIKE_VERSION 6.1.0.4
 ENV AEROSPIKE_SHA256 4c3e4dfef858ddb5dcc941c5106a8735867860194f67ff5b20b65967a30cd0b4
 ENV AS_TINI_SHA256 d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # Install Aerospike Server and Tools
 RUN \
   export DEBIAN_FRONTEND=noninteractive \
@@ -56,13 +53,18 @@ RUN \
   fi \
   && rm -rf /opt/aerospike/bin \
   && rm -rf aerospike
+
+
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 COPY entrypoint.sh /entrypoint.sh
+
 # Mount the Aerospike data directory
 # VOLUME ["/opt/aerospike/data"]
 # Mount the Aerospike config directory
 # VOLUME ["/etc/aerospike/"]
+
+
 # Expose Aerospike ports
 #
 #   3000 – service port, for client connections
@@ -70,7 +72,11 @@ COPY entrypoint.sh /entrypoint.sh
 #   3002 – mesh port, for cluster heartbeat
 #
 EXPOSE 3000 3001 3002
+
+
 # Tini init set to restart ASD on SIGUSR1 and terminate ASD on SIGTERM
 ENTRYPOINT ["/usr/bin/as-tini-static", "-r", "SIGUSR1", "-t", "SIGTERM", "--", "/entrypoint.sh"]
+
+
 # Execute the run script in foreground mode
 CMD ["asd"]
