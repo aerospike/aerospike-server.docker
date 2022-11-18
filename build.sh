@@ -47,10 +47,11 @@ function build_edition() {
 		platforms_str="${platforms_str%,}"
 
 		log_info "------ building release images for edition=${edition} distro=${distro} platforms=${platforms_str}----"
+		# shellcheck disable=SC2046
 		verbose_call docker buildx build --progress plain \
-			"$([ "${latest_version}" = "${version}" ] && echo "-t aerospike/aerospike-server-${edition}:latest")" \
+			$([ "${latest_version}" = "${version}" ] && echo "-t aerospike/aerospike-server-${edition}:latest") \
 			-t "aerospike/aerospike-server-${edition}:${version}" \
-			"$([ "${latest_lineage_version}" = "${version}" ] && echo "-t aerospike/aerospike-server-${edition}:${lineage}")" \
+			$([ "${latest_lineage_version}" = "${version}" ] && echo "-t aerospike/aerospike-server-${edition}:${lineage}") \
 			"--platform=${platforms_str}" \
 			"--push" \
 			"${docker_path}"
