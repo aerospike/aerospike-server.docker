@@ -94,6 +94,11 @@ function fetch_package_sha() {
 		# Package names prior to 6.2.
 		url="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}-${server_version}-${distro}.tgz.sha256"
 	else
+		if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
+			# Federal does not yet support arm.
+			echo ""
+			return
+		fi
 		# Package names 6.2 and later.
 		url="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}_tools-${tools_version}_${distro}_${arch}.tgz.sha256"
 	fi
