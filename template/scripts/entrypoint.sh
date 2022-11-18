@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -Eeuo pipefail
 
-export LOGFILE=${LOGFILE:-/dev/null}
+export FEATURE_KEY_FILE=${FEATURE_KEY_FILE:-"/etc/aerospike/features.conf"}
+export LOGFILE=${LOGFILE:-""}
 export SERVICE_ADDRESS=${SERVICE_ADDRESS:-any}
 export SERVICE_PORT=${SERVICE_PORT:-3000}
 export NAMESPACE=${NAMESPACE:-test}
@@ -18,9 +19,35 @@ else
 	export READ_PAGE_CACHE="true"
 fi
 
+if asd --version | grep -q "Community"; then
+	unset FEATURE_KEY_FILE # invald for community edition
+fi
+
+function bash_eval_template() {
+	local template_file=$1
+	local target_file=$2
+
+	echo "" >"${target_file}"
+
+	while IFS= read -r line; do
+		if echo "${line}" | grep -qE "[$][(]|[{]"; then
+			local update
+			update=$(eval echo "\"${line}\"") || exit 1
+			echo "${update}" | grep -qE "[^[:space:]]*" && echo "${update}" >>"${target_file}"
+		else
+			echo "${line}" >>"${target_file}"
+		fi
+	done <"${template_file}"
+
+	rm "${template_file}"
+}
+
 # Fill out conffile with above values
 if [ -f /etc/aerospike/aerospike.template.conf ]; then
-	envsubst </etc/aerospike/aerospike.template.conf >/etc/aerospike/aerospike.conf
+	conf=/etc/aerospike/aerospike.conf
+	template=/etc/aerospike/aerospike.template.conf
+
+	bash_eval_template "${template}" "${conf}"
 fi
 
 # if command starts with an option, prepend asd

@@ -71,11 +71,14 @@ jobs:
           cond: ${{ github.event_name == 'pull_request' }}
           if_true: "github-pr-review"
           if_false: "github-check"
-      - uses: reviewdog/action-hadolint@v1
+      - uses: kportertx/action-hadolint@master
         with:
           reporter: ${{ steps.reporter.outputs.value }}
           filter_mode: file
           fail_on_error: true
+          hadolint_ignore: DL3008
+          exclude: |
+            ^template/
 
   markdownlint:
     name: runner / markdownlint

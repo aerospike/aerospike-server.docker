@@ -1,22 +1,24 @@
-# Aerospike Community Edition Docker Image
+# Aerospike Docker Image
 
 ## What is Aerospike?
 
 [Aerospike](http://aerospike.com) is a distributed NoSQL database purposefully
-designed for high performance web scale applications. Aerospike supports
-key-value and document data models, and has multiple data types including List,
-Map, HyperLogLog, GeoJSON, and Blob. Aerospike's patented hybrid memory
-architecture delivers predictable high performance at scale and high data
-density per node.
+designed for high performance applications. Aerospike supports key-value and
+document data models, and has multiple data types including List, Map,
+HyperLogLog, GeoJSON, and Blob. Aerospike's patented hybrid memory architecture
+delivers predictable high performance at scale and high data density per node.
 
 ![aerospike_square_logo](https://user-images.githubusercontent.com/133497/114279415-7425dc00-99e9-11eb-8eab-104042d38c44.png)
 
 * [Getting Started](#getting-started)
-  * [Running an Aerospike node](#running-an-aerospike-node)
+  * [Running an Aerospike Server node](#running-an-aerospike-server-node)
+    * [Enterprise Edition](#enterprise-edition)
+    * [Federal Edition](#federal-edition)
+    * [Community Edition](#community-edition)
 * [Connecting to your Aerospike Container](#connecting-to-your-aerospike-container)
   * [Using aql](#using-aql)
   * [Using asadm](#using-asadm)
-* [Customizing the Default Developer Environment](#customizing-the-template)
+* [Customizing the Default Developer Environment](#customizing-the-default-developer-template)
   * [List of template variables](#list-of-template-variables)
   * [Preconfigured namespace](#preconfigured-namespace)
 * [Advanced Configuration](#advanced-configuration)
@@ -42,7 +44,65 @@ Since server version 6.1, Aerospike EE starts in a single-node cluster
 evaluation mode, with all its enterprise features available.
 
 
-### Running an Aerospike node
+### Running an Aerospike Server node
+
+#### Enterprise Edition
+
+By using Aerospike Enterprise Edition you agree to the [ENTERPRISE_LICENSE](enterprise/ENTERPRISE_LICENSE).
+
+```sh
+docker run -d --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise
+```
+
+Running Enterprise Edition with a feature key file in a mapped directory:
+
+```sh
+docker run -d -v DIR:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise
+```
+
+Running Enterprise Edition with a feature key file in an environment variable:
+
+```sh
+docker run -d -v DIR:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise
+```
+
+Above, _DIR_ is a directory on your machine where you drop your feature
+key file. Make sure Docker Desktop has file sharing permission to bind mount it
+into Docker containers.
+
+#### Enterprise Edition for US Federal
+
+By using Aerospike Enterprise Edition for US Federal you agree to the
+[FEDERAL_LICENSE](federal/FEDERAL_LICENSE).
+
+```sh
+docker run -d --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-federal
+```
+
+Running Aerospike Enterprise Edition for US Federal with a feature key file in a
+mapped directory:
+
+```sh
+docker run -d -v DIR:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-federal
+
+Above, _DIR_ is a directory on your machine where you drop your feature
+key file. Make sure Docker Desktop has file sharing permission to bind mount it
+into Docker containers.
+```
+
+Running Aerospike Enterprise Edition for US Federal with a feature key file in
+an environment variable:
+
+```sh
+FEATKEY=$(base64 ~/Desktop/evaluation-features.conf)
+docker run -d -e "FEATURES=$FEATKEY" -e "FEATURE_KEY_FILE=env-b64:FEATURES" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-federal
+```
+
+#### Community Edition
+
+By using Aerospike Community Edition you agree to the [COMMUNITY_LICENSE](community/COMMUNITY_LICENSE).
+
+Running Aerospike Community Edition:
 
 ```sh
 docker run -d --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
@@ -62,20 +122,20 @@ Seed:         172.17.0.2
 User:         None
 Config File:  /etc/aerospike/astools.conf /root/.aerospike/astools.conf 
 Aerospike Query Client
-Version 5.0.1
-C Client Version 4.6.17
-Copyright 2012-2020 Aerospike. All rights reserved.
+Version 7.0.4
+C Client Version 6.0.0
+Copyright 2012-2021 Aerospike. All rights reserved.
 aql> show namespaces
 +------------+
 | namespaces |
 +------------+
 | "test"     |
 +------------+
-[127.0.0.1:3000] 1 row in set (0.002 secs)
+[172.17.0.2:3000] 1 row in set (0.002 secs)
 
 OK
 
-aql> help
+aql> 
 ```
 
 ### Using asadm
@@ -85,40 +145,42 @@ docker run -ti aerospike/aerospike-tools:latest asadm -h  $(docker inspect -f '{
 
 Seed:        [('172.17.0.2', 3000, None)]
 Config_file: /root/.aerospike/astools.conf, /etc/aerospike/astools.conf
-Aerospike Interactive Shell, version 2.0.1
+Aerospike Interactive Shell, version 2.10.0
 
 Found 1 nodes
 Online:  172.17.0.2:3000
 
 Admin> info
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Network Information (2021-04-20 01:57:37 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Network Information (2022-11-01 00:48:05 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
            Node|         Node ID|             IP|    Build|Migrations|~~~~~~~~~~~~~~~~~~Cluster~~~~~~~~~~~~~~~~~~|Client|  Uptime
                |                |               |         |          |Size|         Key|Integrity|      Principal| Conns|        
-172.17.0.2:3000|*BB9020011AC4202|172.17.0.2:3000|C-5.7.0.9|   0.000  |   1|3FA2C989BDC9|True     |BB9020011AC4202|     4|00:06:54
+172.17.0.2:3000|*BB9020011AC4202|172.17.0.2:3000|E-6.1.0.3|   0.000  |   1|19E628721D9A|True     |BB9020011AC4202|     8|00:02:09
 Number of rows: 1
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Namespace Usage Information (2021-04-20 01:57:37 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Namespace|           Node|  Total|Expirations|Evictions|  Stop|~~~~~~~~~~~Disk~~~~~~~~~~~|~~~~~~~~~~Memory~~~~~~~~~|~Primary~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Namespace Usage Information (2022-11-01 00:48:05 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Namespace|           Node|  Total|Expirations|Evictions|  Stop|~~~~~~~~~~Device~~~~~~~~~~|~~~~~~~~~~Memory~~~~~~~~~|~Primary~
          |               |Records|           |         |Writes|    Used|Used%|HWM%|Avail%|    Used|Used%|HWM%|Stop%|~~Index~~
          |               |       |           |         |      |        |     |    |      |        |     |    |     |     Type
-test     |172.17.0.2:3000|0.000  |    0.000  |  0.000  |False |0.000 B |    0|   0|    99|0.000 B |    0|   0|   90|undefined
-test     |               |0.000  |    0.000  |  0.000  |      |0.000 B |     |    |      |0.000 B |     |    |     |         
+test     |172.17.0.2:3000|0.000  |    0.000  |  0.000  |False |0.000 B |  0.0|   0|    99|0.000 B |  0.0|   0|   90|shmem    
+test     |               |0.000  |    0.000  |  0.000  |      |0.000 B |  0.0|    |      |0.000 B |  0.0|    |     |         
 Number of rows: 1
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Namespace Object Information (2021-04-20 01:57:37 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Namespace Object Information (2022-11-01 00:48:05 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Namespace|           Node|Rack|  Repl|  Total|~~~~~~~~~~Objects~~~~~~~~~~|~~~~~~~~~Tombstones~~~~~~~~|~~~~Pending~~~~
          |               |  ID|Factor|Records| Master|  Prole|Non-Replica| Master|  Prole|Non-Replica|~~~~Migrates~~~
          |               |    |      |       |       |       |           |       |       |           |     Tx|     Rx
 test     |172.17.0.2:3000|   0|     1|0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  
 test     |               |    |      |0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  
 Number of rows: 1
+
+Admin>
 ```
 
 ## Customizing the Default Developer Environment
 
-The Aerospike CE Docker image comes with a default configuration file,
-which sets up a single node, single namespace developer environment.
-Alternatively, you can provide your own configuration file (see below).
+The Aerospike Docker image comes with a default configuration file, which sets
+up a single node, single namespace developer environment. Alternatively, you can
+provide your own configuration file (see below).
 
 You can inject parameters into the default configuration template using
 container-side environment variables with the `-e` flag.
@@ -127,7 +189,7 @@ For example, to set the default [namespace](https://docs.aerospike.com/server/ar
 name to _demo_:
 
 ```sh
-docker run -d --name aerospike -e "NAMESPACE=demo" -p 3000-3002:3000-3002 -v /my/dir:/opt/aerospike/etc/ aerospike/aerospike-server
+docker run -d --name aerospike -e "NAMESPACE=demo" -p 3000-3002:3000-3002 -v /my/dir:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" aerospike/aerospike-server-enterprise
 ```
 
 Injecting configuration parameters into the configuration template isn't
@@ -135,10 +197,18 @@ compatible with providing a configuration file. You can use one or the other.
 
 ### List of template variables
 
+#### `FEATURE_KEY_FILE`
+
+The [`feature_key_file`](https://docs.aerospike.com/server/operations/configure/feature-key).
+of the `service` context which is only applicable and to Enterprise editions and
+must be set to the empty string when running the Community edition.
+Default: _/etc/aerospike/features.conf_.
+
 #### `LOGFILE`
 
 The [`file`](https://docs.aerospike.com/reference/configuration#file) param of
-the `logging` context. Default: _/dev/null_, do not log to file, log to stdout.
+the `logging` context. Default: _""_, do not log to file. The container will
+also log to `stdout`` regardless of what is configured here.
 
 #### `SERVICE_ADDRESS`
 
@@ -198,11 +268,14 @@ You should first `-v` map a local directory, which Docker will bind mount.
 Next, drop your aerospike.conf file into this directory. Finally, use the
 `--config-file` option to tell Aerospike where in the container the
 configuration file is (the default path is _/etc/aerospike/aerospike.conf_).
+Remember that the feature key file is required, so use `feature-key-file` in
+your config file to point to a mounted path (such as
+_/opt/aerospike/etc/feature.conf_).
 
 For example:
 
 ```sh
-docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server --config-file /opt/aerospike/etc/aerospike.conf
+docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise --config-file /opt/aerospike/etc/aerospike.conf
 ```
 
 ### Persistent data directory
@@ -214,7 +287,7 @@ to the container's _/opt/aerospike/data_ using the `-v` option:
 For example:
 
 ```sh
-docker run -d  -v /opt/aerospike/data:/opt/aerospike/data  -v /opt/aerospike/etc:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
+docker run -d  -v /opt/aerospike/data:/opt/aerospike/data  -v /opt/aerospike/etc:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" aerospike/aerospike-server-enterprise
 ```
 
 The example above uses the configuration template, where the single defined
@@ -240,7 +313,7 @@ In this example we also mount the data directory in a similar way, using a
 custom configuration file
 
 ```sh
-docker run -d -v /opt/aerospike/data:/opt/aerospike/data -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server
+docker run -d -v /opt/aerospike/data:/opt/aerospike/data -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server-enterprise
 ```
 
 ### Block storage
@@ -265,7 +338,7 @@ namespace test {
 Now to map a host drive /dev/sdc to /dev/xvdc on a container
 
 ```sh
-docker run -d --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server
+docker run -d --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server-enterprise
 ```
 
 ### Persistent Lua cache
@@ -275,10 +348,17 @@ want to mount a directory from the host to the container's
 _/opt/aerospike/usr/udf/lua_ using the `-v` option:
 
 ```sh
-docker run -d -v /opt/aerospike/lua:/opt/aerospike/usr/udf/lua -v /opt/aerospike/data:/opt/aerospike/data --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server
+docker run -d -v /opt/aerospike/lua:/opt/aerospike/usr/udf/lua -v /opt/aerospike/data:/opt/aerospike/data --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server-enterprise
 ```
 
 ### A note about security
+
+For convenience, this image does not have security turned on by default, but it
+is a core Aerospike Enterprise Edition feature. The knowledge base
+article
+[How To secure Aerospike database servers](https://discuss.aerospike.com/t/how-to-secure-aerospike-database-servers/7804)
+covers the topic well.
+
 [And Now for a Security Reminder](https://www.aerospike.com/blog/and-now-for-a-security-reminder/)
 that bad things can happen to good people.
 
@@ -287,11 +367,16 @@ Also see the knowledge base article
 
 ### Networking
 
+Developers using the Aerospike Enterprise Edition single-node evaluation, and
+most others using Docker Desktop on their machine for development, will not need
+to configure the node for clustering. If you're interested in using clustering
+and have a feature key file without a single node limit or you are using the
+Community Edition, read the following sections.
+
 #### Configuring the node's access address
 
 In order for the Aerospike node to properly broadcast its address to the cluster
-and applications, the
-[`access-address`](https://docs.aerospike.com/reference/configuration#access-address)
+and applications, the [`access-address`](https://docs.aerospike.com/reference/configuration#access-address)
 configuration parameter needs to be set in the configuration file. If it is not
 set, then the IP address within the container will be used, which is not
 accessible to other nodes.
@@ -314,27 +399,41 @@ See [How do I get a 2 nodes Aerospike cluster running quickly in Docker without 
 
 ## Sending Performance Data to Aerospike
 
-Aerospike Telemetry is a feature that allows us to collect certain use data –
-not the database data – on your Aerospike Community Edition server use. We’d
-like to know when clusters are created and destroyed, cluster size, cluster
-workload, how often queries are run, whether instances are deployed purely
-in-memory or with Flash. Aerospike Telemetry collects information from running
-Community Edition server instances every 10 minutes. The data helps us to
-understand how the product is being used, identify issues, and create a better
-experience for the end user.
+Aerospike Telemetry is a feature that allows us to collect certain anonymized
+use data – not the database data – on your Aerospike Community Edition server
+use. We’d like to know when clusters are created and destroyed, cluster size,
+cluster workload, how often queries are run, whether instances are deployed
+purely in-memory or with Flash. Aerospike Telemetry collects information from
+running Community Edition server instances every 10 minutes. The data helps us
+to understand how the product is being used, identify issues, and create a
+better experience for the end user.
 [More Info](http://www.aerospike.com/aerospike-telemetry/)
 
 ## Image Versions
 
-These images are based on [debian:buster-slim](https://hub.docker.com/_/debian).
+These images are based on [debian:bullseye-slim](https://hub.docker.com/_/debian).
 
 ## Reporting Issues
 
-If you have any problems with or questions about this image, please contact us
+Aerospike Enterprise evaluation users, if you have any problems with or
+questions about this image, please post on the
+[Aerospike discussion forum](https://discuss.aerospike.com) or open an issue in
+[aerospike/aerospike-server-enterprise.docker](https://github.com/aerospike/aerospike-server-enterprise.docker/issues).
+
+Enterprise customers are welcome to participate in the community forum, but can
+also report issues through the
+[enterprise support system](https://support.aerospike.com/).
+
+Community Edition users may report problems or ask  questions about this image
 on the [Aerospike Forums](https://discuss.aerospike.com/) or open an issue in
 [aerospike/aerospike-server.docker](https://github.com/aerospike/aerospike-server.docker/issues).
 
 ## License
 
-Refer to the license information in the [aerospike/aerospike-server](https://github.com/aerospike/aerospike-server)
-repository.
+If you are using the Aerospike Database Enterprise Edition evaluation feature
+key file, you are operating under the
+[Aerospike Evaluation License Agreement](https://www.aerospike.com/forms/evaluation-license-agreement/).
+
+If you are using a feature key file you received as part of your commercial
+enterprise license, you are operating under the
+[Aerospike Master License Agreement](https://www.aerospike.com/forms/master-license%20-agreement/).

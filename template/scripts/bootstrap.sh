@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -Eeuo pipefail
 
 # keep track of the last executed command
 # shellcheck disable=SC2154
@@ -10,20 +10,28 @@ trap 'last_command=${current_command:=""}; current_command=$BASH_COMMAND' DEBUG
 # shellcheck disable=SC2154
 trap 'echo "\"${last_command}\" command filed with exit code $?."' EXIT
 
-log() {
+ARCH="$(uname -m)"
+
+log_debug() {
+	local msg=$1
+
 	if [ "${DEBUG}" = "true" ]; then
-		msg=$1
-		echo "debug: $msg" "${@:2}" >&2
+		echo "debug: ${msg}" "${@:2}" >&2
 	fi
 }
 
-fetch() {
-	tag=$1
-	link=$2
-	dest=$3
+log_warn() {
+	local msg=$1
 
-	log "${tag} - ${link}"
-	curl -sSL "${link}" --output "${dest}" "${@:4}"
+	echo "warn: ${msg}" "${@:2}" >&2
+}
+
+fetch() {
+	local tag=$1
+	local link=$2
+
+	log_debug "${tag} - ${link}"
+	curl -fsSL "${link}" "${@:3}"
 }
 
 bootstrap() {
@@ -43,10 +51,13 @@ bootstrap() {
 		xz-utils
 
 	install_tini
-	install_config_template_dependencies
 	install_aerospike_server_and_tools
 
-	rm -rf aerospike-server.tgz /var/lib/apt/lists/*
+	# procps is needed for tests.
+	apt-get install -y --no-install-recommends procps
+
+	rm -rf /var/lib/apt/lists/*
+
 	dpkg -r \
 		apt-utils \
 		binutils \
@@ -68,16 +79,12 @@ bootstrap() {
 }
 
 install_tini() {
-	fetch "tini" https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static /usr/bin/as-tini-static
+	local sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
 
-	AS_TINI_SHA256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
-	echo "${AS_TINI_SHA256} /usr/bin/as-tini-static" | sha256sum -c -
+	fetch "tini" https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static --output /usr/bin/as-tini-static
+
+	echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -
 	chmod +x /usr/bin/as-tini-static
-}
-
-install_config_template_dependencies() {
-	apt-get install -y --no-install-recommends \
-		gettext-base
 }
 
 install_aerospike_server() {
@@ -92,7 +99,9 @@ install_aerospike_server() {
 }
 
 install_aerospike_tools_subset() {
-	ar --output aerospike/pkg -x aerospike/aerospike-tools-*.deb
+	cd aerospike/pkg # ar on debian10 doesn't support '--output'
+	ar -x ../aerospike-tools*.deb
+	cd -
 	tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/
 
 	find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +
@@ -111,14 +120,58 @@ install_aerospike_tools_subset() {
 }
 
 install_aerospike_server_and_tools() {
+	local pkg_paths
+	local sha256
+
 	mkdir -p aerospike/pkg
-	fetch "server/tools pkg" "https://artifacts.aerospike.com/aerospike-server-${AEROSPIKE_EDITION}/${AEROSPIKE_VERSION}/aerospike-server-${AEROSPIKE_EDITION}-${AEROSPIKE_VERSION}-debian11.tgz" aerospike-server.tgz
-	echo "${AEROSPIKE_SHA256} aerospike-server.tgz" | sha256sum -c -
+
+	pkg_paths=("aerospike-server-${AEROSPIKE_EDITION}_${AEROSPIKE_VERSION}_tools-${AEROSPIKE_TOOLS_VERSION}_${LINUX_DISTRO}_${ARCH}.tgz")
+
+	if [ "${ARCH}" = "x86_64" ]; then
+		# Old format for pre-6.2
+		pkg_paths+=("aerospike-server-${AEROSPIKE_EDITION}-${AEROSPIKE_VERSION}-${LINUX_DISTRO}.tgz")
+		sha256="${AEROSPIKE_SHA_X86_64}"
+	elif [ "${ARCH}" = "aarch64" ]; then
+		sha256="${AEROSPIKE_SHA_AARCH64}"
+	else
+		log_warn "Unsuported architecture - ${ARCH}"
+		exit 1
+	fi
+
+	local pkg_list_path="aerospike-server-${AEROSPIKE_EDITION}/${AEROSPIKE_VERSION}"
+	local pkg_url
+	local found=false
+
+	for pkg_path in "${pkg_paths[@]}"; do
+		pkg_url="${ARTIFACTS_DOMAIN}/${pkg_list_path}/${pkg_path}"
+
+		if fetch "server/tools tgz" "${pkg_url}" --output aerospike-server.tgz; then
+			found=true
+			break
+		fi
+	done
+
+	if [ "${found}" = "false" ]; then
+		log_warn "Could not fetch pkg - ${pkg_url}"
+		exit 1
+	fi
+
+	echo "${sha256} aerospike-server.tgz" | sha256sum -c -
+
 	tar xzf aerospike-server.tgz --strip-components=1 -C aerospike
+
 	install_aerospike_server
 	install_aerospike_tools_subset
+
 	rm aerospike-server.tgz
 	rm -rf aerospike
 }
+
+log_debug "ARCH = '${ARCH}'"
+log_debug "AEROSPIKE_EDITION = '${AEROSPIKE_EDITION}'"
+log_debug "AEROSPIKE_VERSION = '${AEROSPIKE_VERSION}'"
+log_debug "AEROSPIKE_SHA_X86_64 = '${AEROSPIKE_SHA_X86_64}'"
+log_debug "AEROSPIKE_SHA_AARCH64 = '${AEROSPIKE_SHA_AARCH64}'"
+log_debug "AEROSPIKE_TOOLS_VERSION = '${AEROSPIKE_TOOLS_VERSION}'"
 
 bootstrap
