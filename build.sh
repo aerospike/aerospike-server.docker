@@ -60,7 +60,6 @@ function build_edition() {
 		verbose_call docker buildx build --progress plain \
 			$([ "${latest_version}" = "${version}" ] && echo "-t aerospike/aerospike-server-${edition}:latest") \
 			-t "${product}:${version}" \
-			$([ "${latest_lineage_version}" = "${version}" ] && echo "-t aerospike/aerospike-server-${edition}:${lineage}") \
 			"--platform=${platforms_str}" \
 			"--push" \
 			"${docker_path}"
