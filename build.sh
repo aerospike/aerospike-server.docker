@@ -58,7 +58,7 @@ function build_edition() {
 
 		# shellcheck disable=SC2046
 		verbose_call docker buildx build --progress plain \
-			$([ "${latest_version}" = "${version}" ] && echo "-t aerospike/aerospike-server-${edition}:latest") \
+			$([ "${latest_version}" = "${version}" ] && echo "-t ${product}:latest") \
 			-t "${product}:${version}" \
 			"--platform=${platforms_str}" \
 			"--push" \
