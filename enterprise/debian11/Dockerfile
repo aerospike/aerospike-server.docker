@@ -13,11 +13,11 @@ ARG ARTIFACTS_DOMAIN="https://artifacts.aerospike.com"
 ARG LINUX_DISTRO=debian11
 
 # AEROSPIKE_VERSION - required - version of the Aerospike database to install.
-ARG AEROSPIKE_VERSION=6.1.0.3
+ARG AEROSPIKE_VERSION=6.2.0.0
 
 # AEROSPIKE_TOOLS_VERSION - required for 6.2+ - version of the aerospike tools
 # package which is bundled with the server.
-ARG AEROSPIKE_TOOLS_VERSION=
+ARG AEROSPIKE_TOOLS_VERSION=8.0.1
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
@@ -26,8 +26,8 @@ ARG AEROSPIKE_TOOLS_VERSION=
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION=enterprise
 
-ARG AEROSPIKE_SHA_X86_64=de62082abe7c5fb040fc5eaaed22274142d96cbcd7dfce7530a52d65bce8b277
-ARG AEROSPIKE_SHA_AARCH64=
+ARG AEROSPIKE_SHA_X86_64=bb78588bec73aa938244c944bdd798d748f71360ab4406fdc12342baf760b15e
+ARG AEROSPIKE_SHA_AARCH64=fa07534588c0efaaa7e4baad4cfb97c849810c99e3501f5322894233bb88f48f
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
