@@ -107,7 +107,7 @@ function try() {
 function check_container() {
 	log_info "------ Verifying docker container ..."
 
-	if try 5 docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd'; then
+	if try 10 docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd'; then
 		log_info "Aerospike database is running!"
 	else
 		log_warn "**Aerospike database is not running!**"
@@ -147,7 +147,7 @@ function test_current_edition_distro() {
 	version="$(grep "ARG AEROSPIKE_VERSION=" "${docker_path}/Dockerfile" | cut -d = -f 2)"
 	CONTAINER="aerospike-server-${EDITION}"
 	local platform_list
-	IFS=' ' read -r -a platform_list <<<"$(supported_platforms_for_asd "${version}")"
+	IFS=' ' read -r -a platform_list <<<"$(supported_platforms_for_asd "${version}" "${EDITION}")"
 
 	for platform in "${platform_list[@]}"; do
 		short_platform=${platform#*/}

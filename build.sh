@@ -25,7 +25,7 @@ function build_edition() {
 	local version
 	version="$(grep "ARG AEROSPIKE_VERSION=" "${docker_path}/Dockerfile" | cut -d = -f 2)"
 
-	IFS=' ' read -r -a platform_list <<<"$(supported_platforms_for_asd "${version}")"
+	IFS=' ' read -r -a platform_list <<<"$(supported_platforms_for_asd "${version}" "${edition}")"
 
 	if [ "${g_test_build}" = "true" ]; then
 		for platform in "${platform_list[@]}"; do

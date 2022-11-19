@@ -61,10 +61,15 @@ function supported_arch_for_asd() {
 
 function supported_platforms_for_asd() {
 	local version=$1
+	local edition=$2
 
 	if version_compare_ge "6.2" "${version}"; then
 		echo "linux/amd64"
 		return
+	fi
+
+	if [ "${edition}" = "federal" ]; then
+		echo "linux/amd64"
 	fi
 
 	echo "linux/amd64 linux/arm64"
