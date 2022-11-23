@@ -79,9 +79,18 @@ bootstrap() {
 }
 
 install_tini() {
-	local sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
+	if [ "${ARCH}" = "x86_64" ]; then
+		local sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
+		local suffix=""
+	elif [ "${ARCH}" = "aarch64" ]; then
+		local sha256=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b
+		local suffix="-arm64"
+	else
+		log_warn "Unsuported architecture - ${ARCH}"
+		exit 1
+	fi
 
-	fetch "tini" https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static --output /usr/bin/as-tini-static
+	fetch "tini" "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static
 
 	echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -
 	chmod +x /usr/bin/as-tini-static
