@@ -17,7 +17,7 @@ ARG AEROSPIKE_VERSION=6.2.0.0
 
 # AEROSPIKE_TOOLS_VERSION - required for 6.2+ - version of the aerospike tools
 # package which is bundled with the server.
-ARG AEROSPIKE_TOOLS_VERSION=8.0.1
+ARG AEROSPIKE_TOOLS_VERSION=8.0.2
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
@@ -26,7 +26,7 @@ ARG AEROSPIKE_TOOLS_VERSION=8.0.1
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION=federal
 
-ARG AEROSPIKE_SHA_X86_64=33f82848c0c1cc95a66db7162708bb804e48148799adebd34259d0e03892ad74
+ARG AEROSPIKE_SHA_X86_64=eb01c998609077bb66eb00847b9bfe65d7287e9bda0a869f28670bd8f73b6c08
 ARG AEROSPIKE_SHA_AARCH64=
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
