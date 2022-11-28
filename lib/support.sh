@@ -74,3 +74,20 @@ function supported_platforms_for_asd() {
 
 	echo "linux/amd64 linux/arm64"
 }
+
+function supported_platform_to_arch() {
+	local platform=$1
+
+	case "${platform}" in
+	"linux/amd64")
+		echo "x86_64"
+		;;
+	"linux/arm64")
+		echo "aarch64"
+		;;
+	*)
+		warn "Unexpected platform '${platform}'"
+		exit 1
+		;;
+	esac
+}

@@ -12,29 +12,37 @@ trap 'echo "\"${last_command}\" command filed with exit code $?."' EXIT
 
 ARCH="$(uname -m)"
 
-log_debug() {
+function _log_level() {
+	level=$1
+	msg=$2
+
+	echo -e "${level} ${BASH_SOURCE[2]}:${BASH_LINENO[1]} - ${msg}" >&2
+}
+
+function log_debug() {
 	local msg=$1
 
-	if [ "${DEBUG}" = "true" ]; then
-		echo "debug: ${msg}" "${@:2}" >&2
+	if [ "${DEBUG:=}" = "true" ]; then
+		_log_level "debug" "${msg}"
 	fi
 }
 
-log_warn() {
+function log_warn() {
 	local msg=$1
 
-	echo "warn: ${msg}" "${@:2}" >&2
+	_log_level "warn" "${msg}"
 }
 
-fetch() {
+function fetch() {
 	local tag=$1
 	local link=$2
 
 	log_debug "${tag} - ${link}"
+
 	curl -fsSL "${link}" "${@:3}"
 }
 
-bootstrap() {
+function install_bootstrap_dependencies() {
 	export DEBIAN_FRONTEND=noninteractive
 
 	apt-get update -y
@@ -49,13 +57,9 @@ bootstrap() {
 		ca-certificates \
 		curl \
 		xz-utils
+}
 
-	install_tini
-	install_aerospike_server_and_tools
-
-	# procps is needed for tests.
-	apt-get install -y --no-install-recommends procps
-
+function remove_bootstrap_dependencies() {
 	rm -rf /var/lib/apt/lists/*
 
 	dpkg -r \
@@ -78,13 +82,21 @@ bootstrap() {
 	unset DEBIAN_FRONTEND
 }
 
-install_tini() {
+function install_procps() {
+	# procps is needed for test using pgrep.
+	apt-get install -y --no-install-recommends procps
+}
+
+function install_tini() {
+	local sha256
+	local suffix
+
 	if [ "${ARCH}" = "x86_64" ]; then
-		local sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
-		local suffix=""
+		sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
+		suffix=""
 	elif [ "${ARCH}" = "aarch64" ]; then
-		local sha256=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b
-		local suffix="-arm64"
+		sha256=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b
+		suffix="-arm64"
 	else
 		log_warn "Unsuported architecture - ${ARCH}"
 		exit 1
@@ -96,7 +108,7 @@ install_tini() {
 	chmod +x /usr/bin/as-tini-static
 }
 
-install_aerospike_server() {
+function install_aerospike_server() {
 	if [ "${AEROSPIKE_EDITION}" = "enterprise" ]; then
 		apt-get install -y --no-install-recommends \
 			libcurl4 \
@@ -107,7 +119,7 @@ install_aerospike_server() {
 	rm -rf /opt/aerospike/bin
 }
 
-install_aerospike_tools_subset() {
+function install_aerospike_tools_subset() {
 	cd aerospike/pkg # ar on debian10 doesn't support '--output'
 	ar -x ../aerospike-tools*.deb
 	cd -
@@ -128,40 +140,25 @@ install_aerospike_tools_subset() {
 	fi
 }
 
-install_aerospike_server_and_tools() {
-	local pkg_paths
+function install_aerospike_server_and_tools() {
+	local pkg_link
 	local sha256
 
 	mkdir -p aerospike/pkg
 
-	pkg_paths=("aerospike-server-${AEROSPIKE_EDITION}_${AEROSPIKE_VERSION}_tools-${AEROSPIKE_TOOLS_VERSION}_${LINUX_DISTRO}_${ARCH}.tgz")
-
 	if [ "${ARCH}" = "x86_64" ]; then
-		# Old format for pre-6.2
-		pkg_paths+=("aerospike-server-${AEROSPIKE_EDITION}-${AEROSPIKE_VERSION}-${LINUX_DISTRO}.tgz")
+		pkg_link="${AEROSPIKE_X86_64_LINK}"
 		sha256="${AEROSPIKE_SHA_X86_64}"
 	elif [ "${ARCH}" = "aarch64" ]; then
+		pkg_link="${AEROSPIKE_AARCH64_LINK}"
 		sha256="${AEROSPIKE_SHA_AARCH64}"
 	else
 		log_warn "Unsuported architecture - ${ARCH}"
 		exit 1
 	fi
 
-	local pkg_list_path="aerospike-server-${AEROSPIKE_EDITION}/${AEROSPIKE_VERSION}"
-	local pkg_url
-	local found=false
-
-	for pkg_path in "${pkg_paths[@]}"; do
-		pkg_url="${ARTIFACTS_DOMAIN}/${pkg_list_path}/${pkg_path}"
-
-		if fetch "server/tools tgz" "${pkg_url}" --output aerospike-server.tgz; then
-			found=true
-			break
-		fi
-	done
-
-	if [ "${found}" = "false" ]; then
-		log_warn "Could not fetch pkg - ${pkg_url}"
+	if ! fetch "server/tools tgz" "${pkg_link}" --output aerospike-server.tgz; then
+		log_warn "Could not fetch pkg - ${pkg_link}"
 		exit 1
 	fi
 
@@ -176,11 +173,19 @@ install_aerospike_server_and_tools() {
 	rm -rf aerospike
 }
 
-log_debug "ARCH = '${ARCH}'"
-log_debug "AEROSPIKE_EDITION = '${AEROSPIKE_EDITION}'"
-log_debug "AEROSPIKE_VERSION = '${AEROSPIKE_VERSION}'"
-log_debug "AEROSPIKE_SHA_X86_64 = '${AEROSPIKE_SHA_X86_64}'"
-log_debug "AEROSPIKE_SHA_AARCH64 = '${AEROSPIKE_SHA_AARCH64}'"
-log_debug "AEROSPIKE_TOOLS_VERSION = '${AEROSPIKE_TOOLS_VERSION}'"
+function main() {
+	log_debug "ARCH = '${ARCH}'"
+	log_debug "AEROSPIKE_EDITION = '${AEROSPIKE_EDITION}'"
+	log_debug "AEROSPIKE_X86_64_LINK = '${AEROSPIKE_X86_64_LINK}'"
+	log_debug "AEROSPIKE_SHA_X86_64 = '${AEROSPIKE_SHA_X86_64}'"
+	log_debug "AEROSPIKE_AARCH64_LINK = '${AEROSPIKE_AARCH64_LINK}'"
+	log_debug "AEROSPIKE_SHA_AARCH64 = '${AEROSPIKE_SHA_AARCH64}'"
 
-bootstrap
+	install_bootstrap_dependencies
+	install_tini
+	install_aerospike_server_and_tools
+	install_procps
+	remove_bootstrap_dependencies
+}
+
+main

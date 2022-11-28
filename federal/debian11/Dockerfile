@@ -9,16 +9,6 @@ FROM debian:bullseye-slim
 
 ARG DEBUG=false
 
-ARG ARTIFACTS_DOMAIN="https://artifacts.aerospike.com"
-ARG LINUX_DISTRO=debian11
-
-# AEROSPIKE_VERSION - required - version of the Aerospike database to install.
-ARG AEROSPIKE_VERSION=6.2.0.0
-
-# AEROSPIKE_TOOLS_VERSION - required for 6.2+ - version of the aerospike tools
-# package which is bundled with the server.
-ARG AEROSPIKE_TOOLS_VERSION=8.0.2
-
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
@@ -26,7 +16,9 @@ ARG AEROSPIKE_TOOLS_VERSION=8.0.2
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION=federal
 
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.2.0.0/aerospike-server-federal_6.2.0.0_tools-8.0.2_debian11_x86_64.tgz"
 ARG AEROSPIKE_SHA_X86_64=eb01c998609077bb66eb00847b9bfe65d7287e9bda0a869f28670bd8f73b6c08
+ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

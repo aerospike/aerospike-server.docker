@@ -19,11 +19,11 @@ function build_edition() {
 	local distro=$2
 	local platform_list
 
-	log_info "${FUNCNAME[0]} - edition ${edition} distro ${distro}"
+	log_info "edition ${edition} distro ${distro}"
 
 	local docker_path="${edition}/${distro}"
 	local version
-	version="$(grep "ARG AEROSPIKE_VERSION=" "${docker_path}/Dockerfile" | cut -d = -f 2)"
+	version="$(get_version_from_dockerfile "${distro}" "${edition}")"
 
 	IFS=' ' read -r -a platform_list <<<"$(supported_platforms_for_asd "${version}" "${edition}")"
 
@@ -40,8 +40,6 @@ function build_edition() {
 		done
 	elif [ "${g_push_build}" = "true" ]; then
 		latest_version="$(find_latest_server_version)"
-		lineage="$(echo "${version}" | grep -oE "^[0-9]*(\.[0-9]*){2}")"
-		latest_lineage_version="$(find_latest_server_version_for_lineage "${lineage}")"
 
 		printf -v platforms_str '%s,' "${platform_list[@]}"
 		platforms_str="${platforms_str%,}"
@@ -113,10 +111,10 @@ function parse_args() {
 
 	shift $((OPTIND - 1))
 
-	log_debug "g_linux_distro: '${g_linux_distro}'"
-	log_debug "g_server_edition: '${g_server_edition}'"
-	log_debug "g_test_build: '${g_test_build}'"
-	log_debug "g_push_build: '${g_push_build}'"
+	log_info "g_linux_distro: '${g_linux_distro}'"
+	log_info "g_server_edition: '${g_server_edition}'"
+	log_info "g_test_build: '${g_test_build}'"
+	log_info "g_push_build: '${g_push_build}'"
 }
 
 function main() {

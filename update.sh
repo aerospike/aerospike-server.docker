@@ -11,7 +11,7 @@ function run_template() {
 	local distro=$1
 	local edition=$2
 
-	log_info "${FUNCNAME[0]} - distro '${distro}' edition '${edition}'"
+	log_info "distro '${distro}' edition '${edition}'"
 
 	local server_version="${g_server_version}"
 	local tools_version="${g_tools_version}"
@@ -20,28 +20,20 @@ function run_template() {
 		tools_version=$(find_latest_tools_version_for_server "${distro}" "${edition}" "${server_version}")
 	fi
 
-	local sha_x86_64
-	sha_x86_64=$(fetch_package_sha "${distro}" "${edition}" "${server_version}" "${tools_version}" "x86_64")
-	local sha_aarch64
-	sha_aarch64=$(fetch_package_sha "${distro}" "${edition}" "${server_version}" "${tools_version}" "aarch64")
-
 	DEBUG=${DEBUG:=false}
-	LINUX_DISTRO=${distro}
 	LINUX_BASE=$(support_distro_to_base "${distro}")
 	AEROSPIKE_EDITION=${edition}
-	AEROSPIKE_VERSION=${server_version}
-	AEROSPIKE_SHA_X86_64=${sha_x86_64}
-	AEROSPIKE_SHA_AARCH64=${sha_aarch64}
-	AEROSPIKE_TOOLS_VERSION=${tools_version}
+	AEROSPIKE_X86_64_LINK=$(get_package_link "${distro}" "${edition}" "${server_version}" "${tools_version}" "x86_64")
+	AEROSPIKE_SHA_X86_64=$(fetch_package_sha "${distro}" "${edition}" "${server_version}" "${tools_version}" "x86_64")
+	AEROSPIKE_AARCH64_LINK=$(get_package_link "${distro}" "${edition}" "${server_version}" "${tools_version}" "aarch64")
+	AEROSPIKE_SHA_AARCH64=$(fetch_package_sha "${distro}" "${edition}" "${server_version}" "${tools_version}" "aarch64")
 
 	log_info "DEBUG '${DEBUG}'"
-	log_info "LINUX_DISTRO '${LINUX_DISTRO}'"
 	log_info "LINUX_BASE '${LINUX_BASE}'"
-	log_info "ARTIFACTS_DOMAIN '${ARTIFACTS_DOMAIN}'"
 	log_info "AEROSPIKE_EDITION: '${AEROSPIKE_EDITION}'"
-	log_info "AEROSPIKE_VERSION: '${AEROSPIKE_VERSION}'"
-	log_info "AEROSPIKE_TOOLS_VERSION: '${AEROSPIKE_TOOLS_VERSION}'"
+	log_info "AEROSPIKE_X86_64_LINK: '${AEROSPIKE_X86_64_LINK}'"
 	log_info "AEROSPIKE_SHA_X86_64: '${AEROSPIKE_SHA_X86_64}'"
+	log_info "AEROSPIKE_AARCH64_LINK: '${AEROSPIKE_AARCH64_LINK}'"
 	log_info "AEROSPIKE_SHA_AARCH64: '${AEROSPIKE_SHA_AARCH64}'"
 
 	local target_path="${edition}/${distro}"
@@ -54,7 +46,7 @@ function copy_template() {
 	local template_path=$1
 	local target_path=$2
 
-	log_debug "${FUNCNAME[0]} - ${template_path} to ${target_path}"
+	log_debug "${template_path} to ${target_path}"
 
 	rm -rf "${target_path}"
 	cp -r "${template_path}" "${target_path}"
@@ -120,7 +112,12 @@ function parse_args() {
 			# TODO - can we only do this when run from github actions?
 			git fetch --unshallow || true
 			git fetch --tags || true
-			g_server_version=$(git describe | cut -d - -f 1)
+
+			log_info "git version '$(git --version)'"
+
+			g_server_version=$(git describe --abbrev=0 --tags | cut -d _ -f 1)
+
+			log_info "Latest git tag '${g_server_version}'"
 			;;
 		s)
 			g_server_version="${OPTARG}"

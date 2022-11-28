@@ -12,6 +12,9 @@ source lib/log.sh
 source lib/support.sh
 source lib/verbose_call.sh
 
+IMAGE_TAG=
+CONTAINER=
+
 function usage() {
 	echo
 	echo "Usage: $0 [-e|--edition EDITION] [-d|--distro DISTRIBUTION] [-a|--all] [-c|--clean] [-h|--help]" 1>&2
@@ -77,13 +80,6 @@ function run_docker() {
 	log_info "------ Running docker image ${IMAGE_TAG} ..."
 	verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
 		-p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 "${IMAGE_TAG}"
-
-	if [ "$(docker container inspect -f '{{.State.Status}}' "${CONTAINER}")" == "running" ]; then
-		log_info "------ Container ${CONTAINER} started and running"
-	else
-		log_warn "------ Container ${CONTAINER} failed to start.  Abort"
-		exit 1
-	fi
 }
 
 function try() {
@@ -105,25 +101,60 @@ function try() {
 }
 
 function check_container() {
+	local version=$1
+
 	log_info "------ Verifying docker container ..."
 
-	if try 10 docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd'; then
-		log_info "Aerospike database is running!"
+	if [ "$(docker container inspect -f '{{.State.Status}}' "${CONTAINER}")" == "running" ]; then
+		log_success "Container ${CONTAINER} started and running"
 	else
-		log_warn "**Aerospike database is not running!**"
-		log_warn "Process aborted."
+		log_failure "**Container ${CONTAINER} failed to start**"
+		exit 1
+	fi
+
+	container_platform="$(docker exec -t "${CONTAINER}" bash -c 'stty -onlcr && uname -m')"
+	expected_platform="$(supported_platform_to_arch "${PLATFORM}")"
+
+	if [ "${container_platform}" = "${expected_platform}" ]; then
+		log_success "Container platform is expected platform '${expected_platform}'"
+	else
+		log_failure "**Container platform '${container_platform}' does not match expected platform '${expected_platform}'**"
+		exit 1
+	fi
+
+	if try 10 docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd' >/dev/null; then
+		log_success "Aerospike database is running"
+	else
+		log_failure "**Aerospike database is not running**"
 		exit 1
 	fi
 
 	if try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' | grep -qE "^ok"; then
-		log_info "Aerospike database is responding!"
+		log_success "Aerospike database is responding"
 	else
-		log_warn "**Aerospike database is not responding!**"
-		log_warn "Process aborted."
+		log_failure "**Aerospike database is not responding**"
 		exit 1
 	fi
 
-	log_info "------ Verify docker image completed successfully."
+	build=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asadm -e "enable; asinfo -v build"' | grep -oE "^${version}")
+
+	if [ -n "${build}" ]; then
+		log_success "Aerospike database has correct version - '${build}'"
+	else
+		log_failure "**Aerospike database has incorrect version - '${build}'*"
+		exit 1
+	fi
+
+	edition=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asadm -e "enable; asinfo -v edition"' | grep -oE "^Aerospike ${EDITION^} Edition")
+
+	if [ -n "${edition}" ]; then
+		log_success "Aerospike database has correct edition - '${edition}"
+	else
+		log_failure "**Aerospike database has incorrect edition - '${edition}'*"
+		exit 1
+	fi
+
+	log_info "------ Verify docker image completed successfully"
 }
 
 function clean_docker() {
@@ -133,18 +164,15 @@ function clean_docker() {
 	log_info "------ Cleaning up old containers complete"
 
 	if [ "${CLEAN}" = "true" ]; then
-		log_info "------ Cleaning up old images"
+		log_info "------ Cleaning up old images ..."
 		verbose_call docker rmi -f "$(docker images "${IMAGE_TAG}" -a -q | sort | uniq)"
 		log_info "------ Cleaning up old images complete"
 	fi
 }
 
 function test_current_edition_distro() {
-	local docker_path="${EDITION}/${DISTRIBUTION}"
 	local version
-	declare -g IMAGE_TAG
-	declare -g CONTAINER
-	version="$(grep "ARG AEROSPIKE_VERSION=" "${docker_path}/Dockerfile" | cut -d = -f 2)"
+	version="$(get_version_from_dockerfile "${DISTRIBUTION}" "${EDITION}")"
 	CONTAINER="aerospike-server-${EDITION}"
 	local platform_list
 	IFS=' ' read -r -a platform_list <<<"$(supported_platforms_for_asd "${version}" "${EDITION}")"
@@ -154,7 +182,7 @@ function test_current_edition_distro() {
 		IMAGE_TAG="aerospike/aerospike-server-${EDITION}-${short_platform}:${version}"
 		PLATFORM=${platform}
 		run_docker
-		check_container
+		check_container "${version}"
 		clean_docker
 	done
 }

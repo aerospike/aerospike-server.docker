@@ -2,8 +2,9 @@
 
 To release a new Lineage (i.e. not a hotfix release) the follow the directions
 under "New Lineage Release." Otherwise for a hotfix release (i.e. a patch to an
-existing lineage release), follow the directions under "Hotfix Release.""
+existing lineage release), follow the directions under "Hotfix Release."
 
+* [First Time Docker Buildx Setup](#first-time-docker-buildx-setup)
 * [New Lineage Release](#new-lineage-release)
   * [Checkout Appropriate Branch for New Lineage](#checkout-appropriate-branch-for-new-lineage)
   * [Run `update.sh` for New Lineage](#run-updatesh-for-new-lineage)
@@ -14,7 +15,29 @@ existing lineage release), follow the directions under "Hotfix Release.""
 * [Run `test.sh`](#run-testsh)
 * [Run `build.sh`-for-publishing](#run-buildsh-for-publishing)
 * [Push Changes to GitHub](#push-changes-to-github)
-* [Push to Dockerhub](#push-to-dockerhub)
+
+## First Time Docker Buildx Setup
+
+These scripts use `docker buildx` for multi-architecture builds, buildx may need
+to be setup if it isn't already.
+
+To check if your current builder support ARM run:
+
+```shell
+docker buildx inspect | grep -q "linux/arm" && echo "Builder supports ARM" || echo -e "\033[0;31mARM NOT supported by builder\033[0m"
+```
+
+If above outputs "Builder supports ARM" then proceed to either
+[New Lineage Release](#new-lineage-release) or
+[Hotfix Release](#hotfix-release).
+
+If the output was "ARM NOT supported by builder" then run the following to setup
+a builder that supports ARM.
+
+```shell
+docker run --privileged --rm tonistiigi/binfmt --install all 
+docker buildx create --name mybuilder --driver docker-container --bootstrap --use
+```
 
 ## New Lineage Release
 
@@ -47,7 +70,7 @@ If there were not any errors continue to the next section.
   ```shell
   git add enterprise federal community
   git commit -m "Update to <full version>"
-  git tag "<full version>"
+  git tag {-a,-m}\ "<full version>"
   ```
 
 3. Optionally you may versify the tag by executing the
@@ -62,18 +85,19 @@ Follow these directions if this is a patch to an existing release lineage.
 
 ### Checkout Appropriate Branch for Hotfix
 
-If the "New Lineage" steps were followed correctly, the hotfix branch should
-already exist - checkout the hotfix branch.
+Checkout the appropriate hotfix branch.
 
 ```shell
 # example - checkout hotfix/<version excluding hotfix number>
 #           (e.g. git checkout hotfix/5.7.0)
+git fetch origin
 git checkout hotfix/<version excluding hotfix number>
 git pull origin hotfix/<version excluding hotfix number>
+git merge origin/master # Sync hotfix branch with master.
 ```
 
-If the above command fails to find a match then the branch may not exist -
-create and checkout the hotfix branch based on the `master` branch.
+If the above command fails to find a matching branch then the branch doesn't
+exist yet - create and checkout the hotfix branch based on the `master` branch.
 
 ```shell
 # example - create hotfix/<version excluding hotfix number> base on master
@@ -89,7 +113,10 @@ If there were not any errors continue to the next section.
   script.
 
   ```shell
+  git pull origin master
+  
   ./update.sh -s <full version>
+  
   git commit -m "Update hotfix/<version excluding hotfix number> to hotfix <hotfix number>"
   git tag "<full version>"
   ```
@@ -133,7 +160,7 @@ If there were not any errors continue to the next section.
 
 ## Run `build.sh` for Publishing
 
-To build the multi-platform images for publishing.
+To build the multi-platform images and publish images to dockerhub.
 
 ```shell
 ./build.sh -p
@@ -157,10 +184,6 @@ For a hotfix release, push the committed changes to the
 #           (e.g. git push origin hotfix/5.7.0)
 git push origin hotfix/<version excluding hotfix number>
 ```
-
-## Push to DockerHub
-
-At this time, this isn't automated.
 
 ## Optional Tag Sanity Check
 

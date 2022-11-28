@@ -56,12 +56,12 @@ function find_latest_tools_version_for_server() {
 
 	if version_compare_ge "6.2" "${server_version}"; then
 		# Tools version not part of package name prior to 6.2.
-		log_debug "${FUNCNAME[0]} - prior to 6.2"
+		log_debug "prior to 6.2"
 		echo ""
 		return
 	fi
 
-	log_debug "${FUNCNAME[0]} - newer than 6.2"
+	log_debug "newer than 6.2"
 
 	local tools_version
 	tools_version="$(
@@ -75,14 +75,14 @@ function find_latest_tools_version_for_server() {
 	echo "${tools_version#tools-}"
 }
 
-function fetch_package_sha() {
+function get_package_link() {
 	local distro=$1
 	local edition=$2
 	local server_version=$3
 	local tools_version=$4
 	local arch=$5
 
-	local url
+	local link=
 
 	if version_compare_ge "6.2" "${server_version}"; then
 		if [ "${arch}" = "aarch64" ]; then
@@ -92,16 +92,44 @@ function fetch_package_sha() {
 		fi
 
 		# Package names prior to 6.2.
-		url="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}-${server_version}-${distro}.tgz.sha256"
+		link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}-${server_version}-${distro}.tgz"
 	else
 		if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
 			# Federal does not yet support arm.
 			echo ""
 			return
 		fi
+
 		# Package names 6.2 and later.
-		url="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}_tools-${tools_version}_${distro}_${arch}.tgz.sha256"
+		link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}_tools-${tools_version}_${distro}_${arch}.tgz"
 	fi
 
-	fetch "${FUNCNAME[0]}" "${url}" | cut -f 1 -d ' '
+	echo "${link}"
+}
+
+function fetch_package_sha() {
+	local distro=$1
+	local edition=$2
+	local server_version=$3
+	local tools_version=$4
+	local arch=$5
+
+	local link=
+	link="$(get_package_link "${distro}" "${edition}" "${server_version}" "${tools_version}" "${arch}")"
+
+	if [ -z "${link}" ]; then
+		echo ""
+		return
+	fi
+
+	link="${link}.sha256"
+
+	fetch "${FUNCNAME[0]}" "${link}" | cut -f 1 -d ' '
+}
+
+function get_version_from_dockerfile() {
+	local distro=$1
+	local edition=$2
+
+	grep "ARG AEROSPIKE_X86_64_LINK=" "${edition}/${distro}/Dockerfile" | grep -oE "/[0-9.]+/" | tr -d '/'
 }
