@@ -169,6 +169,9 @@ function install_aerospike_server_and_tools() {
 	install_aerospike_server
 	install_aerospike_tools_subset
 
+	# These directories are required for backward compatibility.
+	mkdir -p /var/{log,run}/aerospike
+
 	rm aerospike-server.tgz
 	rm -rf aerospike
 }
