@@ -11,6 +11,7 @@ set -Eeuo pipefail
 source lib/log.sh
 source lib/support.sh
 source lib/verbose_call.sh
+source lib/version.sh
 
 IMAGE_TAG=
 CONTAINER=
@@ -77,9 +78,20 @@ function parse_args() {
 }
 
 function run_docker() {
+	version=$1
+
 	log_info "------ Running docker image ${IMAGE_TAG} ..."
-	verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
-		-p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 "${IMAGE_TAG}"
+
+	if [ "${EDITION}" = "community" ] || version_compare_ge "${version}" "6.1"; then
+		verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
+			-p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 \
+			"${IMAGE_TAG}"
+	else
+		verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
+			-p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 \
+			-v "/$(pwd)/res/":/asfeat/ -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" \
+			"${IMAGE_TAG}"
+	fi
 }
 
 function try() {
@@ -181,7 +193,7 @@ function test_current_edition_distro() {
 		short_platform=${platform#*/}
 		IMAGE_TAG="aerospike/aerospike-server-${EDITION}-${short_platform}:${version}"
 		PLATFORM=${platform}
-		run_docker
+		run_docker "${version}"
 		check_container "${version}"
 		clean_docker
 	done
