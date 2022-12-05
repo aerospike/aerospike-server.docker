@@ -6,19 +6,30 @@
 
 FROM ${LINUX_BASE}
 
-ARG DEBUG=${DEBUG}
+LABEL \
+  maintainer="Aerospike, Inc. <developers@aerospike.com>" \
+  name=\"aerospike-${AEROSPIKE_EDITION}\" \\
+  vendor="Aerospike" \
+  version=\"${AEROSPIKE_VERSION}\" \\
+  release=\"${CONTAINER_RELEASE}\" \\
+  summary=\"Aerospike Server ${AEROSPIKE_EDITION^} Edition\" \\
+  description=\"${AEROSPIKE_DESCRIPTION}\" \\
+  io.k8s.display-name=\"Aerospike Server ${AEROSPIKE_EDITION^} Edition ${AEROSPIKE_VERSION}\" \\
+  io.k8s.description=\"${AEROSPIKE_DESCRIPTION}\"
+
+ARG DEBUG=\"${DEBUG}\"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION=${AEROSPIKE_EDITION}
+ARG AEROSPIKE_EDITION=\"${AEROSPIKE_EDITION}\"
 
 ARG AEROSPIKE_X86_64_LINK=\"${AEROSPIKE_X86_64_LINK}\"
-ARG AEROSPIKE_SHA_X86_64=${AEROSPIKE_SHA_X86_64}
+ARG AEROSPIKE_SHA_X86_64=\"${AEROSPIKE_SHA_X86_64}\"
 ARG AEROSPIKE_AARCH64_LINK=\"${AEROSPIKE_AARCH64_LINK}\"
-ARG AEROSPIKE_SHA_AARCH64=${AEROSPIKE_SHA_AARCH64}
+ARG AEROSPIKE_SHA_AARCH64=\"${AEROSPIKE_SHA_AARCH64}\"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

@@ -20,17 +20,23 @@ function run_template() {
 		tools_version=$(find_latest_tools_version_for_server "${distro}" "${edition}" "${server_version}")
 	fi
 
-	DEBUG=${DEBUG:=false}
-	LINUX_BASE=$(support_distro_to_base "${distro}")
-	AEROSPIKE_EDITION=${edition}
-	AEROSPIKE_X86_64_LINK=$(get_package_link "${distro}" "${edition}" "${server_version}" "${tools_version}" "x86_64")
-	AEROSPIKE_SHA_X86_64=$(fetch_package_sha "${distro}" "${edition}" "${server_version}" "${tools_version}" "x86_64")
-	AEROSPIKE_AARCH64_LINK=$(get_package_link "${distro}" "${edition}" "${server_version}" "${tools_version}" "aarch64")
-	AEROSPIKE_SHA_AARCH64=$(fetch_package_sha "${distro}" "${edition}" "${server_version}" "${tools_version}" "aarch64")
+	DEBUG="${DEBUG:=false}"
+	LINUX_BASE="$(support_distro_to_base "${distro}")"
+	AEROSPIKE_VERSION="${server_version}"
+	CONTAINER_RELEASE="${g_container_release}"
+	AEROSPIKE_EDITION="${edition}"
+	AEROSPIKE_DESCRIPTION="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions."
+	AEROSPIKE_X86_64_LINK="$(get_package_link "${distro}" "${edition}" "${server_version}" "${tools_version}" "x86_64")"
+	AEROSPIKE_SHA_X86_64="$(fetch_package_sha "${distro}" "${edition}" "${server_version}" "${tools_version}" "x86_64")"
+	AEROSPIKE_AARCH64_LINK="$(get_package_link "${distro}" "${edition}" "${server_version}" "${tools_version}" "aarch64")"
+	AEROSPIKE_SHA_AARCH64="$(fetch_package_sha "${distro}" "${edition}" "${server_version}" "${tools_version}" "aarch64")"
 
-	log_info "DEBUG '${DEBUG}'"
-	log_info "LINUX_BASE '${LINUX_BASE}'"
+	log_info "DEBUG: '${DEBUG}'"
+	log_info "LINUX_BASE: '${LINUX_BASE}'"
+	log_info "AEROSPIKE_VERSION: '${AEROSPIKE_VERSION}'"
+	log_info "CONTAINER_RELEASE: '${CONTAINER_RELEASE}'"
 	log_info "AEROSPIKE_EDITION: '${AEROSPIKE_EDITION}'"
+	log_info "AEROSPIKE_DESCRIPTION: '${AEROSPIKE_DESCRIPTION}'"
 	log_info "AEROSPIKE_X86_64_LINK: '${AEROSPIKE_X86_64_LINK}'"
 	log_info "AEROSPIKE_SHA_X86_64: '${AEROSPIKE_SHA_X86_64}'"
 	log_info "AEROSPIKE_AARCH64_LINK: '${AEROSPIKE_AARCH64_LINK}'"
@@ -68,6 +74,8 @@ function bash_eval_template() {
 	echo "" >"${target_file}"
 
 	while IFS= read -r line; do
+		log_debug "${line}"
+
 		if grep -qE "[$][(]|[{]" <<<"${line}"; then
 			local update
 			update=$(eval echo "\"${line}\"") || exit 1
@@ -82,24 +90,27 @@ function bash_eval_template() {
 
 function usage() {
 	cat <<EOF
-Usage: $0 e|h|r -s <server version> -t <tools version>
+Usage: $0 e|h|r -r <container release> -s <server version> -t <tools version>
 
-	-e Edition to update
-	-h display this help.
-	-r For a new release, use the current git tag as the server version.
-	-s <server version> use this version instead of scraping the latest version
-		from artifacts.
-	-t <tools version> use this version instead of scraping the latest version
-		for a particular server version from artifacts.
+    -e Edition to update
+    -g Collects version information form 'git describe --abbrev=0'
+    -h Display this help.
+    -r <container release> Use if re-releasing an image - should increment by
+        one for each re-release.
+    -s <server version> Use this version instead of scraping the latest version
+        from artifacts.
+    -t <tools version> Use this version instead of scraping the latest version
+        for a particular server version from artifacts.
 EOF
 }
 
 function parse_args() {
 	g_server_edition=
 	g_server_version=
+	g_container_release='1'
 	g_tools_version=
 
-	while getopts "e:hrs:t:" opt; do
+	while getopts "e:ghr:s:t:" opt; do
 		case "${opt}" in
 		e)
 			g_server_edition="${OPTARG}"
@@ -108,16 +119,24 @@ function parse_args() {
 			usage
 			exit 0
 			;;
+		g)
+			git_describe="$(git describe --abbrev=0)"
+
+			if grep -q "_" <<<"${git_describe}"; then
+				g_server_version="$(cut -sd _ -f 1 <<<"${git_describe}")"
+				g_container_release="$(cut -sd _ -f 2 <<<"${git_describe}")"
+
+				if [ "${g_container_release}" = "1" ]; then
+					log_warn "Suffix '_1' is not allowed in tag '${git_describe}'"
+					exit 1
+				fi
+			else
+				g_server_version="${git_describe}"
+				g_container_release='1'
+			fi
+			;;
 		r)
-			# TODO - can we only do this when run from github actions?
-			git fetch --unshallow || true
-			git fetch --tags || true
-
-			log_info "git version '$(git --version)'"
-
-			g_server_version=$(git describe --abbrev=0 --tags | cut -d _ -f 1)
-
-			log_info "Latest git tag '${g_server_version}'"
+			g_container_release="${OPTARG}"
 			;;
 		s)
 			g_server_version="${OPTARG}"
@@ -149,10 +168,10 @@ function main() {
 	local editions
 	local all_editions
 
-	IFS=' ' read -r -a distros <<<"$(supported_distros_for_asd "${g_server_version}")"
+	IFS=' ' read -r -a distros <<<"$(support_distros_for_asd "${g_server_version}")"
 
 	if [ -z "${g_server_edition}" ]; then
-		IFS=' ' read -r -a editions <<<"$(supported_editions_for_asd "${g_server_version}")"
+		IFS=' ' read -r -a editions <<<"$(support_editions_for_asd "${g_server_version}")"
 	else
 		editions=("${g_server_edition}")
 	fi

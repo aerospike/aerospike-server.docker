@@ -25,7 +25,7 @@ function build_edition() {
 	local version
 	version="$(get_version_from_dockerfile "${distro}" "${edition}")"
 
-	IFS=' ' read -r -a platform_list <<<"$(supported_platforms_for_asd "${version}" "${edition}")"
+	IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${version}" "${edition}")"
 
 	if [ "${g_test_build}" = "true" ]; then
 		for platform in "${platform_list[@]}"; do
@@ -68,12 +68,12 @@ function usage() {
 	cat <<EOF
 Usage: $0 -h -d <linux distro> -e <server edition>
 
-	-h display this help.
-	-d <linux disto> (debian11) only build for this distro.
-	-e <server edition> (enterprise|federal|community) only build this server
-		edition.
-	-t build for invoking test in test.sh
-	-p build for release/push to dockerhub
+    -h display this help.
+    -d <linux disto> (debian11) only build for this distro.
+    -e <server edition> (enterprise|federal|community) only build this server
+        edition.
+    -t build for invoking test in test.sh
+    -p build for release/push to dockerhub
 EOF
 }
 

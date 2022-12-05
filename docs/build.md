@@ -187,12 +187,11 @@ git push origin hotfix/<version excluding hotfix number>
 
 ## Optional Tag Sanity Check
 
-Optional sanity check - the GitHub actions will run `./update.sh -r` which
+Optional sanity check - the GitHub actions will run `./update.sh -g` which
 requires that the release has already been tagged - you may verify that the tag
-is correct by running `./update.sh -r` and observing that the contents of the
+is correct by running `./update.sh -g` and observing that the contents of the
 three editions do not change.
 
 ```shell
-./update.sh -r
-[ -z $(git diff --stat)] && echo "Tag is good"
+./update.sh -g 2>/dev/null && [ -z "$(git diff --stat)" ] && echo "Tag is good"
 ```

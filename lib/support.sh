@@ -9,7 +9,7 @@ function support_all_editions() {
 	echo "enterprise federal community"
 }
 
-function supported_editions_for_asd() {
+function support_editions_for_asd() {
 	local version=$1
 
 	if version_compare_ge "6.0" "${version}"; then
@@ -37,7 +37,7 @@ function support_distro_to_base() {
 	esac
 }
 
-function supported_distros_for_asd() {
+function support_distros_for_asd() {
 	local version=$1
 
 	if version_compare_ge "6.0" "${version}"; then
@@ -48,7 +48,7 @@ function supported_distros_for_asd() {
 	echo "debian11"
 }
 
-function supported_arch_for_asd() {
+function support_arch_for_asd() {
 	local version=$1
 
 	if version_compare_ge "6.2" "${version}"; then
@@ -59,7 +59,7 @@ function supported_arch_for_asd() {
 	echo "x86_64 aarch64"
 }
 
-function supported_platforms_for_asd() {
+function support_platforms_for_asd() {
 	local version=$1
 	local edition=$2
 
@@ -75,7 +75,7 @@ function supported_platforms_for_asd() {
 	echo "linux/amd64 linux/arm64"
 }
 
-function supported_platform_to_arch() {
+function support_platform_to_arch() {
 	local platform=$1
 
 	case "${platform}" in

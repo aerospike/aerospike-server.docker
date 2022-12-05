@@ -7,19 +7,30 @@
 
 FROM debian:bullseye-slim
 
-ARG DEBUG=false
+LABEL \
+  maintainer="Aerospike, Inc. <developers@aerospike.com>" \
+  name="aerospike-community" \
+  vendor="Aerospike" \
+  version="6.2.0.0" \
+  release="1" \
+  summary="Aerospike Server Community Edition" \
+  description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
+  io.k8s.display-name="Aerospike Server Community Edition 6.2.0.0" \
+  io.k8s.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions."
+
+ARG DEBUG="false"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION=community
+ARG AEROSPIKE_EDITION="community"
 
 ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.0/aerospike-server-community_6.2.0.0_tools-8.0.2_debian11_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64=7fb6338a5f6587bef50e341951d011404e770ae4c6b87f23c3e66cdd7c5c80d0
+ARG AEROSPIKE_SHA_X86_64="7fb6338a5f6587bef50e341951d011404e770ae4c6b87f23c3e66cdd7c5c80d0"
 ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.0/aerospike-server-community_6.2.0.0_tools-8.0.2_debian11_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64=8b4c5b7e7a376bff755b9db36aa0d77a94fa1554f40af1887960c319efe704b8
+ARG AEROSPIKE_SHA_AARCH64="8b4c5b7e7a376bff755b9db36aa0d77a94fa1554f40af1887960c319efe704b8"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

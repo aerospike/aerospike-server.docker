@@ -172,6 +172,10 @@ function install_aerospike_server_and_tools() {
 	# These directories are required for backward compatibility.
 	mkdir -p /var/{log,run}/aerospike
 
+	# Copy license file to standard location.
+	mkdir -p /licenses
+	cp aerospike/LICENSE /licenses
+
 	rm aerospike-server.tgz
 	rm -rf aerospike
 }

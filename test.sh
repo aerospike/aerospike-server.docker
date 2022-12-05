@@ -20,11 +20,11 @@ function usage() {
 	echo
 	echo "Usage: $0 [-e|--edition EDITION] [-d|--distro DISTRIBUTION] [-a|--all] [-c|--clean] [-h|--help]" 1>&2
 	echo
-	echo "-e|--edition EDITION: community, enterprise, federal."
-	echo "-d|--distro DISTRIBUTION: debian11."
-	echo "-a|--all: run test for all the editions and distribution."
-	echo "-c|--clean: cleanup the images after the test."
-	echo "-h|--help: this help."
+	echo "    -e|--edition EDITION: community, enterprise, federal."
+	echo "    -d|--distro DISTRIBUTION: debian11."
+	echo "    -a|--all: run test for all the editions and distribution."
+	echo "    -c|--clean: cleanup the images after the test."
+	echo "    -h|--help: this help."
 	echo
 }
 
@@ -125,7 +125,7 @@ function check_container() {
 	fi
 
 	container_platform="$(docker exec -t "${CONTAINER}" bash -c 'stty -onlcr && uname -m')"
-	expected_platform="$(supported_platform_to_arch "${PLATFORM}")"
+	expected_platform="$(support_platform_to_arch "${PLATFORM}")"
 
 	if [ "${container_platform}" = "${expected_platform}" ]; then
 		log_success "Container platform is expected platform '${expected_platform}'"
@@ -187,7 +187,7 @@ function test_current_edition_distro() {
 	version="$(get_version_from_dockerfile "${DISTRIBUTION}" "${EDITION}")"
 	CONTAINER="aerospike-server-${EDITION}"
 	local platform_list
-	IFS=' ' read -r -a platform_list <<<"$(supported_platforms_for_asd "${version}" "${EDITION}")"
+	IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${version}" "${EDITION}")"
 
 	for platform in "${platform_list[@]}"; do
 		short_platform=${platform#*/}
