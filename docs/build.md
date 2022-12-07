@@ -4,8 +4,10 @@ To release a new Lineage (i.e. not a hotfix release) the follow the directions
 under "New Lineage Release." Otherwise for a hotfix release (i.e. a patch to an
 existing lineage release), follow the directions under "Hotfix Release."
 
+* [Definitions](#definitions)
 * [First Time Docker Buildx Setup](#first-time-docker-buildx-setup)
-* [New Lineage Release](#new-lineage-release)
+* [First Time Git Clone](#first-time-git-clone)
+* [New or Latest Lineage Release](#new-or-latest-lineage-release)
   * [Checkout Appropriate Branch for New Lineage](#checkout-appropriate-branch-for-new-lineage)
   * [Run `update.sh` for New Lineage](#run-updatesh-for-new-lineage)
 * [Hotfix Release](#hotfix-release)
@@ -15,6 +17,14 @@ existing lineage release), follow the directions under "Hotfix Release."
 * [Run `test.sh`](#run-testsh)
 * [Run `build.sh`-for-publishing](#run-buildsh-for-publishing)
 * [Push Changes to GitHub](#push-changes-to-github)
+
+## Definitions
+
+* **full-version** - Full 4 digit version number.
+* **lineage-version** - First 3 numbers of the **full-version** (excludes the
+  hotfix number).
+* **new lineage release** - Initial release for a **lineage-version**.
+* **hotfix-release** - A release to an existing **lineage-version**.
 
 ## First Time Docker Buildx Setup
 
@@ -39,10 +49,20 @@ docker run --privileged --rm tonistiigi/binfmt --install all
 docker buildx create --name mybuilder --driver docker-container --bootstrap --use
 ```
 
-## New Lineage Release
+## First Time Git Clone
 
-Follow these directions if this is a new lineage release (i.e. not a hotfix
-release).
+The following procedures assume that your current working directory is the root
+of the `aerospike-server.docker` repo.
+
+```shell
+git clone <org>/aerospike-server.docker
+cd aerospike-server.docker
+```
+
+## New or Latest Lineage Release
+
+Follow these directions if releasing a new lineage or a hotfix on the latest
+lineage.
 
 ### Checkout Appropriate Branch for New Lineage
 
@@ -69,8 +89,8 @@ If there were not any errors continue to the next section.
 
   ```shell
   git add enterprise federal community
-  git commit -m "Update to <full version>"
-  git tag {-a,-m}\ "<full version>"
+  git commit -m "Update to <full-version>"
+  git tag -a "<full-version>" -m "<full-version>"
   ```
 
 3. Optionally you may versify the tag by executing the
@@ -81,18 +101,19 @@ section.
 
 ## Hotfix Release
 
-Follow these directions if this is a patch to an existing release lineage.
+Follow these directions if this is a patch to an existing release lineage that
+isn't the latest lineage.
 
 ### Checkout Appropriate Branch for Hotfix
 
 Checkout the appropriate hotfix branch.
 
 ```shell
-# example - checkout hotfix/<version excluding hotfix number>
+# example - checkout hotfix/<lineage-version>
 #           (e.g. git checkout hotfix/5.7.0)
 git fetch origin
-git checkout hotfix/<version excluding hotfix number>
-git pull origin hotfix/<version excluding hotfix number>
+git checkout hotfix/<lineage-version>
+git pull origin hotfix/<lineage-version>
 git merge origin/master # Sync hotfix branch with master.
 ```
 
@@ -100,9 +121,9 @@ If the above command fails to find a matching branch then the branch doesn't
 exist yet - create and checkout the hotfix branch based on the `master` branch.
 
 ```shell
-# example - create hotfix/<version excluding hotfix number> base on master
+# example - create hotfix/<lineage-version> base on master
 git fetch origin
-git checkout origin/master -b hotfix/<version excluding hotfix number>
+git checkout origin/master -b hotfix/<lineage-version>
 ```
 
 If there were not any errors continue to the next section.
@@ -113,15 +134,18 @@ If there were not any errors continue to the next section.
   script.
 
   ```shell
-  git pull origin master
+  ./update.sh -s <full-version>
+  ```
   
-  ./update.sh -s <full version>
-  
-  git commit -m "Update hotfix/<version excluding hotfix number> to hotfix <hotfix number>"
-  git tag "<full version>"
+2. After the update script has run, commit the changes and tag the release.
+
+  ```shell
+  git add community enterprise federal
+  git commit -m "Update hotfix/<lineage-version> to hotfix <full-version>"
+  git tag -a "<full-version>" -m "<full-version>"
   ```
 
-2. Optionally you may versify the tag by executing the
+3. Optionally you may versify the tag by executing the
   [Optional Tag Sanity Check](#optional-tag-sanity-check) directions.
 
 If there were not any errors continue to the [Run `build.sh`](#run-buildsh)
@@ -168,21 +192,25 @@ To build the multi-platform images and publish images to dockerhub.
 
 ## Push Changes to GitHub
 
+### Push Hotfix Release
+
+For a hotfix release, push the committed changes to the
+`hotfix/<lineage-version>` branch.
+
+```shell
+# example - push hotfix/<lineage-version>
+#           (e.g. git push origin hotfix/5.7.0)
+git push origin hotfix/<lineage-version>
+```
+
+### Push New Lineage Release
+
 For a new lineage, push the changes committed to the local `master` branch and
 create a hotfix branch for future hotfixs.
 
 ```shell
 git push origin master
-git checkout master -b hotfix/<version excluding hotfix number>
-```
-
-For a hotfix release, push the committed changes to the
-`hotfix<version excluding hotfix number>` branch.
-
-```shell
-# example - push hotfix/<version excluding hotfix number>
-#           (e.g. git push origin hotfix/5.7.0)
-git push origin hotfix/<version excluding hotfix number>
+git checkout master -b hotfix/<lineage-version>
 ```
 
 ## Optional Tag Sanity Check

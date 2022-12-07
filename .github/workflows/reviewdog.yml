@@ -1,7 +1,7 @@
 name: reviewdog
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, 'hotfix/**']
   pull_request:
 
 jobs:

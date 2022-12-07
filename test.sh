@@ -147,16 +147,16 @@ function check_container() {
 	if [ -n "${build}" ]; then
 		log_success "Aerospike database has correct version - '${build}'"
 	else
-		log_failure "**Aerospike database has incorrect version - '${build}'*"
+		log_failure "**Aerospike database has incorrect version - '${build}'**"
 		exit 1
 	fi
 
 	edition=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asadm -e "enable; asinfo -v edition"' | grep -oE "^Aerospike ${EDITION^} Edition")
 
 	if [ -n "${edition}" ]; then
-		log_success "Aerospike database has correct edition - '${edition}"
+		log_success "Aerospike database has correct edition - '${edition}'"
 	else
-		log_failure "**Aerospike database has incorrect edition - '${edition}'*"
+		log_failure "**Aerospike database has incorrect edition - '${edition}'**"
 		exit 1
 	fi
 
