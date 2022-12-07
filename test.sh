@@ -17,24 +17,22 @@ IMAGE_TAG=
 CONTAINER=
 
 function usage() {
-	echo
-	echo "Usage: $0 [-e|--edition EDITION] [-d|--distro DISTRIBUTION] [-a|--all] [-c|--clean] [-h|--help]" 1>&2
-	echo
-	echo "    -e|--edition EDITION: community, enterprise, federal."
-	echo "    -d|--distro DISTRIBUTION: debian11."
-	echo "    -a|--all: run test for all the editions and distribution."
-	echo "    -c|--clean: cleanup the images after the test."
-	echo "    -h|--help: this help."
-	echo
+	cat <<EOF
+Usage: $0 [-e|--edition EDITION] [-d|--distro DISTRIBUTION] [-c|--clean] [-h|--help]
+
+    -e|--edition EDITION: community, enterprise, federal.
+    -d|--distro DISTRIBUTION: debian11.
+    -c|--clean: cleanup the images after the test.
+    -h|--help: this help.
+EOF
 }
 
 function parse_args() {
 	CLEAN="false"
-	TEST_ALL="false"
-	EDITION='enterprise'
-	DISTRIBUTION='debian11'
+	EDITION=
+	DISTRIBUTION=
 
-	PARSED_ARGS=$(getopt -a -n test -o che:d:p:a --long clean,help,edition:,distro:,platform:,all -- "$@")
+	PARSED_ARGS=$(getopt -a -n test -o che:d:p: --long clean,help,edition:,distro:,platform: -- "$@")
 	VALID_ARGS=$?
 
 	if [ "${VALID_ARGS}" != "0" ]; then
@@ -44,10 +42,6 @@ function parse_args() {
 	eval set -- "${PARSED_ARGS}"
 	while true; do
 		case "$1" in
-		-a | --all)
-			TEST_ALL="true"
-			shift
-			;;
 		-c | --clean)
 			CLEAN="true"
 			shift
@@ -202,28 +196,31 @@ function test_current_edition_distro() {
 function main() {
 	parse_args "$@"
 
-	if [ "${TEST_ALL}" = "true" ]; then
-		local edition_list=('community' 'enterprise' 'federal')
+	local edition_list=("${EDITION}")
 
-		log_info "------ Testing for all the available editions and distributions"
-		for edition in "${edition_list[@]}"; do
-			local distribution_list=("${DISTRIBUTION}")
-
-			if [ -z "${DISTRIBUTION}" ]; then
-				tmp_list=("$(find "${edition}"/* -maxdepth 0 -type d)")
-				distribution_list=("${tmp_list[@]/#"${edition}"\//}")
-			fi
-
-			for distribution in "${distribution_list[@]}"; do
-				EDITION=$edition
-				DISTRIBUTION=$distribution
-				log_info "------ Testing for edition=${EDITION} Distribution=${DISTRIBUTION}"
-				test_current_edition_distro
-			done
-		done
-	else
-		test_current_edition_distro
+	if [ -z "${EDITION}" ]; then
+		readarray -t edition_list < <(find community enterprise federal -name Dockerfile -type f | cut -d/ -f1)
 	fi
+
+	log_info "------ Testing editions: '${edition_list[*]}'"
+
+	for edition in "${edition_list[@]}"; do
+
+		local distribution_list=("${DISTRIBUTION}")
+
+		if [ -z "${DISTRIBUTION}" ]; then
+			readarray -t distribution_list < <(find "${edition}"/* -maxdepth 0 -type d | cut -d/ -f2)
+		fi
+
+		for distribution in "${distribution_list[@]}"; do
+			EDITION=$edition
+			DISTRIBUTION=$distribution
+
+			log_info "------ Testing for edition=${EDITION} Distribution=${DISTRIBUTION}"
+
+			test_current_edition_distro
+		done
+	done
 }
 
 main "$@"

@@ -19,7 +19,7 @@ function build_edition() {
 	local distro=$2
 	local platform_list
 
-	log_info "edition ${edition} distro ${distro}"
+	log_info "edition '${edition}' distro '${distro}'"
 
 	local docker_path="${edition}/${distro}"
 	local version
@@ -120,11 +120,11 @@ function parse_args() {
 function main() {
 	parse_args "$@"
 
-	local editions=("enterprise" "federal" "community")
+	local editions=("${g_server_edition}")
 	local distro_in=${g_linux_distro}
 
-	if [ -n "${g_server_edition}" ]; then
-		editions=("${g_server_edition}")
+	if [ -z "${g_server_edition}" ]; then
+		readarray -t editions < <(find community enterprise federal -name Dockerfile -type f | cut -d/ -f1)
 	fi
 
 	for edition in "${editions[@]}"; do

@@ -2,16 +2,6 @@
 
 set -Eeuo pipefail
 
-# keep track of the last executed command
-# shellcheck disable=SC2154
-trap 'last_command=${current_command:=""}; current_command=$BASH_COMMAND' DEBUG
-
-# echo an error message before exiting
-# shellcheck disable=SC2154
-trap 'echo "\"${last_command}\" command filed with exit code $?."' EXIT
-
-ARCH="$(uname -m)"
-
 function _log_level() {
 	level=$1
 	msg=$2
@@ -40,6 +30,17 @@ function fetch() {
 	log_debug "${tag} - ${link}"
 
 	curl -fsSL "${link}" "${@:3}"
+}
+
+function version_compare_ge() {
+	v1=$1
+	v2=$2
+
+	if [ "$(printf "%s\n%s" "${v1}" "${v2}" | sort -V | head -1)" != "${v1}" ]; then
+		return 0
+	fi
+
+	return 1
 }
 
 function install_bootstrap_dependencies() {
@@ -82,8 +83,31 @@ function remove_bootstrap_dependencies() {
 	unset DEBIAN_FRONTEND
 }
 
+function install_aerospike_server_dependencies() {
+	if [ "${AEROSPIKE_EDITION}" = "enterprise" ]; then
+		apt-get install -y --no-install-recommends \
+			libcurl4 \
+			libldap-2.4.2
+	else
+		apt-get install -y --no-install-recommends \
+			libcurl4
+	fi
+}
+
+function install_aerospike_tools_dependencies() {
+	if ! version_compare_ge "${VERSION}" "5.1"; then
+		# Tools before 5.1 need python2.
+		apt install -y --no-install-recommends python2
+	elif ! version_compare_ge "${VERSION}" "6.0"; then
+		# Tools before 6.0 need python3.
+		apt install -y --no-install-recommends python3 python3-distutils
+	fi
+
+	# Tools after 6.0 bundled their own python interpreter.
+}
+
 function install_procps() {
-	# procps is needed for test using pgrep.
+	# The procps package is needed for test using pgrep.
 	apt-get install -y --no-install-recommends procps
 }
 
@@ -109,17 +133,15 @@ function install_tini() {
 }
 
 function install_aerospike_server() {
-	if [ "${AEROSPIKE_EDITION}" = "enterprise" ]; then
-		apt-get install -y --no-install-recommends \
-			libcurl4 \
-			libldap-2.4.2
-	fi
+	install_aerospike_server_dependencies
 
 	dpkg -i aerospike/aerospike-server-*.deb
 	rm -rf /opt/aerospike/bin
 }
 
 function install_aerospike_tools_subset() {
+	install_aerospike_tools_dependencies
+
 	cd aerospike/pkg # ar on debian10 doesn't support '--output'
 	ar -x ../aerospike-tools*.deb
 	cd -
@@ -128,16 +150,27 @@ function install_aerospike_tools_subset() {
 	find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +
 	mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike
 
-	# Since tools release 7.0.5, asadm has been moved from /opt/aerospike/bin/asadm to /opt/aerospike/bin/asadm/asadm (inside an asadm directory)
 	if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then
-		mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/
-		ln -s /usr/lib/asadm/asadm /usr/bin/asadm
+		# Since tools release 7.0.5, asadm has been moved from
+		# /opt/aerospike/bin/asadm to /opt/aerospike/bin/asadm/asadm
+		# (inside an asadm directory).
 
-		# Since tools release 7.1.1, asinfo has been moved from /opt/aerospike/bin/asinfo to /opt/aerospike/bin/asadm/asinfo (inside an asadm directory)
-		if [ -f /usr/lib/asadm/asinfo ]; then
-			ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo
-		fi
+		mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/
+	else
+		mkdir /usr/lib/asadm
+		mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/
 	fi
+
+	ln -s /usr/lib/asadm/asadm /usr/bin/asadm
+
+	if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then
+		# Since tools release 7.1.1, asinfo has been moved from
+		# /opt/aerospike/bin/asinfo to /opt/aerospike/bin/asadm/asinfo
+		# (inside an asadm directory).
+		mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/
+	fi
+
+	ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo
 }
 
 function install_aerospike_server_and_tools() {
@@ -181,12 +214,17 @@ function install_aerospike_server_and_tools() {
 }
 
 function main() {
+	ARCH="$(uname -m)"
+
 	log_debug "ARCH = '${ARCH}'"
 	log_debug "AEROSPIKE_EDITION = '${AEROSPIKE_EDITION}'"
 	log_debug "AEROSPIKE_X86_64_LINK = '${AEROSPIKE_X86_64_LINK}'"
 	log_debug "AEROSPIKE_SHA_X86_64 = '${AEROSPIKE_SHA_X86_64}'"
 	log_debug "AEROSPIKE_AARCH64_LINK = '${AEROSPIKE_AARCH64_LINK}'"
 	log_debug "AEROSPIKE_SHA_AARCH64 = '${AEROSPIKE_SHA_AARCH64}'"
+
+	#DISTRO="$(grep -oE "debian[0-9]+(_x86_64)?[.]tgz$" <<<"${AEROSPIKE_X86_64_LINK}" | cut -d'.' -f1 | grep -oE "debian[0-9]+")"
+	VERSION="$(grep -oE "/[0-9]+([.][0-9]+){2,3}/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/')"
 
 	install_bootstrap_dependencies
 	install_tini

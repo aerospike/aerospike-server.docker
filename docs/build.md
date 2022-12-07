@@ -153,7 +153,7 @@ the server version it discovers from the enterprise Dockerfile - same as
 `build.sh` above.
 
 ```shell
-./test.sh --all --clean
+./test.sh --clean
 ```
 
 If there were not any errors continue to the next section.
