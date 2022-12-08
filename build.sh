@@ -115,6 +115,16 @@ function parse_args() {
 	log_info "g_server_edition: '${g_server_edition}'"
 	log_info "g_test_build: '${g_test_build}'"
 	log_info "g_push_build: '${g_push_build}'"
+
+	if [ "${g_test_build}" = "false" ] && [ "${g_push_build}" = "false" ]; then
+		log_warn "Must provide either '-t' or '-p' option"
+		exit 1
+	fi
+
+	if [ "${g_test_build}" = "true" ] && [ "${g_push_build}" = "true" ]; then
+		log_warn "Must provide either '-t' or '-p' option, not both"
+		exit 1
+	fi
 }
 
 function main() {

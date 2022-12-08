@@ -97,10 +97,13 @@ function install_aerospike_server_dependencies() {
 function install_aerospike_tools_dependencies() {
 	if ! version_compare_ge "${VERSION}" "5.1"; then
 		# Tools before 5.1 need python2.
-		apt install -y --no-install-recommends python2
+		apt-get install -y --no-install-recommends \
+			python2
 	elif ! version_compare_ge "${VERSION}" "6.0"; then
 		# Tools before 6.0 need python3.
-		apt install -y --no-install-recommends python3 python3-distutils
+		apt-get install -y --no-install-recommends \
+			python3 \
+			python3-distutils
 	fi
 
 	# Tools after 6.0 bundled their own python interpreter.
@@ -142,9 +145,9 @@ function install_aerospike_server() {
 function install_aerospike_tools_subset() {
 	install_aerospike_tools_dependencies
 
-	cd aerospike/pkg # ar on debian10 doesn't support '--output'
+	pushd aerospike/pkg # ar on debian10 doesn't support '--output'
 	ar -x ../aerospike-tools*.deb
-	cd -
+	popd
 	tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/
 
 	find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +

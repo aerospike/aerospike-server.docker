@@ -34,8 +34,9 @@ ARG AEROSPIKE_SHA_AARCH64=\"${AEROSPIKE_SHA_AARCH64}\"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
-COPY scripts/bootstrap.sh /bootstrap.sh
-RUN ./bootstrap.sh && rm bootstrap.sh
+RUN <<EOF
+$(cat scripts/bootstrap.sh)
+EOF
 
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
@@ -53,7 +54,7 @@ COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 #
 EXPOSE 3000 3001 3002
 
-COPY scripts/entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 
 # Tini init set to restart ASD on SIGUSR1 and terminate ASD on SIGTERM
 ENTRYPOINT ["/usr/bin/as-tini-static", "-r", "SIGUSR1", "-t", "SIGTERM", "--", "/entrypoint.sh"]
