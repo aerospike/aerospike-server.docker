@@ -18,9 +18,7 @@ To check if your current builder support ARM run:
 docker buildx inspect | grep -q "linux/arm" && echo "Builder supports ARM" || echo -e "\033[0;31mARM NOT supported by builder\033[0m"
 ```
 
-If above outputs "Builder supports ARM" then proceed to either
-[New Lineage Release](#new-lineage-release) or
-[Hotfix Release](#hotfix-release).
+If above outputs "Builder supports ARM" then proceed.
 
 If the output was "ARM NOT supported by builder" then run the following to setup
 a builder that supports ARM.
@@ -66,7 +64,7 @@ cd aerospike-server.docker
 4. Verify the tag format is correct.
   
   ```shell
-  ./update.sh -g 2>/dev/null && [ -z "$(git diff --stat)" ] && echo "Tag is good"
+  ./update.sh -g 2>/dev/null && [ -z "$(git diff --stat)" ] && echo "Tag is good" || echo -e "\033[0;31mBad Tag\033[0m"
   ```
 
 5. Build test images and test.
