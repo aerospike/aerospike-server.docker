@@ -1,30 +1,11 @@
 # Release Process
 
-To release a new Lineage (i.e. not a hotfix release) the follow the directions
-under "New Lineage Release." Otherwise for a hotfix release (i.e. a patch to an
-existing lineage release), follow the directions under "Hotfix Release."
-
-* [Definitions](#definitions)
 * [First Time Docker Buildx Setup](#first-time-docker-buildx-setup)
 * [First Time Git Clone](#first-time-git-clone)
-* [New or Latest Lineage Release](#new-or-latest-lineage-release)
-  * [Checkout Appropriate Branch for New Lineage](#checkout-appropriate-branch-for-new-lineage)
-  * [Run `update.sh` for New Lineage](#run-updatesh-for-new-lineage)
-* [Hotfix Release](#hotfix-release)
-  * [Checkout Appropriate Branch for Hotfix](#checkout-appropriate-branch-for-new-lineage)
-  * [Run `update.sh` for Hotfix](#run-updatesh-for-hotfix)
-* [Run `build.sh`-for-testing](#run-buildsh-for-testing)
-* [Run `test.sh`](#run-testsh)
-* [Run `build.sh`-for-publishing](#run-buildsh-for-publishing)
-* [Push Changes to GitHub](#push-changes-to-github)
-
-## Definitions
-
-* **full-version** - Full 4 digit version number.
-* **lineage-version** - First 3 numbers of the **full-version** (excludes the
-  hotfix number).
-* **new lineage release** - Initial release for a **lineage-version**.
-* **hotfix-release** - A release to an existing **lineage-version**.
+* [Build Procedure](#build-procedure)
+* [About update.sh](#about-updatesh)
+* [About build.sh](#about-buildsh)
+* [About test.sh](#about-testsh)
 
 ## First Time Docker Buildx Setup
 
@@ -52,174 +33,102 @@ docker buildx create --name mybuilder --driver docker-container --bootstrap --us
 ## First Time Git Clone
 
 The following procedures assume that your current working directory is the root
-of the `aerospike-server.docker` repo.
+of the `aerospike-server.docker` repository.
 
 ```shell
 git clone <org>/aerospike-server.docker
 cd aerospike-server.docker
 ```
 
-## New or Latest Lineage Release
+## Build Procedure
 
-Follow these directions if releasing a new lineage or a hotfix on the latest
-lineage.
-
-### Checkout Appropriate Branch for New Lineage
-
-New lineage releases are always committed to the `master` branch.
-
-```shell
-git checkout master
-git pull origin master
-```
-
-If there were not any errors continue to the next section.
-
-### Run `update.sh` for New Lineage
-
-1. The `update.sh` script will find the latest release in the on the artifacts
-  page and apply the version it finds to the template which updates the
-  enterprise, federal, and community docker images.
+1. Checkout master and pull.
 
   ```shell
-  ./update.sh
+  git checkout master
+  git pull origin master
   ```
 
-2. After the update script has run, commit the changes and tag the release.
-
-  ```shell
-  git add enterprise federal community
-  git commit -m "Update to <full-version>"
-  git tag -a "<full-version>" -m "<full-version>"
-  ```
-
-3. Optionally you may versify the tag by executing the
-  [Optional Tag Sanity Check](#optional-tag-sanity-check) directions.
-
-If there were not any errors continue to the [Run `build.sh`](#run-buildsh)
-section.
-
-## Hotfix Release
-
-Follow these directions if this is a patch to an existing release lineage that
-isn't the latest lineage.
-
-### Checkout Appropriate Branch for Hotfix
-
-Checkout the appropriate hotfix branch.
-
-```shell
-# example - checkout hotfix/<lineage-version>
-#           (e.g. git checkout hotfix/5.7.0)
-git fetch origin
-git checkout hotfix/<lineage-version>
-git pull origin hotfix/<lineage-version>
-git merge origin/master # Sync hotfix branch with master.
-```
-
-If the above command fails to find a matching branch then the branch doesn't
-exist yet - create and checkout the hotfix branch based on the `master` branch.
-
-```shell
-# example - create hotfix/<lineage-version> base on master
-git fetch origin
-git checkout origin/master -b hotfix/<lineage-version>
-```
-
-If there were not any errors continue to the next section.
-
-### Run `update.sh` for Hotfix
-
-1. For the hotfix, we need to pass in the server version to the `update.sh`
-  script.
+2. Run `update.sh` with target version.
 
   ```shell
   ./update.sh -s <full-version>
   ```
-  
-2. After the update script has run, commit the changes and tag the release.
+
+3. After the update script has run, commit the changes and tag the release.
 
   ```shell
-  git add community enterprise federal
-  git commit -m "Update hotfix/<lineage-version> to hotfix <full-version>"
+  git add enterprise federal community
+  git commit -m "<full-version>"
   git tag -a "<full-version>" -m "<full-version>"
   ```
 
-3. Optionally you may versify the tag by executing the
-  [Optional Tag Sanity Check](#optional-tag-sanity-check) directions.
+4. Verify the tag format is correct.
+  
+  ```shell
+  ./update.sh -g 2>/dev/null && [ -z "$(git diff --stat)" ] && echo "Tag is good"
+  ```
 
-If there were not any errors continue to the [Run `build.sh`](#run-buildsh)
-section.
+5. Build test images and test.
 
-## Run `build.sh` for Testing
+  ```shell
+  ./build.sh -t
+  ./test.sh --clean
+  ```
+
+6. Build image for publishing and publish.
+
+  ```shell
+  ./build.sh -p
+  ```
+
+7. Push changes to GitHub.
+
+  ```shell
+  git push origin master
+  ```
+
+## About update.sh
+
+By default, the `update.sh` script will automatically find the latest release in
+the artifacts index. The user may also specify a particular server release using
+the `-s <server-version>` option. The `update.sh` script will apply this version
+to the enterprise, federal, and community docker templates. If the version
+specified doesn't support a particular edition then that edition will not
+be populated..
+
+The `update.sh` script is also used in github actions with the `-g` option. The
+`-g` option uses the version found in `git describe` to update the templates.
+The GitHub action then verifies that running the update this way does not change
+the contents of the repository - which means all the relevant files correctly
+pushed and the tag followed to standard format.
+
+## About build.sh
 
 By default, `build.sh` discovers the server version from the enterprise
 Dockerfile (which the script assumes is always generated). Build uses the server
-version to determine which editions, architectures, and Linux distributions that
-are supported and builds each variant.
+version to determine which architectures that are supported and builds each
+variant generated by `update.sh`.
 
 Currently we are unable to test multi-platform docker images without pushing
 those images to a registry. To work around this issue, build has two modes, test
 and push. The test mode allows the `test.sh` to locally verify that the docker
-containers are functioning properly. The push mode builds the multi-platform
-containers that will be published.
+containers are functioning properly. The push mode builds and publishes the
+multi-platform containers.
 
-```shell
-./build.sh -t
-```
+## About test.sh
 
-If there were not any errors continue to the next section.
+By default, `test.sh` discovers each architecture which needs to be tested based
+on the server version it discovers from the enterprise Dockerfile - same as
+`build.sh` above. It will also, by default, test each variant generated by
+`update.sh`. Currently it performs the following tests:
 
-## Run `test.sh`
+1. The container is running.
+2. The container is running with the target platform.
+3. The Aerospike process has started.
+4. The Aerospike database responds to info commands.
+5. The Aerospike database is running the expected version.
+6. The Aerospike database is running the expected edition.
 
-By default, `test.sh` discovers each variant which needs to be tested based on
-the server version it discovers from the enterprise Dockerfile - same as
-`build.sh` above.
-
-```shell
-./test.sh --clean
-```
-
-If there were not any errors continue to the next section.
-
-## Run `build.sh` for Publishing
-
-To build the multi-platform images and publish images to dockerhub.
-
-```shell
-./build.sh -p
-```
-
-## Push Changes to GitHub
-
-### Push Hotfix Release
-
-For a hotfix release, push the committed changes to the
-`hotfix/<lineage-version>` branch.
-
-```shell
-# example - push hotfix/<lineage-version>
-#           (e.g. git push origin hotfix/5.7.0)
-git push origin hotfix/<lineage-version>
-```
-
-### Push New Lineage Release
-
-For a new lineage, push the changes committed to the local `master` branch and
-create a hotfix branch for future hotfixs.
-
-```shell
-git push origin master
-git checkout master -b hotfix/<lineage-version>
-```
-
-## Optional Tag Sanity Check
-
-Optional sanity check - the GitHub actions will run `./update.sh -g` which
-requires that the release has already been tagged - you may verify that the tag
-is correct by running `./update.sh -g` and observing that the contents of the
-three editions do not change.
-
-```shell
-./update.sh -g 2>/dev/null && [ -z "$(git diff --stat)" ] && echo "Tag is good"
-```
+The `test.sh` script's `--clean` option removes the test images after the tests
+complete successfully.
