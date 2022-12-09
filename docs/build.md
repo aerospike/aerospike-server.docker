@@ -97,7 +97,7 @@ to the enterprise, federal, and community docker templates. If the version
 specified doesn't support a particular edition then that edition will not
 be populated..
 
-The `update.sh` script is also used in github actions with the `-g` option. The
+The `update.sh` script is also used in GitHub actions with the `-g` option. The
 `-g` option uses the version found in `git describe` to update the templates.
 The GitHub action then verifies that running the update this way does not change
 the contents of the repository - which means all the relevant files correctly
