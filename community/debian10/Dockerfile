@@ -5,17 +5,17 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:bullseye-slim
+FROM debian:buster-slim
 
 LABEL \
   maintainer="Aerospike, Inc. <developers@aerospike.com>" \
-  name="aerospike-federal" \
+  name="aerospike-community" \
   vendor="Aerospike" \
-  version="6.2.0.1" \
+  version="5.7.0.25" \
   release="1" \
-  summary="Aerospike Server Federal Edition" \
+  summary="Aerospike Server Community Edition" \
   description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
-  io.k8s.display-name="Aerospike Server Federal Edition 6.2.0.1" \
+  io.k8s.display-name="Aerospike Server Community Edition 5.7.0.25" \
   io.k8s.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions."
 
 ARG DEBUG="false"
@@ -25,10 +25,10 @@ ARG DEBUG="false"
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="federal"
+ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.2.0.1/aerospike-server-federal_6.2.0.1_tools-8.0.3_debian11_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="af4a9076d452a088b99cbfb939de2c695863e39406bd7918748dfbfa6dfe772b"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/5.7.0.25/aerospike-server-community-5.7.0.25-debian10.tgz"
+ARG AEROSPIKE_SHA_X86_64="acbfe327f2f9398f0b2024d8ad9e0480de70a33f75b27f12677cf1e1b4fa33d0"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
