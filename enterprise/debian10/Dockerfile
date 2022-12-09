@@ -126,7 +126,7 @@ function install_aerospike_server_dependencies() {
 		apt-get install -y --no-install-recommends \
 			libcurl4 \
 			libldap-2.4.2
-	else
+	elif ! version_compare_ge "${VERSION}" "6.0"; then
 		apt-get install -y --no-install-recommends \
 			libcurl4
 	fi

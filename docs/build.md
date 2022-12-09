@@ -83,7 +83,7 @@ cd aerospike-server.docker
 7. Push changes to GitHub.
 
   ```shell
-  git push origin master
+  git push origin master --tags
   ```
 
 ## About update.sh
