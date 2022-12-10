@@ -11,11 +11,11 @@ LABEL \
   maintainer="Aerospike, Inc. <developers@aerospike.com>" \
   name="aerospike-community" \
   vendor="Aerospike" \
-  version="6.0.0.9" \
-  release="2" \
+  version="6.1.0.6" \
+  release="1" \
   summary="Aerospike Server Community Edition" \
   description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
-  io.k8s.display-name="Aerospike Server Community Edition 6.0.0.9" \
+  io.k8s.display-name="Aerospike Server Community Edition 6.1.0.6" \
   io.k8s.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions."
 
 ARG DEBUG="false"
@@ -27,8 +27,8 @@ ARG DEBUG="false"
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.0.0.9/aerospike-server-community-6.0.0.9-debian11.tgz"
-ARG AEROSPIKE_SHA_X86_64="924a5003de112144b0de04777b1e7556020c15d2ae153f510a25e94f94485100"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.1.0.6/aerospike-server-community-6.1.0.6-debian11.tgz"
+ARG AEROSPIKE_SHA_X86_64="29b60d698f6db01a3bc45b3138b0dfc586c681370450473816bcd4f000ce4694"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
