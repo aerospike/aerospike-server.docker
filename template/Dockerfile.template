@@ -6,17 +6,6 @@
 
 FROM ${LINUX_BASE}
 
-LABEL \
-  maintainer="Aerospike, Inc. <developers@aerospike.com>" \
-  name=\"aerospike-${AEROSPIKE_EDITION}\" \\
-  vendor="Aerospike" \
-  version=\"${AEROSPIKE_VERSION}\" \\
-  release=\"${CONTAINER_RELEASE}\" \\
-  summary=\"Aerospike Server ${AEROSPIKE_EDITION^} Edition\" \\
-  description=\"${AEROSPIKE_DESCRIPTION}\" \\
-  io.k8s.display-name=\"Aerospike Server ${AEROSPIKE_EDITION^} Edition ${AEROSPIKE_VERSION}\" \\
-  io.k8s.description=\"${AEROSPIKE_DESCRIPTION}\"
-
 ARG DEBUG=\"${DEBUG}\"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -34,9 +23,14 @@ ARG AEROSPIKE_SHA_AARCH64=\"${AEROSPIKE_SHA_AARCH64}\"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
-RUN <<EOF
-$(cat scripts/bootstrap.sh)
-EOF
+RUN \
+$(cat scripts/00-prelude-deb.part)
+$(cat scripts/10-download.part)
+$(cat scripts/20-install-dependencies-deb.part)
+$(cat scripts/30-install-tools.part)
+$(cat scripts/40-cleanup.part)
+$(cat scripts/50-remove-prelude-deb.part)
+  echo "done";
 
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf

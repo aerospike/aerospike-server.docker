@@ -1,0 +1,4 @@
+  { \
+    # 40-cleanup.part - remove extracted aerospike pkg directory.
+    rm -rf aerospike; \
+  }; \

@@ -1,0 +1,13 @@
+  { \
+    # 50-remove-prelude-deb.part - Remove dependencies for scripts.
+    rm -rf /var/lib/apt/lists/*; \
+    dpkg --purge \
+      apt-utils \
+      binutils \
+      ca-certificates \
+      curl \
+      xz-utils 2>&1; \
+    apt-get purge -y; \
+    apt-get autoremove -y; \
+    unset DEBIAN_FRONTEND; \
+  }; \

@@ -85,7 +85,8 @@ function bash_eval_template() {
 		fi
 	done <"${template_file}"
 
-	rm "${template_file}"
+	# Ignore failure when template is mounted in a read-only filesystem.
+	rm "${template_file}" || true
 }
 
 function usage() {
