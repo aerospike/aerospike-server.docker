@@ -106,7 +106,7 @@ RUN \
       # Tools before 5.1 need python2.
       apt-get install -y --no-install-recommends \
         python2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.0" | sort -V | head -1)" != "${VERSION}" ]; then \
+    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
       # Tools before 6.0 need python3.
       apt-get install -y --no-install-recommends \
         python3 \
