@@ -163,6 +163,16 @@ function check_container() {
 	log_info "------ Verify docker image completed successfully"
 }
 
+function try_stop_docker() {
+	log_info "------ Stop and remove containers form prior failed run"
+
+	if verbose_call docker stop "${CONTAINER}"; then
+		verbose_call docker rm -f "${CONTAINER}"
+	fi
+
+	log_info "------ Stop and remove containers form prior failed run complete"
+}
+
 function clean_docker() {
 	log_info "------ Cleaning up old containers ..."
 	verbose_call docker stop "${CONTAINER}"
@@ -187,6 +197,7 @@ function test_current_edition_distro() {
 		short_platform=${platform#*/}
 		IMAGE_TAG="aerospike/aerospike-server-${EDITION}-${short_platform}:${version}"
 		PLATFORM=${platform}
+		try_stop_docker
 		run_docker "${version}"
 		check_container "${version}"
 		clean_docker

@@ -21,7 +21,9 @@ ARG AEROSPIKE_SHA_X86_64="0eeb32a9b5da70dcc9f9e155e57ec0d8dfcc17c471ba6e844b2d74
 ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.2.0.2/aerospike-server-enterprise_6.2.0.2_tools-8.0.4_debian11_aarch64.tgz"
 ARG AEROSPIKE_SHA_AARCH64="2d250ca285a7c5b30b9534888a462ce742b0d812f4f97b954a554884e8ede122"
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
+
+ARG TARGETARCH
 
 # Install Aerospike Server and Tools
 RUN \
@@ -29,7 +31,7 @@ RUN \
     # 00-prelude-deb.part - Setup dependencies for scripts.
     export DEBIAN_FRONTEND=noninteractive; \
     apt-get update -y; \
-    apt-get install -y --no-install-recommends apt-utils 2>&1 | grep -v "delaying package configuration"; \
+    apt-get install -y --no-install-recommends apt-utils; \
     apt-get install -y --no-install-recommends \
       binutils \
       ca-certificates \
@@ -42,15 +44,14 @@ RUN \
   }; \
   { \
     # 10-download.part - Vars used for tini and tools.
-    ARCH="$(uname -m)"; \
     VERSION="$(grep -oE "/[0-9]+([.][0-9]+){2,3}/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/')"; \
   }; \
   { \
     # 10-common.part - Install tini.
-    if [ "${ARCH}" = "x86_64" ]; then \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
       sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940; \
       suffix=""; \
-    elif [ "${ARCH}" = "aarch64" ]; then \
+    elif [ "${TARGETARCH}" = "arm64" ]; then \
       sha256=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b; \
       suffix="-arm64"; \
     else \
@@ -64,10 +65,10 @@ RUN \
   { \
     # 10-download.part - Download server and tools.
     mkdir -p aerospike/pkg; \
-    if [ "${ARCH}" = "x86_64" ]; then \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
       pkg_link="${AEROSPIKE_X86_64_LINK}"; \
       sha256="${AEROSPIKE_SHA_X86_64}"; \
-    elif [ "${ARCH}" = "aarch64" ]; then \
+    elif [ "${TARGETARCH}" = "arm64" ]; then \
       pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
       sha256="${AEROSPIKE_SHA_AARCH64}"; \
     else \

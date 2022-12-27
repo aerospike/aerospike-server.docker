@@ -20,7 +20,9 @@ ARG AEROSPIKE_SHA_X86_64=\"${AEROSPIKE_SHA_X86_64}\"
 ARG AEROSPIKE_AARCH64_LINK=\"${AEROSPIKE_AARCH64_LINK}\"
 ARG AEROSPIKE_SHA_AARCH64=\"${AEROSPIKE_SHA_AARCH64}\"
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
+
+ARG TARGETARCH
 
 # Install Aerospike Server and Tools
 RUN \

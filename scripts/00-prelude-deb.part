@@ -2,7 +2,7 @@
     # 00-prelude-deb.part - Setup dependencies for scripts.
     export DEBIAN_FRONTEND=noninteractive; \
     apt-get update -y; \
-    apt-get install -y --no-install-recommends apt-utils 2>&1 | grep -v "delaying package configuration"; \
+    apt-get install -y --no-install-recommends apt-utils; \
     apt-get install -y --no-install-recommends \
       binutils \
       ca-certificates \
