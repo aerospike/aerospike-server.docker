@@ -13,7 +13,7 @@ jobs:
         fetch-depth: 0
     - name: Should not change anything
       run: "./update.sh -g && [ -z \"$(git diff --stat)\" ]"
-  build-enterprise:
+  build-tagged:
     runs-on: ubuntu-latest
     steps:
     - name: Set up QEMU
@@ -22,33 +22,9 @@ jobs:
       uses: docker/setup-buildx-action@v2
     - uses: actions/checkout@v2
     - name: Build
-      run: "./build.sh -e enterprise -t"
+      run: "./build.sh -t"
     - name: Test
-      run: "./test.sh -e enterprise"
-  build-federal:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - uses: actions/checkout@v3
-    - name: Build
-      run: "./build.sh -e federal -t"
-    - name: Test
-      run: "./test.sh -e federal"
-  build-community:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - uses: actions/checkout@v3
-    - name: Build
-      run: "./build.sh -e community -t"
-    - name: Test
-      run: "./test.sh -e community"
+      run: "./test.sh"
   build-5-7:
     runs-on: ubuntu-latest
     steps:

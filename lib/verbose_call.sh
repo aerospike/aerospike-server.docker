@@ -5,7 +5,7 @@ set -Eeuo pipefail
 function verbose_call() {
 	set -x
 
-	eval "${*@Q}"
+	eval "${*}"
 	rv=$?
 
 	set +x
