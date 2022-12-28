@@ -22,8 +22,6 @@ ARG AEROSPIKE_SHA_AARCH64=\"${AEROSPIKE_SHA_AARCH64}\"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
-ARG TARGETARCH
-
 # Install Aerospike Server and Tools
 RUN \
 $(cat scripts/00-prelude-deb.part)
