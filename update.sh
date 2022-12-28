@@ -72,22 +72,26 @@ function run_template() {
 	local target_str="${edition}_${distro}"
 	local temp_str="target \"${target_str}\" {\n"
 
-	local product=
+	local product="aerospike/aerospike-server"
 	local latest_version
 
-	if [ "${edition}" = "community" ]; then
-		product="aerospike/aerospike-server"
-	else
-		product="aerospike/aerospike-server-${edition}"
+	if [ "${edition}" != "community" ]; then
+		product+="-${edition}"
+	fi
+
+	temp_str+="\t tags=[\"${product}:${server_version}\""
+
+	if [ -n "${g_container_release}" ]; then
+		temp_str+=", \"${product}:${server_version}_${g_container_release}\""
 	fi
 
 	latest_version="$(find_latest_server_version)"
+
 	if [ "${latest_version}" = "${server_version}" ]; then
-		temp_str+="\t tags=[\"${product}:${server_version}\", \"${product}:latest\"]\n"
-	else
-		temp_str+="\t tags=[\"${product}:${server_version}\"]\n"
+		temp_str+=", \"${product}:latest\""
 	fi
 
+	temp_str+="]\n"
 	temp_str+="\t platforms=[\"${platforms_str}\"]\n"
 	temp_str+="\t context=\"./${edition}/${distro}\"\n"
 	temp_str+="}\n\n"

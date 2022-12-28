@@ -121,7 +121,7 @@ function main() {
 		params="--push"
 	fi
 
-	verbose_call docker buildx bake -f "${bake_file}" "${targets}" --progress plain "${params}"
+	verbose_call docker buildx bake --pull -f "${bake_file}" "${targets}" --progress plain "${params}"
 }
 
 main "$@"
