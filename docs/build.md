@@ -56,7 +56,7 @@ cd aerospike-server.docker
 3. After the update script has run, commit the changes and tag the release.
 
   ```shell
-  git add enterprise federal community
+  git add enterprise federal community bake.hcl
   git commit -m "<full-version>"
   git tag -a "<full-version>" -m "<full-version>"
   ```
