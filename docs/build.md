@@ -1,16 +1,15 @@
 # Release Process
 
-* [First Time Docker Buildx Setup](#first-time-docker-buildx-setup)
-* [First Time Git Clone](#first-time-git-clone)
-* [Build Procedure](#build-procedure)
-* [About update.sh](#about-updatesh)
-* [About build.sh](#about-buildsh)
-* [About test.sh](#about-testsh)
+-	[First Time Docker Buildx Setup](#first-time-docker-buildx-setup)
+-	[First Time Git Clone](#first-time-git-clone)
+-	[Build Procedure](#build-procedure)
+-	[About update.sh](#about-updatesh)
+-	[About build.sh](#about-buildsh)
+-	[About test.sh](#about-testsh)
 
 ## First Time Docker Buildx Setup
 
-These scripts use `docker buildx` for multi-architecture builds, buildx may need
-to be setup if it isn't already.
+These scripts use `docker buildx` for multi-architecture builds, buildx may need to be setup if it isn't already.
 
 To check if your current builder support ARM run:
 
@@ -20,8 +19,7 @@ docker buildx inspect | grep -q "linux/arm" && echo "Builder supports ARM" || ec
 
 If above outputs "Builder supports ARM" then proceed.
 
-If the output was "ARM NOT supported by builder" then run the following to setup
-a builder that supports ARM.
+If the output was "ARM NOT supported by builder" then run the following to setup a builder that supports ARM.
 
 ```shell
 docker run --privileged --rm tonistiigi/binfmt --install all 
@@ -30,8 +28,7 @@ docker buildx create --name mybuilder --driver docker-container --bootstrap --us
 
 ## First Time Git Clone
 
-The following procedures assume that your current working directory is the root
-of the `aerospike-server.docker` repository.
+The following procedures assume that your current working directory is the root of the `aerospike-server.docker` repository.
 
 ```shell
 git clone <org>/aerospike-server.docker
@@ -40,93 +37,73 @@ cd aerospike-server.docker
 
 ## Build Procedure
 
-1. Checkout master and pull.
+1.	Checkout master and pull.
 
-  ```shell
-  git checkout master
-  git pull origin master
-  ```
+	```shell
+	git checkout master
+	git pull origin master
+	```
 
-2. Run `update.sh` with target version.
+2.	Run `update.sh` with target version.
 
-  ```shell
-  ./update.sh -s <full-version>
-  ```
+	```shell
+	./update.sh -s <full-version>
+	```
 
-3. After the update script has run, commit the changes and tag the release.
+3.	After the update script has run, commit the changes and tag the release.
 
-  ```shell
-  git add enterprise federal community bake.hcl
-  git commit -m "<full-version>"
-  git tag -a "<full-version>" -m "<full-version>"
-  ```
+	```shell
+	git add enterprise federal community bake.hcl
+	git commit -m "<full-version>"
+	git tag -a "<full-version>" -m "<full-version>"
+	```
 
-4. Verify the tag format is correct.
-  
-  ```shell
-  ./update.sh -g 2>/dev/null && [ -z "$(git diff --stat)" ] && echo "Tag is good" || echo -e "\033[0;31mBad Tag\033[0m"
-  ```
+4.	Verify the tag format is correct.
 
-5. Build test images and test.
+	```shell
+	./update.sh -g 2>/dev/null && [ -z "$(git diff --stat)" ] && echo "Tag is good" || echo -e "\033[0;31mBad Tag\033[0m"
+	```
 
-  ```shell
-  ./build.sh -t
-  ./test.sh --clean
-  ```
+5.	Build test images and test.
 
-6. Build image for publishing and publish.
+	```shell
+	./build.sh -t
+	./test.sh --clean
+	```
 
-  ```shell
-  ./build.sh -p
-  ```
+6.	Build image for publishing and publish.
 
-7. Push changes to GitHub.
+	```shell
+	./build.sh -p
+	```
 
-  ```shell
-  git push origin master --tags
-  ```
+7.	Push changes to GitHub.
+
+	```shell
+	git push origin master --tags
+	```
 
 ## About update.sh
 
-By default, the `update.sh` script will automatically find the latest release in
-the artifacts index. The user may also specify a particular server release using
-the `-s <server-version>` option. The `update.sh` script will apply this version
-to the enterprise, federal, and community docker templates. If the version
-specified doesn't support a particular edition then that edition will not
-be populated..
+By default, the `update.sh` script will automatically find the latest release in the artifacts index. The user may also specify a particular server release using the `-s <server-version>` option. The `update.sh` script will apply this version to the enterprise, federal, and community docker templates. If the version specified doesn't support a particular edition then that edition will not be populated.
 
-The `update.sh` script is also used in GitHub actions with the `-g` option. The
-`-g` option uses the version found in `git describe` to update the templates.
-The GitHub action then verifies that running the update this way does not change
-the contents of the repository - which means all the relevant files correctly
-pushed and the tag followed to standard format.
+The `update.sh` script is also used in GitHub actions with the `-g` option. The `-g` option uses the version found in `git describe` to update the templates. The GitHub action then verifies that running the update this way does not change the contents of the repository - which means all the relevant files correctly pushed and the tag followed to standard format.
 
 ## About build.sh
 
-By default, `build.sh` discovers the server version from the enterprise
-Dockerfile (which the script assumes is always generated). Build uses the server
-version to determine which architectures that are supported and builds each
-variant generated by `update.sh`.
+By default, `build.sh` discovers the server version from the enterprise Dockerfile (which the script assumes is always generated). Build uses the server version to determine which architectures that are supported and builds each variant generated by `update.sh`.
 
-Currently we are unable to test multi-platform docker images without pushing
-those images to a registry. To work around this issue, build has two modes, test
-and push. The test mode allows the `test.sh` to locally verify that the docker
-containers are functioning properly. The push mode builds and publishes the
-multi-platform containers.
+Currently we are unable to test multi-platform docker images without pushing those images to a registry. To work around this issue, build has two modes, test and push. The test mode allows the `test.sh` to locally verify that the docker containers are functioning properly. The push mode builds and publishes the multi-platform containers.
 
 ## About test.sh
 
-By default, `test.sh` discovers each architecture which needs to be tested based
-on the server version it discovers from the enterprise Dockerfile - same as
-`build.sh` above. It will also, by default, test each variant generated by
-`update.sh`. Currently it performs the following tests:
+By default, `test.sh` discovers each architecture which needs to be tested based on the server version it discovers from the enterprise Dockerfile - same as `build.sh` above. It will also, by default, test each variant generated by `update.sh`. Currently it performs the following tests:
 
-1. The container is running.
-2. The container is running with the target platform.
-3. The Aerospike process has started.
-4. The Aerospike database responds to info commands.
-5. The Aerospike database is running the expected version.
-6. The Aerospike database is running the expected edition.
+1.	The container is running.
+2.	The container is running with the target platform.
+3.	The Aerospike process has started.
+4.	The Aerospike database responds to info commands.
+5.	The Aerospike database is running the expected version.
+6.	The Aerospike database is running the expected edition.
 
-The `test.sh` script's `--clean` option removes the test images after the tests
-complete successfully.
+The `test.sh` script's `--clean` option removes the test images after the tests complete successfully.

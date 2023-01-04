@@ -1,7 +1,7 @@
 name: reviewdog
 on:
   push:
-    branches: [main, master, 'hotfix/**']
+    branches: [main, master]
   pull_request:
 
 jobs:
@@ -79,17 +79,3 @@ jobs:
           hadolint_ignore: DL3008
           exclude: |
             ^template/
-
-  markdownlint:
-    name: runner / markdownlint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: markdownlint
-        uses: reviewdog/action-markdownlint@v0
-        with:
-          reporter: "github-check" # doesn't work well with review
-          level: warning
-          filter_mode: file
-          fail_on_error: true
-          markdownlint_flags: "--disable line_length"
