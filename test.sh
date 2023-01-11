@@ -78,11 +78,10 @@ function run_docker() {
 
 	if [ "${EDITION}" = "community" ] || version_compare_ge "${version}" "6.1"; then
 		verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
-			-p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 \
 			"${IMAGE_TAG}"
 	else
+		# Must supply a feature key when version is prior to 6.1.
 		verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
-			-p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 \
 			-v "/$(pwd)/res/":/asfeat/ -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" \
 			"${IMAGE_TAG}"
 	fi
@@ -136,28 +135,42 @@ function check_container() {
 	fi
 
 	if try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' | grep -qE "^ok"; then
-		log_success "Aerospike database is responding"
+		log_success "(asinfo) Aerospike database is responding"
 	else
-		log_failure "**Aerospike database is not responding**"
+		log_failure "**(asinfo) Aerospike database is not responding**"
 		exit 1
 	fi
 
 	build=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asadm -e "enable; asinfo -v build"' | grep -oE "^${version}")
 
 	if [ -n "${build}" ]; then
-		log_success "Aerospike database has correct version - '${build}'"
+		log_success "(asadm) Aerospike database has correct version - '${build}'"
 	else
-		log_failure "**Aerospike database has incorrect version - '${build}'**"
+		log_failure "**(asadm) Aerospike database has incorrect version - '${build}'**"
 		exit 1
 	fi
 
 	edition=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asadm -e "enable; asinfo -v edition"' | grep -oE "^Aerospike ${EDITION^} Edition")
 
 	if [ -n "${edition}" ]; then
-		log_success "Aerospike database has correct edition - '${edition}'"
+		log_success "(asadm) Aerospike database has correct edition - '${edition}'"
 	else
-		log_failure "**Aerospike database has incorrect edition - '${edition}'**"
+		log_failure "**(asadm) Aerospike database has incorrect edition - '${edition}'**"
 		exit 1
+	fi
+
+	if version_compare_ge "${version}" "6.2"; then
+		tool="asinfo"
+		namespace=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v namespaces' | grep "test")
+	else
+		tool="aql"
+		namespace=$(try 5 docker exec -t "${CONTAINER}" bash -c 'aql -o raw <<<"SHOW namespaces" 2>/dev/null' | grep "namespaces: \"test\"")
+	fi
+
+	if [ -n "${namespace}" ]; then
+		log_success "(${tool}) Aerospike database has namespace 'test' - '${namespace}'"
+	else
+		log_failure "**(${tool}) Aerospike database does not have namespace 'test' - '${namespace}'"
 	fi
 
 	log_info "------ Verify docker image completed successfully"

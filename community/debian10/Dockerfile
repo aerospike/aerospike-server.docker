@@ -7,8 +7,6 @@
 
 FROM debian:buster-slim
 
-ARG DEBUG="false"
-
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
@@ -127,6 +125,9 @@ RUN \
     # 30-install-tools.part - install asinfo and asadm.
     find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
     mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2" | sort -V | head -1)" != "${VERSION}" ]; then \
+       mv aerospike/pkg/opt/aerospike/bin/aql /usr/bin; \
+    fi; \
     if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
       # Since tools release 7.0.5, asadm has been moved from
       # /opt/aerospike/bin/asadm to /opt/aerospike/bin/asadm/asadm

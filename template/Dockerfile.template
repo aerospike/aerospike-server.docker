@@ -6,8 +6,6 @@
 
 FROM ${LINUX_BASE}
 
-ARG DEBUG=\"${DEBUG}\"
-
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
