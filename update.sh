@@ -177,11 +177,6 @@ function parse_args() {
 			if grep -q "_" <<<"${git_describe}"; then
 				g_server_version="$(cut -sd _ -f 1 <<<"${git_describe}")"
 				g_container_release="$(cut -sd _ -f 2 <<<"${git_describe}")"
-
-				if [ "${g_container_release}" = "1" ]; then
-					log_warn "Suffix '_1' is not allowed in tag '${git_describe}'"
-					exit 1
-				fi
 			else
 				g_server_version="${git_describe}"
 				g_container_release='1'
