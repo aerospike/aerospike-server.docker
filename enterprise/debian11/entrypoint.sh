@@ -20,7 +20,7 @@ else
 fi
 
 if asd --version | grep -q "Community"; then
-	unset FEATURE_KEY_FILE="" # invalid for community edition
+	FEATURE_KEY_FILE="" # invalid for community edition
 fi
 
 function bash_eval_template() {
