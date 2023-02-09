@@ -50,19 +50,19 @@ group "push" {
 }
 
 target "enterprise_debian11" {
-	 tags=["aerospike/aerospike-server-enterprise:6.2.0.3", "aerospike/aerospike-server-enterprise:6.2.0.3_2", "aerospike/aerospike-server-enterprise:latest"]
+	 tags=["aerospike/aerospike-server-enterprise:6.2.0.3", "aerospike/aerospike-server-enterprise:6.2.0.3_3", "aerospike/aerospike-server-enterprise:latest"]
 	 platforms=["linux/amd64,linux/arm64"]
 	 context="./enterprise/debian11"
 }
 
 target "federal_debian11" {
-	 tags=["aerospike/aerospike-server-federal:6.2.0.3", "aerospike/aerospike-server-federal:6.2.0.3_2", "aerospike/aerospike-server-federal:latest"]
+	 tags=["aerospike/aerospike-server-federal:6.2.0.3", "aerospike/aerospike-server-federal:6.2.0.3_3", "aerospike/aerospike-server-federal:latest"]
 	 platforms=["linux/amd64"]
 	 context="./federal/debian11"
 }
 
 target "community_debian11" {
-	 tags=["aerospike/aerospike-server:6.2.0.3", "aerospike/aerospike-server:6.2.0.3_2", "aerospike/aerospike-server:latest"]
+	 tags=["aerospike/aerospike-server:6.2.0.3", "aerospike/aerospike-server:6.2.0.3_3", "aerospike/aerospike-server:latest"]
 	 platforms=["linux/amd64,linux/arm64"]
 	 context="./community/debian11"
 }
