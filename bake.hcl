@@ -32,13 +32,13 @@ group "push" {
 }
 
 target "enterprise_debian10" {
-	 tags=["aerospike/aerospike-server-enterprise:5.7.0.27", "aerospike/aerospike-server-enterprise:5.7.0.27_1"]
+	 tags=["aerospike/aerospike-server-enterprise:5.7.0.27", "aerospike/aerospike-server-enterprise:5.7.0.27_2"]
 	 platforms=["linux/amd64"]
 	 context="./enterprise/debian10"
 }
 
 target "community_debian10" {
-	 tags=["aerospike/aerospike-server:5.7.0.27", "aerospike/aerospike-server:5.7.0.27_1"]
+	 tags=["aerospike/aerospike-server:5.7.0.27", "aerospike/aerospike-server:5.7.0.27_2"]
 	 platforms=["linux/amd64"]
 	 context="./community/debian10"
 }
