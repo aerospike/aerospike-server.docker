@@ -20,7 +20,7 @@ else
 fi
 
 if asd --version | grep -q "Community"; then
-	unset FEATURE_KEY_FILE # invald for community edition
+	unset FEATURE_KEY_FILE="" # invalid for community edition
 fi
 
 function bash_eval_template() {
@@ -71,7 +71,7 @@ if [ "$1" = 'asd' ]; then
 			NETLINK_UP=1
 		else
 			sleep 0.1
-			((NETLINK_COUNT++))
+			((++NETLINK_COUNT))
 		fi
 	done
 
