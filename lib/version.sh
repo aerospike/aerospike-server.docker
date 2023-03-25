@@ -5,6 +5,7 @@ set -Eeuo pipefail
 source lib/fetch.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
+RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)*'
 
 function version_compare_ge() {
 	v1=$1
@@ -23,8 +24,7 @@ function find_latest_server_version() {
 	# Note - we assume every release will have a enterprise component.
 	server_version="$(
 		fetch "${FUNCNAME[0]}" "${ARTIFACTS_DOMAIN}/aerospike-server-enterprise/" |
-			grep -oE '<a href="[0-9.-]+[-]*.*/"' |
-			sed -r 's!.*<a href="([0-9.-]+[-]*.*)/".*!\1!' |
+			grep -oE "$RE_VERSION" |
 			sort -V |
 			tail -1
 	)"
@@ -40,8 +40,7 @@ function find_latest_server_version_for_lineage() {
 	# Note - we assume every release will have a enterprise component.
 	server_version="$(
 		fetch "${FUNCNAME[0]}" "${ARTIFACTS_DOMAIN}/aerospike-server-enterprise/${lineage}/" |
-			grep -oE "aerospike-server-enterprise[-_][0-9.]+" |
-			grep -oE "[0-9.]+$" |
+			grep -oE "$RE_VERSION" |
 			sort -V |
 			head -1
 	)"
