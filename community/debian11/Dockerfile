@@ -5,17 +5,17 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="enterprise"
+ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/5.7.0.31/aerospike-server-enterprise-5.7.0.31-debian10.tgz"
-ARG AEROSPIKE_SHA_X86_64="b9eaa3ae07615144849787d632a04e0f9aafad287268f33a193d99c98197fda1"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.0.0.15/aerospike-server-community-6.0.0.15-debian11.tgz"
+ARG AEROSPIKE_SHA_X86_64="a941670e659059f3a6cabe16daa316ad298f2dbd9455fa26925c108b92a7078a"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
