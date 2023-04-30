@@ -14,10 +14,10 @@ FROM debian:bullseye-slim
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.1.0.14/aerospike-server-community-6.1.0.14-debian11.tgz"
-ARG AEROSPIKE_SHA_X86_64="d79547bb5818857df962db7cdca91b36356cb529f91137f7eeff3002a77ea792"
-ARG AEROSPIKE_AARCH64_LINK=""
-ARG AEROSPIKE_SHA_AARCH64=""
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.9/aerospike-server-community_6.2.0.9_tools-8.1.0_debian11_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="0cfb7211394ba2102d8ae9188e648dd66e6c3a64ba5bbd9e2cabe77584ae2915"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.9/aerospike-server-community_6.2.0.9_tools-8.1.0_debian11_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="6d48e86dde49f2a5df623e2a5090d7f435e7b1a778ac6aa4b1b6cc68ae2c951a"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
