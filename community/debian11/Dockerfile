@@ -14,10 +14,10 @@ FROM debian:bullseye-slim
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.9/aerospike-server-community_6.2.0.9_tools-8.1.0_debian11_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="0cfb7211394ba2102d8ae9188e648dd66e6c3a64ba5bbd9e2cabe77584ae2915"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.9/aerospike-server-community_6.2.0.9_tools-8.1.0_debian11_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="6d48e86dde49f2a5df623e2a5090d7f435e7b1a778ac6aa4b1b6cc68ae2c951a"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.3.0.2/aerospike-server-community_6.3.0.2_tools-8.3.0_debian11_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="42fce52b52c55380f8a9dbcc48862df889eeb744d5a48d0a8a9c4ef94648364c"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.3.0.2/aerospike-server-community_6.3.0.2_tools-8.3.0_debian11_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="355cec82166fe1421a23cc93032bef4185bb93bb41b65f0fdf01a708888b97c6"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
