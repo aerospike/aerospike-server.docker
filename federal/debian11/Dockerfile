@@ -14,8 +14,8 @@ FROM debian:bullseye-slim
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="federal"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.0.0.18/aerospike-server-federal-6.0.0.18-debian11.tgz"
-ARG AEROSPIKE_SHA_X86_64="76d75bc78dec6aa8a7fcbda0e4775d9c1322c57b20c77ecb1699e2d7e077506a"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.1.0.16/aerospike-server-federal-6.1.0.16-debian11.tgz"
+ARG AEROSPIKE_SHA_X86_64="b63b57c9d93b60ea08b655a37caccffb1a7ff21ef0893996f6b4f9d1f9592e80"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
