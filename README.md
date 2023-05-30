@@ -55,7 +55,8 @@ docker run -d -v DIR:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc
 Running Enterprise Edition with a feature key file in an environment variable:
 
 ```sh
-docker run -d -v DIR:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise
+FEATKEY=$(base64 ~/Desktop/evaluation-features.conf)
+docker run -d -e "FEATURES=$FEATKEY" -e "FEATURE_KEY_FILE=env-b64:FEATURES" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise
 ```
 
 Above, *DIR* is a directory on your machine where you drop your feature key file. Make sure Docker Desktop has file sharing permission to bind mount it into Docker containers.
