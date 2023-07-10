@@ -7,7 +7,7 @@ source lib/fetch.sh
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
 RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)*'
 
-function version_compare_ge() {
+function version_compare_gt() {
 	v1=$1
 	v2=$2
 
@@ -24,7 +24,7 @@ function find_latest_server_version() {
 	# Note - we assume every release will have a enterprise component.
 	server_version="$(
 		fetch "${FUNCNAME[0]}" "${ARTIFACTS_DOMAIN}/aerospike-server-enterprise/" |
-			grep -oE "$RE_VERSION" |
+			grep -oE "${RE_VERSION}" |
 			sort -V |
 			tail -1
 	)"
@@ -40,7 +40,7 @@ function find_latest_server_version_for_lineage() {
 	# Note - we assume every release will have a enterprise component.
 	server_version="$(
 		fetch "${FUNCNAME[0]}" "${ARTIFACTS_DOMAIN}/aerospike-server-enterprise/${lineage}/" |
-			grep -oE "$RE_VERSION" |
+			grep -oE "${RE_VERSION}" |
 			sort -V |
 			head -1
 	)"
@@ -53,7 +53,7 @@ function find_latest_tools_version_for_server() {
 	local edition=$2
 	local server_version=$3
 
-	if version_compare_ge "6.2" "${server_version}"; then
+	if version_compare_gt "6.2" "${server_version}"; then
 		# Tools version not part of package name prior to 6.2.
 		log_debug "prior to 6.2"
 		echo ""
@@ -83,7 +83,7 @@ function get_package_link() {
 
 	local link=
 
-	if version_compare_ge "6.2" "${server_version}"; then
+	if version_compare_gt "6.2" "${server_version}"; then
 		if [ "${arch}" = "aarch64" ]; then
 			# Did not support aarch64 prior to 6.2.
 			echo ""

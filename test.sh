@@ -76,7 +76,7 @@ function run_docker() {
 
 	log_info "------ Running docker image ${IMAGE_TAG} ..."
 
-	if [ "${EDITION}" = "community" ] || version_compare_ge "${version}" "6.1"; then
+	if [ "${EDITION}" = "community" ] || version_compare_gt "${version}" "6.1"; then
 		verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
 			"${IMAGE_TAG}"
 	else
@@ -159,7 +159,7 @@ function check_container() {
 		exit 1
 	fi
 
-	if version_compare_ge "${version}" "6.2"; then
+	if version_compare_gt "${version}" "6.2"; then
 		tool="asinfo"
 		namespace=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v namespaces' | grep "test")
 	else
@@ -229,7 +229,6 @@ function main() {
 	log_info "------ Testing editions: '${edition_list[*]}'"
 
 	for edition in "${edition_list[@]}"; do
-
 		local distribution_list=("${DISTRIBUTION}")
 
 		if [ -z "${DISTRIBUTION}" ]; then

@@ -167,10 +167,6 @@ function parse_args() {
 		e)
 			g_server_edition="${OPTARG}"
 			;;
-		h)
-			usage
-			exit 0
-			;;
 		g)
 			git_describe="$(git describe --abbrev=0)"
 
@@ -181,6 +177,10 @@ function parse_args() {
 				g_server_version="${git_describe}"
 				g_container_release='1'
 			fi
+			;;
+		h)
+			usage
+			exit 0
 			;;
 		r)
 			g_container_release="${OPTARG}"

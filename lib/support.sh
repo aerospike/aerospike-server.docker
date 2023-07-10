@@ -12,7 +12,7 @@ function support_all_editions() {
 function support_editions_for_asd() {
 	local version=$1
 
-	if version_compare_ge "6.0" "${version}"; then
+	if version_compare_gt "6.0" "${version}"; then
 		echo "enterprise community"
 		return
 	fi
@@ -30,6 +30,9 @@ function support_distro_to_base() {
 	debian11)
 		echo "debian:bullseye-slim"
 		;;
+	debian12)
+		echo "debian:bookworm-slim"
+		;;
 	*)
 		warn "unsupported distro '${distro}'"
 		exit 1
@@ -40,18 +43,23 @@ function support_distro_to_base() {
 function support_distros_for_asd() {
 	local version=$1
 
-	if version_compare_ge "6.0" "${version}"; then
+	if version_compare_gt "6.0" "${version}"; then
 		echo "debian10"
 		return
 	fi
 
-	echo "debian11"
+	if version_compare_gt "6.4" "${version}"; then
+		echo "debian11"
+		return
+	fi
+
+	echo "debian12"
 }
 
 function support_arch_for_asd() {
 	local version=$1
 
-	if version_compare_ge "6.2" "${version}"; then
+	if version_compare_gt "6.2" "${version}"; then
 		echo "x86_64"
 		return
 	fi
@@ -63,7 +71,7 @@ function support_platforms_for_asd() {
 	local version=$1
 	local edition=$2
 
-	if version_compare_ge "6.2" "${version}"; then
+	if version_compare_gt "6.2" "${version}"; then
 		echo "linux/amd64"
 		return
 	fi
