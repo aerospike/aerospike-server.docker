@@ -161,7 +161,7 @@ function check_container() {
 
 	if version_compare_gt "${version}" "6.2"; then
 		tool="asinfo"
-		namespace=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v namespaces' | grep "test")
+		namespace=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v namespaces' | grep -o "test")
 	else
 		tool="aql"
 		namespace=$(try 5 docker exec -t "${CONTAINER}" bash -c 'aql -o raw <<<"SHOW namespaces" 2>/dev/null' | grep "namespaces: \"test\"")

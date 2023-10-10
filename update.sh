@@ -44,7 +44,7 @@ function run_template() {
 
 	local target_path="${edition}/${distro}"
 
-	copy_template "template" "${target_path}"
+	copy_template "${target_path}"
 	bash_eval_templates "${target_path}"
 
 	# --------------- Print the targets for Docker Buildx Bake ---------------------------
@@ -100,13 +100,21 @@ function run_template() {
 }
 
 function copy_template() {
-	local template_path=$1
-	local target_path=$2
-
-	log_debug "${template_path} to ${target_path}"
+	local template_path="template"
+	local target_path=$1
 
 	rm -rf "${target_path}"
-	cp -r "${template_path}" "${target_path}"
+	mkdir -p "${target_path}"
+
+	for override in \
+		$(find template/* -maxdepth 1 -type d -printf "%f\n" | sort -V); do
+		if ! version_compare_gt "${override}" "${g_server_version}"; then
+			local override_path="${template_path}/${override}/"
+
+			log_debug "copy_template - ${override_path} to ${target_path}"
+			cp -r "${override_path}"/* "${target_path}"
+		fi
+	done
 }
 
 function bash_eval_templates() {
@@ -125,8 +133,6 @@ function bash_eval_template() {
 	echo "" >"${target_file}"
 
 	while IFS= read -r line; do
-		log_debug "${line}"
-
 		if grep -qE "[$][(]|[{]" <<<"${line}"; then
 			local update
 			update=$(eval echo "\"${line}\"") || exit 1
