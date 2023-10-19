@@ -7,7 +7,7 @@
 # Build selected images:
 #      docker buildx bake -f bake.hcl [target name, ...] --progressive plain [--load | --push]
 
-#------------------------------------- test -----------------------------------
+#------------------------------------ test -----------------------------------
 
 group "test" {
 	targets=["enterprise_debian11_amd64", "enterprise_debian11_arm64", "federal_debian11_amd64", "community_debian11_amd64", "community_debian11_arm64"]
