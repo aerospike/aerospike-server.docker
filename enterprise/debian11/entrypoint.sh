@@ -27,14 +27,20 @@ function bash_eval_template() {
 	local template_file=$1
 	local target_file=$2
 
-	local template=
-	template=$(cat "${template_file}")
-	local expanded=
-	expanded=$(eval echo "\"${template}\"" | grep -Ev '^[[:blank:]]*$')
+	echo "" >"${target_file}"
+
+	while IFS= read -r line; do
+		if grep -qE "[$][(]|[{]" <<<"${line}"; then
+			local update
+			update=$(eval echo "\"${line}\"") || exit 1
+			grep -qE "[^[:space:]]*" <<<"${update}" && echo "${update}" >>"${target_file}"
+		else
+			echo "${line}" >>"${target_file}"
+		fi
+	done <"${template_file}"
 
 	# Ignore failure when template is mounted in a read-only filesystem.
 	rm "${template_file}" || true
-	echo "${expanded}" >"${target_file}"
 }
 
 # Fill out conffile with above values
