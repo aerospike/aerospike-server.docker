@@ -3,12 +3,12 @@
 set -Eeuo pipefail
 
 function verbose_call() {
-	set -x
+    set -x
 
-	eval "${*}"
-	rv=$?
+    eval "${*}"
+    rv=$?
 
-	set +x
+    set +x
 
-	return $rv
+    return $rv
 }

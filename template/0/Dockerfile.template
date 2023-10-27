@@ -6,6 +6,15 @@
 
 FROM ${LINUX_BASE}
 
+LABEL org.opencontainers.image.title=\"Aerospike ${AEROSPIKE_EDITION^} Server\" \\
+      org.opencontainers.image.description=\"${AEROSPIKE_DESCRIPTION}\" \\
+      org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
+      org.opencontainers.image.base.name=\"docker.io/library/${LINUX_BASE}\" \\
+      org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
+      org.opencontainers.image.vendor="Aerospike" \
+      org.opencontainers.image.version=\"${AEROSPIKE_VERSION}\" \\
+      org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
+
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
