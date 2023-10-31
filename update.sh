@@ -7,26 +7,9 @@ source lib/log.sh
 source lib/support.sh
 source lib/version.sh
 
-function copy_template() {
-    local template_path="template"
-    local target_path=$1
-
-    if [ -d "${target_path}" ]; then
-        log_warn "unexpected - found '${target_path}'"
-    fi
-
-    mkdir -p "${target_path}"
-
-    for override in \
-        $(find template/* -maxdepth 1 -type d -printf "%f\n" | sort -V); do
-        if ! version_compare_gt "${override}" "${g_server_version}"; then
-            local override_path="${template_path}/${override}/"
-
-            log_debug "copy_template - ${override_path} to ${target_path}"
-            cp -r "${override_path}"/* "${target_path}"
-        fi
-    done
-}
+g_images_dir="images"
+g_all_editions=("enterprise" "federal" "community")
+g_container_release=1 # FIXME - may go away.
 
 function bash_eval_template() {
     local template_file=$1
@@ -57,16 +40,34 @@ function bash_eval_templates() {
     done < <(find "${target_path}" -type f -name "*.template" -print0)
 }
 
-function do_template() {
-    local distro=$1
-    local edition=$2
+function copy_template() {
+    local template_path="template"
+    local target_path=$1
 
-    log_info "do_template() - distro '${distro}' edition '${edition}'"
-
-    if [ -z "${g_tools_version}" ]; then
-        # Use the first lookup, the version should be the same for each.
-        g_tools_version=$(find_latest_tools_version_for_server "${distro}" "${edition}" "${g_server_version}")
+    if [ -d "${target_path}" ]; then
+        log_warn "unexpected - found '${target_path}'"
     fi
+
+    mkdir -p "${target_path}"
+
+    for override in \
+        $(find template/ -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort -V); do
+        if ! version_compare_gt "${override}" "${g_server_version}"; then
+            local override_path="${template_path}/${override}/"
+
+            log_debug "copy_template - ${override_path} to ${target_path}"
+            cp -r "${override_path}"/* "${target_path}"
+        fi
+    done
+}
+
+function do_template() {
+    local version_path=$1
+    local edition=$2
+    local distro=$3
+    local distro_base=$4
+
+    log_info "do_template() - edition '${edition}' distro '${distro}' distro_base '${distro_base}'"
 
     # These are variables used by the template.
     DEBUG="${DEBUG:=false}"
@@ -75,10 +76,56 @@ function do_template() {
     CONTAINER_RELEASE="${g_container_release}"
     AEROSPIKE_EDITION="${edition}"
     AEROSPIKE_DESCRIPTION="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions."
-    AEROSPIKE_X86_64_LINK="$(get_package_link "${distro}" "${edition}" "${g_server_version}" "${g_tools_version}" "x86_64")"
-    AEROSPIKE_SHA_X86_64="$(fetch_package_sha "${distro}" "${edition}" "${g_server_version}" "${g_tools_version}" "x86_64")"
-    AEROSPIKE_AARCH64_LINK="$(get_package_link "${distro}" "${edition}" "${g_server_version}" "${g_tools_version}" "aarch64")"
-    AEROSPIKE_SHA_AARCH64="$(fetch_package_sha "${distro}" "${edition}" "${g_server_version}" "${g_tools_version}" "aarch64")"
+    AEROSPIKE_X86_64_LINK=
+    AEROSPIKE_SHA_X86_64=
+    AEROSPIKE_AARCH64_LINK=
+    AEROSPIKE_SHA_AARCH64=
+
+    for arch in "${c_archs[@]}"; do
+        case ${arch} in
+            aarch64)
+                AEROSPIKE_AARCH64_LINK="$(get_package_link "${distro}" \
+                    "${edition}" "${g_server_version}" "${g_tools_version}" \
+                    "${arch}")"
+                AEROSPIKE_SHA_AARCH64="$(fetch_package_sha "${distro}" \
+                    "${edition}" "${g_server_version}" "${g_tools_version}" \
+                    "${arch}")"
+
+                if [ -z "${AEROSPIKE_AARCH64_LINK}" ]; then
+                    log_warn "could not find aarch64 link"
+                    exit 1
+                fi
+
+                if [ -z "${AEROSPIKE_SHA_AARCH64}" ]; then
+                    log_warn "could not find aarch64 sha"
+                    exit 1
+                fi
+
+                ;;
+            x86_64)
+                AEROSPIKE_X86_64_LINK="$(get_package_link "${distro}" \
+                    "${edition}" "${g_server_version}" "${g_tools_version}" \
+                    "${arch}")"
+                AEROSPIKE_SHA_X86_64="$(fetch_package_sha "${distro}" \
+                    "${edition}" "${g_server_version}" "${g_tools_version}" \
+                    "${arch}")"
+
+                if [ -z "${AEROSPIKE_X86_64_LINK}" ]; then
+                    log_warn "could not find x86_64 link"
+                    exit 1
+                fi
+
+                if [ -z "${AEROSPIKE_SHA_X86_64}" ]; then
+                    log_warn "could not find x86_64 sha"
+                    exit 1
+                fi
+                ;;
+            *)
+                log_warn "unexpected arch '${arch}'"
+                exit 1
+                ;;
+        esac
+    done
 
     log_info "DEBUG: '${DEBUG}'"
     log_info "LINUX_BASE: '${LINUX_BASE}'"
@@ -91,87 +138,59 @@ function do_template() {
     log_info "AEROSPIKE_AARCH64_LINK: '${AEROSPIKE_AARCH64_LINK}'"
     log_info "AEROSPIKE_SHA_AARCH64: '${AEROSPIKE_SHA_AARCH64}'"
 
-    local target_path="${edition}/${distro}"
+    local target_path="${version_path}/${edition}/${distro}"
 
     copy_template "${target_path}"
     bash_eval_templates "${target_path}"
 }
 
-function usage() {
-    cat <<EOF
-Usage: $0 e|h|r -r <container release> -s <server version> -t <tools version>
+function update_version() {
+    local version_path=$1
 
-    -e Edition to update
-    -g Collects version information form 'git describe --abbrev=0'
-    -h Display this help.
-    -r <container release> Use if re-releasing an image - should increment by
-        one for each re-release.
-    -s <server version> Use this version instead of scraping the latest version
-        from artifacts.
-    -t <tools version> Use this version instead of scraping the latest version
-        for a particular server version from artifacts.
-EOF
-}
+    local version=
+    version="$(basename "${version_path}")"
 
-function parse_args() {
-    g_server_edition=
-    g_server_version=
-    g_container_release='1'
-    g_tools_version=
+    # HACK - artifacts for server need first 3 digits.
+    g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
 
-    while getopts "e:ghr:s:t:" opt; do
-        case "${opt}" in
-        e)
-            g_server_edition="${OPTARG}"
-            ;;
-        g)
-            git_describe="$(git describe --abbrev=0)"
+    # shellcheck source=images/6.4/config.sh
+    source "${version_path}/config.sh"
 
-            if grep -q "_" <<<"${git_describe}"; then
-                g_server_version="$(cut -sd _ -f 1 <<<"${git_describe}")"
-                g_container_release="$(cut -sd _ -f 2 <<<"${git_describe}")"
-            else
-                g_server_version="${git_describe}"
-                g_container_release='1'
-            fi
-            ;;
-        h)
-            usage
-            exit 0
-            ;;
-        r)
-            g_container_release="${OPTARG}"
-            ;;
-        s)
-            g_server_version="${OPTARG}"
-            ;;
-        t)
-            g_tools_version="${OPTARG}"
-            ;;
-        *)
-            log_warn "** Invalid argument **"
-            usage
-            exit 1
-            ;;
-        esac
+    for distro in "${c_distros[@]}"; do
+        # Assumes that there will always be an 'enterprise' edition.
+        g_tools_version=$(find_latest_tools_version_for_server "${distro}" enterprise "${g_server_version}")
+        break
     done
 
-    shift $((OPTIND - 1))
-}
-
-function generate_templates() {
-    local all_editions
-    IFS=' ' read -r -a all_editions <<<"$(support_all_editions)"
+    log_info "update_version() - server '${version}' -> '${g_server_version}' tools '${g_tools_version}'"
 
     # Clear prior builds.
-    for edition in "${all_editions[@]}"; do
-        find "${edition}"/* -maxdepth 0 -type d -exec rm -rf {} \;
+    for edition in "${g_all_editions[@]}"; do
+        local path="${version_path}/${edition}"
+
+        if [ -d "${path}" ]; then
+            find "${version_path}/${edition}" -mindepth 1 -maxdepth 1 -type d \
+                 -exec rm -rf {} \;
+        fi
     done
 
     # Generate new builds.
-    for edition in "${g_editions[@]}"; do
-        for distro in "${g_distros[@]}"; do
-            do_template "${distro}" "${edition}"
+    for edition in "${c_editions[@]}"; do
+        # shellcheck source=images/6.4/config.sh
+        source "${version_path}/config.sh"
+
+        local edition_config="${version_path}/config_${edition}.sh"
+
+        if [ -f "${edition_config}" ]; then
+            # shellcheck source=images/6.4/config_federal.sh
+            source "${edition_config}"
+        fi
+
+        for distro_ix in "${!c_distros[@]}"; do
+            local distro="${c_distros[${distro_ix}]}"
+            local distro_base="${c_distro_bases[${distro_ix}]}"
+
+            do_template "${version_path}" "${edition}" "${distro}" "${distro_base}"
         done
     done
 }
@@ -192,7 +211,7 @@ function do_bake_test_group_targets() {
         output+="\"${target_str}\", "
     done
 
-    printf "%s" "${output}"
+    echo "${output}"
 }
 
 function do_bake_group() {
@@ -202,8 +221,8 @@ function do_bake_group() {
 
     output+="group \"${group}\" {\n    targets=["
 
-    for edition in "${g_editions[@]}"; do
-        for distro in "${g_distros[@]}"; do
+    for edition in "${c_editions[@]}"; do
+        for distro in "${c_distros[@]}"; do
             if [[ "${group}" == "test" ]]; then
                 output+="$(do_bake_test_group_targets "${distro}" "${edition}")"
             elif [[ "${group}" == "push" ]]; then
@@ -219,12 +238,13 @@ function do_bake_group() {
     output=${output%,*}
     output+="]\n}\n"
 
-    printf "%s" "${output}"
+    echo "${output}"
 }
 
 function do_bake_test_target() {
-    local distro=$1
-    local edition=$2
+    local version_path=$1
+    local distro=$2
+    local edition=$3
 
     local platform_list
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
@@ -238,16 +258,17 @@ function do_bake_test_target() {
         output+="target \"${target_str}\" {\n"
         output+="    tags=[\"aerospike/aerospike-server-${edition}-${short_platform}:${g_server_version}\", \"aerospike/aerospike-server-${edition}-${short_platform}:latest\"]\n"
         output+="    platforms=[\"${platform}\"]\n"
-        output+="    context=\"./${edition}/${distro}\"\n"
+        output+="    context=\"./${version_path}/${edition}/${distro}\"\n"
         output+="}\n\n"
     done
 
-    printf "%s" "${output}"
+    echo "${output}"
 }
 
 function do_bake_push_target() {
-    local distro=$1
-    local edition=$2
+    local version_path=$1
+    local distro=$2
+    local edition=$3
 
     local platform_list
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
@@ -276,14 +297,16 @@ function do_bake_push_target() {
 
     output+="]\n"
     output+="    platforms=[\"${platforms_str}\"]\n"
-    output+="    context=\"./${edition}/${distro}\"\n"
+    output+="    context=\"./${version_path}/${edition}/${distro}\"\n"
     output+="}\n\n"
 
-    printf "%s" "${output}"
+    echo "${output}"
 }
 
-function generate_bake_file() {
-    local bake_file="bake.hcl"
+function update_bake_file() {
+    local version_path=$1
+
+    local bake_file="${version_path}/bake.hcl"
 
     cat <<-EOF >"${bake_file}"
 # This file contains the targets for the test images.
@@ -300,10 +323,23 @@ EOF
     local test_targets_str=""
     local push_targets_str=""
 
-    for edition in "${g_editions[@]}"; do
-        for distro in "${g_distros[@]}"; do
-            test_targets_str+="$(do_bake_test_target "${distro}" "${edition}")"
-            push_targets_str+="$(do_bake_push_target "${distro}" "${edition}")"
+    # Generate new builds.
+    for edition in "${c_editions[@]}"; do
+        # shellcheck source=images/6.4/config.sh
+        source "${version_path}/config.sh"
+
+        local edition_config="${version_path}/config_${edition}.sh"
+
+        if [ -f "${edition_config}" ]; then
+            # shellcheck source=images/6.4/config_federal.sh
+            source "${edition_config}"
+        fi
+
+        for distro in "${c_distros[@]}"; do
+            test_targets_str+="$(do_bake_test_target "${version_path}" \
+                "${distro}" "${edition}")"
+            push_targets_str+="$(do_bake_push_target "${version_path}" \
+                "${distro}" "${edition}")"
         done
     done
 
@@ -319,31 +355,13 @@ EOF
 }
 
 function main() {
-    parse_args "$@"
+    g_latest_version=$(find_latest_server_version)
+    local version_path=
 
-    g_latest_version=
-
-    if [ -z "${g_server_version}" ]; then
-        g_server_version=$(find_latest_server_version)
-        g_latest_version=g_server_version
-    else
-        g_server_version=$(find_latest_server_version_for_lineage "${g_server_version}")
-        g_latest_version=$(find_latest_server_version)
-    fi
-
-    g_distros=
-    IFS=' ' read -r -a g_distros <<<"$(support_distros_for_asd "${g_server_version}")"
-
-    g_editions=
-
-    if [ -z "${g_server_edition}" ]; then
-        IFS=' ' read -r -a g_editions <<<"$(support_editions_for_asd "${g_server_version}")"
-    else
-        g_editions=("${g_server_edition}")
-    fi
-
-    generate_templates
-    generate_bake_file
+    for version_path in "${g_images_dir}"/*; do
+        update_version "${version_path}"
+        update_bake_file "${version_path}"
+    done
 }
 
 main "$@"
