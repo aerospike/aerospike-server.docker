@@ -1,7 +1,3 @@
-#!/usr/bin/env bash
-
-set -Eeuo pipefail
-
 LOG_RED="\e[31m"
 LOG_GREEN="\e[32m"
 

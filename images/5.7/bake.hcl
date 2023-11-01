@@ -14,13 +14,13 @@ group "test" {
 }
 
 target "enterprise_debian10_amd64" {
-    tags=["aerospike/aerospike-server-enterprise-amd64:5.7.0.31", "aerospike/aerospike-server-enterprise-amd64:latest"]
+    tags=["aerospike/aerospike-server-enterprise-amd64:5.7.0.31", "aerospike/aerospike-server-enterprise-amd64:5.7"]
     platforms=["linux/amd64"]
     context="./images/5.7/enterprise/debian10"
 }
 
 target "community_debian10_amd64" {
-    tags=["aerospike/aerospike-server-community-amd64:5.7.0.31", "aerospike/aerospike-server-community-amd64:latest"]
+    tags=["aerospike/aerospike-server-community-amd64:5.7.0.31", "aerospike/aerospike-server-community-amd64:5.7"]
     platforms=["linux/amd64"]
     context="./images/5.7/community/debian10"
 }
@@ -32,13 +32,13 @@ group "push" {
 }
 
 target "enterprise_debian10" {
-    tags=["aerospike/aerospike-server-enterprise:5.7.0.31", "aerospike/aerospike-server-enterprise:5.7.0.31_1"]
+    tags=["aerospike/aerospike-server-enterprise:5.7.0.31", "aerospike/aerospike-server-enterprise:5.7.0.31_1", "aerospike/aerospike-server-enterprise:5.7"]
     platforms=["linux/amd64"]
     context="./images/5.7/enterprise/debian10"
 }
 
 target "community_debian10" {
-    tags=["aerospike/aerospike-server:5.7.0.31", "aerospike/aerospike-server:5.7.0.31_1"]
+    tags=["aerospike/aerospike-server:5.7.0.31", "aerospike/aerospike-server:5.7.0.31_1", "aerospike/aerospike-server:5.7"]
     platforms=["linux/amd64"]
     context="./images/5.7/community/debian10"
 }

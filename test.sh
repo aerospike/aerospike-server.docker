@@ -13,57 +13,29 @@ source lib/support.sh
 source lib/verbose_call.sh
 source lib/version.sh
 
-IMAGE_TAG=
-CONTAINER=
-
 function usage() {
     cat <<EOF
-Usage: $0 [-e|--edition EDITION] [-d|--distro DISTRIBUTION] [-c|--clean] [-h|--help]
+Usage: $0 [-c|--clean] [-h|--help]
 
-    -e|--edition EDITION: community, enterprise, federal.
-    -d|--distro DISTRIBUTION: debian11.
-    -c|--clean: cleanup the images after the test.
-    -h|--help: this help.
+    -c cleanup the images after the test.
+    -h display this help.
 EOF
 }
 
 function parse_args() {
-    CLEAN="false"
-    EDITION=
-    DISTRIBUTION=
+    g_clean="false"
 
-    PARSED_ARGS=$(getopt -a -n test -o che:d:p: --long clean,help,edition:,distro:,platform: -- "$@")
-    VALID_ARGS=$?
-
-    if [ "${VALID_ARGS}" != "0" ]; then
-        usage
-    fi
-
-    eval set -- "${PARSED_ARGS}"
-    while true; do
-        case "$1" in
-        -c | --clean)
-            CLEAN="true"
-            shift
+    while getopts "ch" opt; do
+        case "${opt}" in
+        c)
+            g_clean="true"
             ;;
-        -e | --edition)
-            EDITION=$2
-            shift 2
-            ;;
-        -d | --distro)
-            DISTRIBUTION=$2
-            shift 2
-            ;;
-        --)
-            shift
-            break
-            ;;
-        -h)
+        h)
             usage
             exit 0
             ;;
         *)
-            log_warn "Unexpected option: $1"
+            log_warn "** Invalid argument **"
             usage
             exit 1
             ;;
@@ -72,18 +44,22 @@ function parse_args() {
 }
 
 function run_docker() {
-    version=$1
+    local version=$1
+    local edition=$2
+    local platform=$3
+    local container=$4
+    local image_tag=$5
 
-    log_info "------ Running docker image ${IMAGE_TAG} ..."
+    log_info "running docker image '${image_tag}'"
 
-    if [ "${EDITION}" = "community" ] || version_compare_gt "${version}" "6.1"; then
-        verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
-            "${IMAGE_TAG}"
+    if [ "${edition}" = "community" ] || version_compare_gt "${version}" "6.1"; then
+        verbose_call docker run -td --name "${container}" \
+            "${platform/#/"--platform="}" "${image_tag}"
     else
         # Must supply a feature key when version is prior to 6.1.
-        verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
-            -v "/$(pwd)/res/":/asfeat/ -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" \
-            "${IMAGE_TAG}"
+        verbose_call docker run -td --name "${container}" \
+            "${platform/#/"--platform="}" -v "/$(pwd)/res/":/asfeat/ \
+            -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" "${image_tag}"
     fi
 }
 
@@ -107,18 +83,22 @@ function try() {
 
 function check_container() {
     local version=$1
+    local edition=$2
+    local platform=$3
+    local container=$4
 
-    log_info "------ Verifying docker container ..."
+    log_info "verifying container '${container}' version '${version}' platform '${platform}' ..."
 
-    if [ "$(docker container inspect -f '{{.State.Status}}' "${CONTAINER}")" == "running" ]; then
-        log_success "Container ${CONTAINER} started and running"
+    if [ "$(docker container inspect -f '{{.State.Status}}' "${container}")" == "running" ]; then
+        log_success "Container '${container}' started and running"
     else
-        log_failure "**Container ${CONTAINER} failed to start**"
+        log_failure "**Container '${container}' failed to start**"
         exit 1
     fi
 
-    container_platform="$(docker exec -t "${CONTAINER}" bash -c 'stty -onlcr && uname -m')"
-    expected_platform="$(support_platform_to_arch "${PLATFORM}")"
+    container_platform="$(docker exec -t "${container}" bash -c \
+        'stty -onlcr && uname -m')"
+    expected_platform="$(support_platform_to_arch "${platform}")"
 
     if [ "${container_platform}" = "${expected_platform}" ]; then
         log_success "Container platform is expected platform '${expected_platform}'"
@@ -127,21 +107,22 @@ function check_container() {
         exit 1
     fi
 
-    if try 10 docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd' >/dev/null; then
+    if try 10 docker exec -t "${container}" bash -c 'pgrep -x asd' >/dev/null; then
         log_success "Aerospike database is running"
     else
         log_failure "**Aerospike database is not running**"
         exit 1
     fi
 
-    if try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' | grep -qE "^ok"; then
+    if try 5 docker exec -t "${container}" bash -c 'asinfo -v status' | grep -qE "^ok"; then
         log_success "(asinfo) Aerospike database is responding"
     else
         log_failure "**(asinfo) Aerospike database is not responding**"
         exit 1
     fi
 
-    build=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asadm -e "enable; asinfo -v build"' | grep -oE "^${version}")
+    build=$(try 5 docker exec -t "${container}" bash -c \
+        'asadm -e "enable; asinfo -v build"' | grep -oE "^${version}")
 
     if [ -n "${build}" ]; then
         log_success "(asadm) Aerospike database has correct version - '${build}'"
@@ -150,21 +131,24 @@ function check_container() {
         exit 1
     fi
 
-    edition=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asadm -e "enable; asinfo -v edition"' | grep -oE "^Aerospike ${EDITION^} Edition")
+    container_edition=$(try 5 docker exec -t "${container}" bash -c \
+        'asadm -e "enable; asinfo -v edition"' | grep -oE "^Aerospike ${edition^} Edition")
 
-    if [ -n "${edition}" ]; then
-        log_success "(asadm) Aerospike database has correct edition - '${edition}'"
+    if [ -n "${container_edition}" ]; then
+        log_success "(asadm) Aerospike database has correct edition - '${container_edition}'"
     else
-        log_failure "**(asadm) Aerospike database has incorrect edition - '${edition}'**"
+        log_failure "**(asadm) Aerospike database has incorrect edition - '${container_edition}'**"
         exit 1
     fi
 
     if version_compare_gt "${version}" "6.2"; then
         tool="asinfo"
-        namespace=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v namespaces' | grep -o "test")
+        namespace=$(try 5 docker exec -t "${container}" bash -c \
+            'asinfo -v namespaces' | grep -o "test")
     else
         tool="aql"
-        namespace=$(try 5 docker exec -t "${CONTAINER}" bash -c 'aql -o raw <<<"SHOW namespaces" 2>/dev/null' | grep "namespaces: \"test\"")
+        namespace=$(try 5 docker exec -t "${container}" bash -c \
+            'aql -o raw <<<"SHOW namespaces" 2>/dev/null' | grep "namespaces: \"test\"")
     fi
 
     if [ -n "${namespace}" ]; then
@@ -173,75 +157,71 @@ function check_container() {
         log_failure "**(${tool}) Aerospike database does not have namespace 'test' - '${namespace}'"
     fi
 
-    log_info "------ Verify docker image completed successfully"
+    log_info "verify docker image completed successfully"
 }
 
 function try_stop_docker() {
-    log_info "------ Stop and remove containers form prior failed run"
+    local container=$1
 
-    if verbose_call docker stop "${CONTAINER}"; then
-        verbose_call docker rm -f "${CONTAINER}"
+    log_info "stop and remove containers '${container}' form prior failed run ..."
+
+    if verbose_call docker stop "${container}"; then
+        verbose_call docker rm -f "${container}"
     fi
 
-    log_info "------ Stop and remove containers form prior failed run complete"
+    log_info "stop and remove containers form prior failed run complete"
 }
 
 function clean_docker() {
-    log_info "------ Cleaning up old containers ..."
-    verbose_call docker stop "${CONTAINER}"
-    verbose_call docker rm -f "${CONTAINER}"
-    log_info "------ Cleaning up old containers complete"
+    local container=$1
+    local image_tag=$2
 
-    if [ "${CLEAN}" = "true" ]; then
-        log_info "------ Cleaning up old images ..."
-        verbose_call docker rmi -f "$(docker images "${IMAGE_TAG}" -a -q | sort | uniq)"
-        log_info "------ Cleaning up old images complete"
+    log_info "cleaning up old containers '${container}' ..."
+    verbose_call docker stop "${container}"
+    verbose_call docker rm -f "${container}"
+    log_info "cleaning up old containers complete"
+
+    if [ "${g_clean}" = "true" ]; then
+        log_info "cleaning up old images '${image_tag}' ..."
+        verbose_call docker rmi -f "$(docker images "${image_tag}" -a -q | sort | uniq)"
+        log_info "cleaning up old images complete"
     fi
-}
-
-function test_current_edition_distro() {
-    local version
-    version="$(get_version_from_dockerfile "${DISTRIBUTION}" "${EDITION}")"
-    CONTAINER="aerospike-server-${EDITION}"
-    local platform_list
-    IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${version}" "${EDITION}")"
-
-    for platform in "${platform_list[@]}"; do
-        short_platform=${platform#*/}
-        IMAGE_TAG="aerospike/aerospike-server-${EDITION}-${short_platform}:${version}"
-        PLATFORM=${platform}
-        try_stop_docker
-        run_docker "${version}"
-        check_container "${version}"
-        clean_docker
-    done
 }
 
 function main() {
     parse_args "$@"
 
-    local edition_list=("${EDITION}")
+    for version_path in images/*; do
+        local short_version=
+        short_version="$(basename "${version_path}")"
 
-    if [ -z "${EDITION}" ]; then
-        readarray -t edition_list < <(find community enterprise federal -name Dockerfile -type f | cut -d/ -f1)
-    fi
+        # shellcheck source=images/6.4/config.sh
+        source "${version_path}"/config.sh
 
-    log_info "------ Testing editions: '${edition_list[*]}'"
+        for edition in "${c_editions[@]}"; do
+            local container="aerospike-server-${edition}"
+            local edition_config="${version_path}/config_${edition}.sh"
 
-    for edition in "${edition_list[@]}"; do
-        local distribution_list=("${DISTRIBUTION}")
+            if [ -f "${edition_config}" ]; then
+                # shellcheck source=images/6.4/config_federal.sh
+                source "${edition_config}"
+            fi
 
-        if [ -z "${DISTRIBUTION}" ]; then
-            readarray -t distribution_list < <(find "${edition}"/* -maxdepth 0 -type d | cut -d/ -f2)
-        fi
+            for distro in "${c_distros[@]}"; do
+                local version
+                version="$(get_version_from_dockerfile "${version_path}" "${distro}" "${edition}")"
 
-        for distribution in "${distribution_list[@]}"; do
-            EDITION=$edition
-            DISTRIBUTION=$distribution
+                for platform in "${c_platforms[@]}"; do
+                    local short_platform=
+                    short_platform="$(basename "${platform}")"
+                    local image_tag="aerospike/aerospike-server-${edition}-${short_platform}:${short_version}"
 
-            log_info "------ Testing for edition=${EDITION} Distribution=${DISTRIBUTION}"
-
-            test_current_edition_distro
+                    try_stop_docker "${container}"
+                    run_docker "${version}" "${edition}" "${platform}" "${container}" "${image_tag}"
+                    check_container "${version}" "${edition}" "${platform}" "${container}" "${image_tag}"
+                    clean_docker "${container}" "${image_tag}"
+                done
+            done
         done
     done
 }

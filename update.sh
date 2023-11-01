@@ -71,7 +71,7 @@ function do_template() {
 
     # These are variables used by the template.
     DEBUG="${DEBUG:=false}"
-    LINUX_BASE="$(support_distro_to_base "${distro}")"
+    LINUX_BASE="${distro_base}"
     AEROSPIKE_VERSION="${g_server_version}"
     CONTAINER_RELEASE="${g_container_release}"
     AEROSPIKE_EDITION="${edition}"
@@ -100,7 +100,6 @@ function do_template() {
                     log_warn "could not find aarch64 sha"
                     exit 1
                 fi
-
                 ;;
             x86_64)
                 AEROSPIKE_X86_64_LINK="$(get_package_link "${distro}" \
@@ -153,8 +152,7 @@ function update_version() {
     # HACK - artifacts for server need first 3 digits.
     g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
 
-    # shellcheck source=images/6.4/config.sh
-    source "${version_path}/config.sh"
+    support_source_config "${version_path}" ""
 
     for distro in "${c_distros[@]}"; do
         # Assumes that there will always be an 'enterprise' edition.
@@ -176,15 +174,7 @@ function update_version() {
 
     # Generate new builds.
     for edition in "${c_editions[@]}"; do
-        # shellcheck source=images/6.4/config.sh
-        source "${version_path}/config.sh"
-
-        local edition_config="${version_path}/config_${edition}.sh"
-
-        if [ -f "${edition_config}" ]; then
-            # shellcheck source=images/6.4/config_federal.sh
-            source "${edition_config}"
-        fi
+        support_source_config "${version_path}" "${edition}"
 
         for distro_ix in "${!c_distros[@]}"; do
             local distro="${c_distros[${distro_ix}]}"
@@ -199,12 +189,9 @@ function do_bake_test_group_targets() {
     local distro=$1
     local edition=$2
 
-    local platform_list
-    IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
-
     local output=""
 
-    for platform in "${platform_list[@]}"; do
+    for platform in "${c_platforms[@]}"; do
         local short_platform=${platform#*/}
         local target_str="${edition}_${distro}_${short_platform}"
 
@@ -215,13 +202,16 @@ function do_bake_test_group_targets() {
 }
 
 function do_bake_group() {
-    local group=$1
+    local version_path=$1
+    local group=$2
 
     local output="#------------------------------------ ${group} -----------------------------------\n\n"
 
     output+="group \"${group}\" {\n    targets=["
 
     for edition in "${c_editions[@]}"; do
+        support_source_config "${version_path}" "${edition}"
+
         for distro in "${c_distros[@]}"; do
             if [[ "${group}" == "test" ]]; then
                 output+="$(do_bake_test_group_targets "${distro}" "${edition}")"
@@ -246,17 +236,17 @@ function do_bake_test_target() {
     local distro=$2
     local edition=$3
 
-    local platform_list
-    IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
+    local short_version=
+    short_version="${version_path#*/}"
 
     local output=""
 
-    for platform in "${platform_list[@]}"; do
-        local short_platform=${platform#*/}
+    for platform in "${c_platforms[@]}"; do
+        local short_platform="${platform#*/}"
         local target_str="${edition}_${distro}_${short_platform}"
 
         output+="target \"${target_str}\" {\n"
-        output+="    tags=[\"aerospike/aerospike-server-${edition}-${short_platform}:${g_server_version}\", \"aerospike/aerospike-server-${edition}-${short_platform}:latest\"]\n"
+        output+="    tags=[\"aerospike/aerospike-server-${edition}-${short_platform}:${g_server_version}\", \"aerospike/aerospike-server-${edition}-${short_platform}:${short_version}\"]\n"
         output+="    platforms=[\"${platform}\"]\n"
         output+="    context=\"./${version_path}/${edition}/${distro}\"\n"
         output+="}\n\n"
@@ -270,10 +260,7 @@ function do_bake_push_target() {
     local distro=$2
     local edition=$3
 
-    local platform_list
-    IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
-
-    printf -v platforms_str '%s,' "${platform_list[@]}"
+    printf -v platforms_str '%s,' "${c_platforms[@]}"
     platforms_str="${platforms_str%,}"
 
     local target_str="${edition}_${distro}"
@@ -290,6 +277,10 @@ function do_bake_push_target() {
     if [ -n "${g_container_release}" ]; then
         output+=", \"${product}:${g_server_version}_${g_container_release}\""
     fi
+
+    local short_version=
+    short_version="${version_path#*/}"
+    output+=", \"${product}:${short_version}\""
 
     if [ "${g_latest_version}" = "${g_server_version}" ]; then
         output+=", \"${product}:latest\""
@@ -325,15 +316,7 @@ EOF
 
     # Generate new builds.
     for edition in "${c_editions[@]}"; do
-        # shellcheck source=images/6.4/config.sh
-        source "${version_path}/config.sh"
-
-        local edition_config="${version_path}/config_${edition}.sh"
-
-        if [ -f "${edition_config}" ]; then
-            # shellcheck source=images/6.4/config_federal.sh
-            source "${edition_config}"
-        fi
+        support_source_config "${version_path}" "${edition}"
 
         for distro in "${c_distros[@]}"; do
             test_targets_str+="$(do_bake_test_target "${version_path}" \
@@ -344,9 +327,9 @@ EOF
     done
 
     local test_group_str
-    test_group_str="$(do_bake_group "test")"
+    test_group_str="$(do_bake_group "${version_path}" "test")"
     local push_group_str
-    push_group_str="$(do_bake_group "push")"
+    push_group_str="$(do_bake_group "${version_path}" "push")"
 
     {
         printf "%b\n%b" "${test_group_str}" "${test_targets_str}"

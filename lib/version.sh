@@ -1,7 +1,3 @@
-#!/usr/bin/env bash
-
-set -Eeuo pipefail
-
 source lib/fetch.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
@@ -127,8 +123,9 @@ function fetch_package_sha() {
 }
 
 function get_version_from_dockerfile() {
-    local distro=$1
-    local edition=$2
+    local version_path=$1
+    local distro=$2
+    local edition=$3
 
-    grep "ARG AEROSPIKE_X86_64_LINK=" "${edition}/${distro}/Dockerfile" | grep -oE "/[0-9.]+(-rc[0-9]+)?/" | tr -d '/'
+    grep "ARG AEROSPIKE_X86_64_LINK=" "${version_path}/${edition}/${distro}/Dockerfile" | grep -oE "/[0-9.]+(-rc[0-9]+)?/" | tr -d '/'
 }

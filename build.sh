@@ -10,7 +10,6 @@
 set -Eeuo pipefail
 
 source lib/log.sh
-source lib/support.sh
 source lib/verbose_call.sh
 
 function usage() {
@@ -18,14 +17,14 @@ function usage() {
 Usage: $0 -h -d <linux distro> -e <server edition>
 
     -h display this help.
-    -t build for invoking test in test.sh
     -p build for release/push to dockerhub
+    -t build for invoking test in test.sh
 EOF
 }
 
 function parse_args() {
-    g_test_build='false'
     g_push_build='false'
+    g_test_build='false'
 
     while getopts "htp" opt; do
         case "${opt}" in
@@ -33,11 +32,11 @@ function parse_args() {
             usage
             exit 0
             ;;
-        t)
-            g_test_build='true'
-            ;;
         p)
             g_push_build='true'
+            ;;
+        t)
+            g_test_build='true'
             ;;
         *)
             log_warn "** Invalid argument **"
@@ -49,8 +48,8 @@ function parse_args() {
 
     shift $((OPTIND - 1))
 
-    log_info "g_test_build: '${g_test_build}'"
     log_info "g_push_build: '${g_push_build}'"
+    log_info "g_test_build: '${g_test_build}'"
 
     if [ "${g_test_build}" = "false" ] && [ "${g_push_build}" = "false" ]; then
         log_warn "Must provide either '-t' or '-p' option"
