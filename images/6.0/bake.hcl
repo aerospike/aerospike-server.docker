@@ -14,19 +14,19 @@ group "test" {
 }
 
 target "enterprise_debian11_amd64" {
-    tags=["aerospike/aerospike-server-enterprise-amd64:6.0.0.22", "aerospike/aerospike-server-enterprise-amd64:6.0"]
+    tags=["aerospike/aerospike-server-enterprise-amd64:6.0.0.22-debian11", "aerospike/aerospike-server-enterprise-amd64:6.0.0.22-debian11-1", "aerospike/aerospike-server-enterprise-amd64:6.0-debian11"]
     platforms=["linux/amd64"]
     context="./images/6.0/enterprise/debian11"
 }
 
 target "federal_debian11_amd64" {
-    tags=["aerospike/aerospike-server-federal-amd64:6.0.0.22", "aerospike/aerospike-server-federal-amd64:6.0"]
+    tags=["aerospike/aerospike-server-federal-amd64:6.0.0.22-debian11", "aerospike/aerospike-server-federal-amd64:6.0.0.22-debian11-1", "aerospike/aerospike-server-federal-amd64:6.0-debian11"]
     platforms=["linux/amd64"]
     context="./images/6.0/federal/debian11"
 }
 
 target "community_debian11_amd64" {
-    tags=["aerospike/aerospike-server-community-amd64:6.0.0.22", "aerospike/aerospike-server-community-amd64:6.0"]
+    tags=["aerospike/aerospike-server-community-amd64:6.0.0.22-debian11", "aerospike/aerospike-server-community-amd64:6.0.0.22-debian11-1", "aerospike/aerospike-server-community-amd64:6.0-debian11"]
     platforms=["linux/amd64"]
     context="./images/6.0/community/debian11"
 }
@@ -38,19 +38,22 @@ group "push" {
 }
 
 target "enterprise_debian11" {
-    tags=["aerospike/aerospike-server-enterprise:6.0.0.22", "aerospike/aerospike-server-enterprise:6.0.0.22_1", "aerospike/aerospike-server-enterprise:6.0"]
+    tags=["aerospike/aerospike-server-enterprise:6.0.0.22", "aerospike/aerospike-server-enterprise:6.0.0.22-1", "aerospike/aerospike-server-enterprise:6.0",
+    "aerospike/aerospike-server-enterprise:6.0.0.22-debian11", "aerospike/aerospike-server-enterprise:6.0.0.22-debian11-1", "aerospike/aerospike-server-enterprise:6.0-debian11"]
     platforms=["linux/amd64"]
     context="./images/6.0/enterprise/debian11"
 }
 
 target "federal_debian11" {
-    tags=["aerospike/aerospike-server-federal:6.0.0.22", "aerospike/aerospike-server-federal:6.0.0.22_1", "aerospike/aerospike-server-federal:6.0"]
+    tags=["aerospike/aerospike-server-federal:6.0.0.22", "aerospike/aerospike-server-federal:6.0.0.22-1", "aerospike/aerospike-server-federal:6.0",
+    "aerospike/aerospike-server-federal:6.0.0.22-debian11", "aerospike/aerospike-server-federal:6.0.0.22-debian11-1", "aerospike/aerospike-server-federal:6.0-debian11"]
     platforms=["linux/amd64"]
     context="./images/6.0/federal/debian11"
 }
 
 target "community_debian11" {
-    tags=["aerospike/aerospike-server:6.0.0.22", "aerospike/aerospike-server:6.0.0.22_1", "aerospike/aerospike-server:6.0"]
+    tags=["aerospike/aerospike-server:6.0.0.22", "aerospike/aerospike-server:6.0.0.22-1", "aerospike/aerospike-server:6.0",
+    "aerospike/aerospike-server:6.0.0.22-debian11", "aerospike/aerospike-server:6.0.0.22-debian11-1", "aerospike/aerospike-server:6.0-debian11"]
     platforms=["linux/amd64"]
     context="./images/6.0/community/debian11"
 }

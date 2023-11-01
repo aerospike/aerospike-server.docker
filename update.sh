@@ -231,22 +231,46 @@ function do_bake_group() {
     echo "${output}"
 }
 
+function get_product_tags() {
+    local product=$1
+    local distro=$2
+
+    if [ -z "${distro}" ]; then
+        local distro_prefix=
+    else
+        local distro_prefix="-${distro}"
+    fi
+
+    local output="\"${product}:${g_server_version}${distro_prefix}\""
+
+    if [ -n "${g_container_release}" ]; then
+        output+=", \"${product}:${g_server_version}${distro_prefix}-${g_container_release}\""
+    fi
+
+    local short_version="${version_path#*/}"
+
+    output+=", \"${product}:${short_version}${distro_prefix}\""
+
+    echo "${output}"
+}
+
 function do_bake_test_target() {
     local version_path=$1
     local distro=$2
     local edition=$3
 
-    local short_version=
-    short_version="${version_path#*/}"
-
+    local short_version="${version_path#*/}"
     local output=""
 
     for platform in "${c_platforms[@]}"; do
         local short_platform="${platform#*/}"
         local target_str="${edition}_${distro}_${short_platform}"
+        local product="aerospike/aerospike-server-${edition}-${short_platform}"
 
         output+="target \"${target_str}\" {\n"
-        output+="    tags=[\"aerospike/aerospike-server-${edition}-${short_platform}:${g_server_version}\", \"aerospike/aerospike-server-${edition}-${short_platform}:${short_version}\"]\n"
+        output+="    tags=["
+        output+="$(get_product_tags "${product}" "${distro}")"
+        output+="]\n"
         output+="    platforms=[\"${platform}\"]\n"
         output+="    context=\"./${version_path}/${edition}/${distro}\"\n"
         output+="}\n\n"
@@ -272,19 +296,19 @@ function do_bake_push_target() {
         product+="-${edition}"
     fi
 
-    output+="    tags=[\"${product}:${g_server_version}\""
+    output+="    tags=["
 
-    if [ -n "${g_container_release}" ]; then
-        output+=", \"${product}:${g_server_version}_${g_container_release}\""
+    if [ "${distro}" == "${c_distro_default}" ]; then
+        output+="$(get_product_tags "${product}" "")"
+
+        if [ "${g_latest_version}" = "${g_server_version}" ]; then
+            output+=", \"${product}:latest\""
+        fi
+
+        output+=",\n    "
     fi
 
-    local short_version=
-    short_version="${version_path#*/}"
-    output+=", \"${product}:${short_version}\""
-
-    if [ "${g_latest_version}" = "${g_server_version}" ]; then
-        output+=", \"${product}:latest\""
-    fi
+    output+="$(get_product_tags "${product}" "${distro}")"
 
     output+="]\n"
     output+="    platforms=[\"${platforms_str}\"]\n"

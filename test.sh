@@ -214,7 +214,7 @@ function main() {
                 for platform in "${c_platforms[@]}"; do
                     local short_platform=
                     short_platform="$(basename "${platform}")"
-                    local image_tag="aerospike/aerospike-server-${edition}-${short_platform}:${short_version}"
+                    local image_tag="aerospike/aerospike-server-${edition}-${short_platform}:${short_version}-${distro}"
 
                     try_stop_docker "${container}"
                     run_docker "${version}" "${edition}" "${platform}" "${container}" "${image_tag}"
