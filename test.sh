@@ -59,7 +59,7 @@ function run_docker() {
     else
         # Must supply a feature key when version is prior to 6.1.
         verbose_call docker run -td --name "${container}" \
-            "${platform/#/"--platform="}" -v "$(pwd)/${g_build_res_dir}/":/asfeat/ \
+            "${platform/#/"--platform="}" -v "$(pwd)/${g_data_res_dir}/":/asfeat/ \
             -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" "${image_tag}"
     fi
 }

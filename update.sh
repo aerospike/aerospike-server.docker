@@ -47,9 +47,9 @@ function copy_template() {
     mkdir -p "${target_path}"
 
     for override in \
-        $(find ${g_build_template_dir} -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort -V); do
+        $(find ${g_data_template_dir} -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort -V); do
         if ! version_compare_gt "${override}" "${g_server_version}"; then
-            local override_path="${g_build_template_dir}/${override}/"
+            local override_path="${g_data_template_dir}/${override}/"
 
             log_debug "copy_template - ${override_path} to ${target_path}"
             cp -r "${override_path}"/* "${target_path}"

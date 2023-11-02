@@ -1,17 +1,22 @@
+source lib/globals.sh
 source lib/log.sh
 source lib/version.sh
 
 function support_source_config() {
-    version_path=$1
-    edition=$2
+    local version_path=$1
+    local edition=$2
 
-    # shellcheck source=images/6.4/config.sh
-    source "${version_path}/config.sh"
+    local version=
+    version="$(basename ${version_path})"
+    local config_dir="${g_data_config_dir}/${version}"
 
-    local edition_config="${version_path}/config_${edition}.sh"
+    # shellcheck source=data/config/6.4/config.sh
+    source "${config_dir}/config.sh"
+
+    local edition_config="${config_dir}/config_${edition}.sh"
 
     if [ -f "${edition_config}" ]; then
-        # shellcheck source=images/6.4/config_federal.sh
+        # shellcheck source=data/config/6.4/config_federal.sh
         source "${edition_config}"
     fi
 }
