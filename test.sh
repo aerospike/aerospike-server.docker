@@ -8,6 +8,7 @@
 
 set -Eeuo pipefail
 
+source lib/globals.sh
 source lib/log.sh
 source lib/support.sh
 source lib/verbose_call.sh
@@ -58,7 +59,7 @@ function run_docker() {
     else
         # Must supply a feature key when version is prior to 6.1.
         verbose_call docker run -td --name "${container}" \
-            "${platform/#/"--platform="}" -v "/$(pwd)/res/":/asfeat/ \
+            "${platform/#/"--platform="}" -v "$(pwd)/${g_build_res_dir}/":/asfeat/ \
             -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" "${image_tag}"
     fi
 }
