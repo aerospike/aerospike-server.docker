@@ -6,6 +6,7 @@
       binutils \
       ca-certificates \
       curl \
+      file \
       xz-utils 2>&1; \
     apt-get purge -y; \
     apt-get autoremove -y; \

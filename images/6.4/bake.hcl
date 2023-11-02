@@ -10,7 +10,7 @@
 #------------------------------------ test -----------------------------------
 
 group "test" {
-    targets=["enterprise_debian12_amd64", "enterprise_debian12_arm64", "federal_debian12_amd64", "community_debian12_amd64", "community_debian12_arm64"]
+    targets=["enterprise_debian12_amd64", "enterprise_debian12_arm64", "enterprise_el9_amd64", "enterprise_el9_arm64", "federal_debian12_amd64", "federal_el9_amd64", "community_debian12_amd64", "community_debian12_arm64", "community_el9_amd64", "community_el9_arm64"]
 }
 
 target "enterprise_debian12_amd64" {
@@ -25,10 +25,28 @@ target "enterprise_debian12_arm64" {
     context="./images/6.4/enterprise/debian12"
 }
 
+target "enterprise_el9_amd64" {
+    tags=["aerospike/aerospike-server-enterprise-amd64:6.4.0.6-el9", "aerospike/aerospike-server-enterprise-amd64:6.4.0.6-el9-1", "aerospike/aerospike-server-enterprise-amd64:6.4-el9"]
+    platforms=["linux/amd64"]
+    context="./images/6.4/enterprise/el9"
+}
+
+target "enterprise_el9_arm64" {
+    tags=["aerospike/aerospike-server-enterprise-arm64:6.4.0.6-el9", "aerospike/aerospike-server-enterprise-arm64:6.4.0.6-el9-1", "aerospike/aerospike-server-enterprise-arm64:6.4-el9"]
+    platforms=["linux/arm64"]
+    context="./images/6.4/enterprise/el9"
+}
+
 target "federal_debian12_amd64" {
     tags=["aerospike/aerospike-server-federal-amd64:6.4.0.6-debian12", "aerospike/aerospike-server-federal-amd64:6.4.0.6-debian12-1", "aerospike/aerospike-server-federal-amd64:6.4-debian12"]
     platforms=["linux/amd64"]
     context="./images/6.4/federal/debian12"
+}
+
+target "federal_el9_amd64" {
+    tags=["aerospike/aerospike-server-federal-amd64:6.4.0.6-el9", "aerospike/aerospike-server-federal-amd64:6.4.0.6-el9-1", "aerospike/aerospike-server-federal-amd64:6.4-el9"]
+    platforms=["linux/amd64"]
+    context="./images/6.4/federal/el9"
 }
 
 target "community_debian12_amd64" {
@@ -43,10 +61,22 @@ target "community_debian12_arm64" {
     context="./images/6.4/community/debian12"
 }
 
+target "community_el9_amd64" {
+    tags=["aerospike/aerospike-server-community-amd64:6.4.0.6-el9", "aerospike/aerospike-server-community-amd64:6.4.0.6-el9-1", "aerospike/aerospike-server-community-amd64:6.4-el9"]
+    platforms=["linux/amd64"]
+    context="./images/6.4/community/el9"
+}
+
+target "community_el9_arm64" {
+    tags=["aerospike/aerospike-server-community-arm64:6.4.0.6-el9", "aerospike/aerospike-server-community-arm64:6.4.0.6-el9-1", "aerospike/aerospike-server-community-arm64:6.4-el9"]
+    platforms=["linux/arm64"]
+    context="./images/6.4/community/el9"
+}
+
 #------------------------------------ push -----------------------------------
 
 group "push" {
-    targets=["enterprise_debian12", "federal_debian12", "community_debian12"]
+    targets=["enterprise_debian12", "enterprise_el9", "federal_debian12", "federal_el9", "community_debian12", "community_el9"]
 }
 
 target "enterprise_debian12" {
@@ -56,6 +86,12 @@ target "enterprise_debian12" {
     context="./images/6.4/enterprise/debian12"
 }
 
+target "enterprise_el9" {
+    tags=["aerospike/aerospike-server-enterprise:6.4.0.6-el9", "aerospike/aerospike-server-enterprise:6.4.0.6-el9-1", "aerospike/aerospike-server-enterprise:6.4-el9"]
+    platforms=["linux/amd64,linux/arm64"]
+    context="./images/6.4/enterprise/el9"
+}
+
 target "federal_debian12" {
     tags=["aerospike/aerospike-server-federal:6.4.0.6", "aerospike/aerospike-server-federal:6.4.0.6-1", "aerospike/aerospike-server-federal:6.4", "aerospike/aerospike-server-federal:latest",
     "aerospike/aerospike-server-federal:6.4.0.6-debian12", "aerospike/aerospike-server-federal:6.4.0.6-debian12-1", "aerospike/aerospike-server-federal:6.4-debian12"]
@@ -63,10 +99,22 @@ target "federal_debian12" {
     context="./images/6.4/federal/debian12"
 }
 
+target "federal_el9" {
+    tags=["aerospike/aerospike-server-federal:6.4.0.6-el9", "aerospike/aerospike-server-federal:6.4.0.6-el9-1", "aerospike/aerospike-server-federal:6.4-el9"]
+    platforms=["linux/amd64"]
+    context="./images/6.4/federal/el9"
+}
+
 target "community_debian12" {
     tags=["aerospike/aerospike-server:6.4.0.6", "aerospike/aerospike-server:6.4.0.6-1", "aerospike/aerospike-server:6.4", "aerospike/aerospike-server:latest",
     "aerospike/aerospike-server:6.4.0.6-debian12", "aerospike/aerospike-server:6.4.0.6-debian12-1", "aerospike/aerospike-server:6.4-debian12"]
     platforms=["linux/amd64,linux/arm64"]
     context="./images/6.4/community/debian12"
+}
+
+target "community_el9" {
+    tags=["aerospike/aerospike-server:6.4.0.6-el9", "aerospike/aerospike-server:6.4.0.6-el9-1", "aerospike/aerospike-server:6.4-el9"]
+    platforms=["linux/amd64,linux/arm64"]
+    context="./images/6.4/community/el9"
 }
 

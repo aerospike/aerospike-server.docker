@@ -5,12 +5,12 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:bookworm-slim
+FROM redhat/ubi9-minimal
 
-LABEL org.opencontainers.image.title="Aerospike Community Server" \
+LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/debian:bookworm-slim" \
+      org.opencontainers.image.base.name="docker.io/library/redhat/ubi9-minimal" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
       org.opencontainers.image.version="6.4.0.6" \
@@ -21,32 +21,31 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="community"
+ARG AEROSPIKE_EDITION="federal"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.6/aerospike-server-community_6.4.0.6_tools-9.2.1_debian12_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="052a6632009589505a07685334285cca2ce6111643877f4e1196d40b8a52e8fb"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.6/aerospike-server-community_6.4.0.6_tools-9.2.1_debian12_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="62bc0c5ad4f1f4ed3b4ebb3690e7481b3e4442522d098dbb2210f6d1fccd88f6"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.4.0.6/aerospike-server-federal_6.4.0.6_tools-9.2.1_el9_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="b626ea60b199ad7317a55c664c62c8ef1d99080091159d60726b0f7f4fa29354"
+ARG AEROSPIKE_AARCH64_LINK=""
+ARG AEROSPIKE_SHA_AARCH64=""
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
 RUN \
   { \
-    # 00-prelude-deb.part - Setup dependencies for scripts.
-    export DEBIAN_FRONTEND=noninteractive; \
-    apt-get update -y; \
-    apt-get install -y --no-install-recommends apt-utils; \
-    apt-get install -y --no-install-recommends \
+    # 00-prelude-rpm.part - Setup dependencies for scripts.
+    microdnf update -y; \
+    microdnf install -y \
       binutils \
       ca-certificates \
-      curl \
       file \
-      xz-utils; \
+      findutils \
+      tar \
+      xz; \
   }; \
   { \
-    # 00-prelude-deb.part - Install procps for tests.
-    apt-get install -y --no-install-recommends procps; \
+    # 00-prelude-rpm.part - Install procps for tests.
+    microdnf install -y procps-ng; \
   }; \
   { \
     # 10-download.part - Vars used for tini and tools.
@@ -97,39 +96,28 @@ RUN \
     cp aerospike/LICENSE /licenses; \
   }; \
   { \
-    # 20-install-dependencies-deb.part - Install server and dependencies.
-    if [ "${AEROSPIKE_EDITION}" = "enterprise" ]; then \
-      apt-get install -y --no-install-recommends \
-        libcurl4 \
-        libldap-2.4.2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.0" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        libcurl4; \
-    fi; \
-    dpkg -i aerospike/aerospike-server-*.deb; \
+    # 20-install-dependencies-rpm.part - Install server and dependencies.
+    rpm -i aerospike/aerospike-server-*.rpm; \
     rm -rf /opt/aerospike/bin; \
   }; \
   { \
-    # 20-install-dependencies-deb.part - Install tools dependencies.
+    # 20-install-dependencies-rpm.part - Install tools dependencies.
     if ! [ "$(printf "%s\n%s" "${VERSION}" "5.1" | sort -V | head -1)" != "${VERSION}" ]; then \
       # Tools before 5.1 need python2.
-      apt-get install -y --no-install-recommends \
-        python2; \
+      microdnf install -y python2; \
     elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
       # Tools before 6.0 need python3.
-      apt-get install -y --no-install-recommends \
-        python3 \
-        python3-distutils; \
+      microdnf install -y python3; \
     fi; \
     # Tools after 6.0 bundled their own python interpreter.
   }; \
   { \
-    # 20-install-dependencies-deb.part - Extract tools.
-    # ar on debian10 doesn't support '--output'
+    # 20-install-dependencies-rpm.part - Extract tools.
     pushd aerospike/pkg || exit 1; \
-    ar -x ../aerospike-tools*.deb; \
+    rpm2archive ../aerospike-tools*.rpm; \
+    tar xf ../aerospike-tools*.tgz -C .; \
+    rm ../aerospike-tools*.tgz; \
     popd || exit 1; \
-    tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/; \
   }; \
   { \
     # 30-install-tools.part - install asinfo and asadm.
@@ -161,18 +149,15 @@ RUN \
     rm -rf aerospike; \
   }; \
   { \
-    # 50-remove-prelude-deb.part - Remove dependencies for scripts.
+    # 50-remove-prelude-rpm.part - Remove dependencies for scripts.
     rm -rf /var/lib/apt/lists/*; \
-    dpkg --purge \
-      apt-utils \
+    microdnf remove -y \
       binutils \
       ca-certificates \
-      curl \
       file \
-      xz-utils 2>&1; \
-    apt-get purge -y; \
-    apt-get autoremove -y; \
-    unset DEBIAN_FRONTEND; \
+      findutils \
+      tar \
+      xz 2>&1; \
   }; \
   echo "done";
 

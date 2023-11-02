@@ -31,12 +31,12 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
 RUN \
-$(cat scripts/00-prelude-deb.part)
+$(cat scripts/00-prelude-${LINUX_PKG_TYPE}.part)
 $(cat scripts/10-download.part)
-$(cat scripts/20-install-dependencies-deb.part)
+$(cat scripts/20-install-dependencies-${LINUX_PKG_TYPE}.part)
 $(cat scripts/30-install-tools.part)
 $(cat scripts/40-cleanup.part)
-$(cat scripts/50-remove-prelude-deb.part)
+$(cat scripts/50-remove-prelude-${LINUX_PKG_TYPE}.part)
   echo "done";
 
 # Add the Aerospike configuration specific to this dockerfile

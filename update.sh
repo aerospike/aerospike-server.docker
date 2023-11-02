@@ -72,6 +72,7 @@ function do_template() {
     # These are variables used by the template.
     DEBUG="${DEBUG:=false}"
     LINUX_BASE="${distro_base}"
+    LINUX_PKG_TYPE=
     AEROSPIKE_VERSION="${g_server_version}"
     CONTAINER_RELEASE="${g_container_release}"
     AEROSPIKE_EDITION="${edition}"
@@ -80,6 +81,15 @@ function do_template() {
     AEROSPIKE_SHA_X86_64=
     AEROSPIKE_AARCH64_LINK=
     AEROSPIKE_SHA_AARCH64=
+
+    if grep -o "debian:" <<<"${distro_base}"; then
+        LINUX_PKG_TYPE="deb"
+    elif grep -o "redhat/" <<<"${distro_base}"; then
+        LINUX_PKG_TYPE="rpm"
+    else
+        log_warn "unexpected distro_base '${distro_base}'"
+        exit 1
+    fi
 
     for arch in "${c_archs[@]}"; do
         case ${arch} in
@@ -128,6 +138,7 @@ function do_template() {
 
     log_info "DEBUG: '${DEBUG}'"
     log_info "LINUX_BASE: '${LINUX_BASE}'"
+    log_info "LINUX_PKG_TYPE: '${LINUX_PKG_TYPE}'"
     log_info "AEROSPIKE_VERSION: '${AEROSPIKE_VERSION}'"
     log_info "CONTAINER_RELEASE: '${CONTAINER_RELEASE}'"
     log_info "AEROSPIKE_EDITION: '${AEROSPIKE_EDITION}'"
