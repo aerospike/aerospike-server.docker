@@ -21,6 +21,7 @@ function usage() {
     cat <<EOF
 Usage: $0 -h -d
 
+    -c clean
     -d dry run
     -h display this help.
     -p build for release/push to dockerhub
@@ -33,8 +34,12 @@ function parse_args() {
     g_push_build='false'
     g_test_build='false'
 
-    while getopts "dhtp" opt; do
+    while getopts "cdhtp" opt; do
         case "${opt}" in
+        c)
+            rm -rf "${g_target_dir}"
+            exit 0
+            ;;
         d)
             g_dry_run='true'
             ;;
@@ -77,13 +82,18 @@ function parse_args() {
     fi
 }
 
-function get_test_target() {
+function get_target_name() {
     local short_version=$1
     local distro=$2
     local edition=$3
     local short_platform=$4
 
-    local target="${edition}_${distro}_${short_platform}_${short_version}_${short_platform}"
+    local target="${edition}_${distro}_${short_version}"
+
+    if [ -n "${short_platform}" ]; then
+        target+="_${short_platform}"
+    fi
+
     target="${target/\./-}"
 
     echo "${target}"
@@ -99,7 +109,7 @@ function do_bake_test_group_targets() {
     for platform in "${c_platforms[@]}"; do
         local short_platform=${platform#*/}
         local target_str=
-        target_str="$(get_test_target "${short_version}" "${distro}" \
+        target_str="$(get_target_name "${short_version}" "${distro}" \
             "${edition}" "${short_platform}")"
 
         output+="\"${target_str}\", "
@@ -157,7 +167,7 @@ function do_bake_test_target() {
     for platform in "${c_platforms[@]}"; do
         local short_platform="${platform#*/}"
         local target_str=
-        target_str="$(get_test_target "${short_version}" "${distro}" \
+        target_str="$(get_target_name "${short_version}" "${distro}" \
             "${edition}" "${short_platform}")"
         local product="aerospike/aerospike-server-${edition}-${short_platform}"
 
@@ -240,7 +250,8 @@ function build_bake_file() {
                     "${distro}" "${edition}")"
                 group_test_targets+="$(do_bake_test_group_targets "${distro}" \
                     "${edition}" "${version}")"
-                group_push_targets+="\"${edition}_${distro}_${version}\", "
+                group_push_targets+="\"$(get_target_name "${version}" \
+                    "${distro}" "${edition}" "")\", "
             done
         done
 
@@ -279,15 +290,7 @@ EOF
     } >>"${bake_file}"
 }
 
-function main() {
-    parse_args "$@"
-
-    build_bake_file
-
-    if [ "${g_dry_run}" = "true" ]; then
-        exit 0
-    fi
-
+function build_images() {
     local target=
 
     if [ "${g_test_build}" = "true" ]; then
@@ -317,6 +320,18 @@ function main() {
                  --set "\*.labels.org.opencontainers.image.revision=\"${revision}\"" \
                  --set "\*.labels.org.opencontainers.image.created=\"${created}\"" \
                  --file "${bake_file}" "${target}"
+}
+
+function main() {
+    parse_args "$@"
+
+    build_bake_file
+
+    if [ "${g_dry_run}" = "true" ]; then
+        exit 0
+    fi
+
+    build_images
 }
 
 main "$@"
