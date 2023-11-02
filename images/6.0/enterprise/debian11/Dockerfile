@@ -89,7 +89,7 @@ RUN \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
-    rm aerospike-server.tgz; \
+    rm -f aerospike-server.tgz; \
     # These directories are required for backward compatibility.
     mkdir -p /var/{log,run}/aerospike; \
     # Copy license file to standard location.

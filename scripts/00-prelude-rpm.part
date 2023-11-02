@@ -3,7 +3,6 @@
     microdnf update -y; \
     microdnf install -y \
       binutils \
-      ca-certificates \
       file \
       findutils \
       tar \

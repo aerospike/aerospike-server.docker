@@ -1,9 +1,7 @@
   { \
     # 50-remove-prelude-rpm.part - Remove dependencies for scripts.
-    rm -rf /var/lib/apt/lists/*; \
     microdnf remove -y \
-      binutils \
-      ca-certificates \
+      # binutils - dependency issues
       file \
       findutils \
       tar \

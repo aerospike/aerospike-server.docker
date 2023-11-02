@@ -37,7 +37,6 @@ RUN \
     microdnf update -y; \
     microdnf install -y \
       binutils \
-      ca-certificates \
       file \
       findutils \
       tar \
@@ -88,7 +87,7 @@ RUN \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
-    rm aerospike-server.tgz; \
+    rm -f aerospike-server.tgz; \
     # These directories are required for backward compatibility.
     mkdir -p /var/{log,run}/aerospike; \
     # Copy license file to standard location.
@@ -116,7 +115,7 @@ RUN \
     pushd aerospike/pkg || exit 1; \
     rpm2archive ../aerospike-tools*.rpm; \
     tar xf ../aerospike-tools*.tgz -C .; \
-    rm ../aerospike-tools*.tgz; \
+    rm -f ../aerospike-tools*.tgz; \
     popd || exit 1; \
   }; \
   { \
@@ -150,10 +149,8 @@ RUN \
   }; \
   { \
     # 50-remove-prelude-rpm.part - Remove dependencies for scripts.
-    rm -rf /var/lib/apt/lists/*; \
     microdnf remove -y \
-      binutils \
-      ca-certificates \
+      # binutils - dependency issues
       file \
       findutils \
       tar \

@@ -19,6 +19,6 @@
     pushd aerospike/pkg || exit 1; \
     rpm2archive ../aerospike-tools*.rpm; \
     tar xf ../aerospike-tools*.tgz -C .; \
-    rm ../aerospike-tools*.tgz; \
+    rm -f ../aerospike-tools*.tgz; \
     popd || exit 1; \
   }; \
