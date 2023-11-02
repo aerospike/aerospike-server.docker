@@ -77,9 +77,9 @@ function do_template() {
     AEROSPIKE_AARCH64_LINK=
     AEROSPIKE_SHA_AARCH64=
 
-    if grep -o "debian:" <<<"${distro_base}"; then
+    if grep -qo "debian:" <<<"${distro_base}"; then
         LINUX_PKG_TYPE="deb"
-    elif grep -o "redhat/" <<<"${distro_base}"; then
+    elif grep -qo "redhat/" <<<"${distro_base}"; then
         LINUX_PKG_TYPE="rpm"
     else
         log_warn "unexpected distro_base '${distro_base}'"
