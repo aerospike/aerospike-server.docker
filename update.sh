@@ -3,13 +3,10 @@
 set -Eeuo pipefail
 
 source lib/fetch.sh
+source lib/globals.sh
 source lib/log.sh
 source lib/support.sh
 source lib/version.sh
-
-g_images_dir="images"
-g_all_editions=("enterprise" "federal" "community")
-g_container_release=1 # FIXME - may go away.
 
 function bash_eval_template() {
     local template_file=$1
@@ -74,7 +71,6 @@ function do_template() {
     LINUX_BASE="${distro_base}"
     LINUX_PKG_TYPE=
     AEROSPIKE_VERSION="${g_server_version}"
-    CONTAINER_RELEASE="${g_container_release}"
     AEROSPIKE_EDITION="${edition}"
     AEROSPIKE_DESCRIPTION="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions."
     AEROSPIKE_X86_64_LINK=
@@ -140,7 +136,6 @@ function do_template() {
     log_info "LINUX_BASE: '${LINUX_BASE}'"
     log_info "LINUX_PKG_TYPE: '${LINUX_PKG_TYPE}'"
     log_info "AEROSPIKE_VERSION: '${AEROSPIKE_VERSION}'"
-    log_info "CONTAINER_RELEASE: '${CONTAINER_RELEASE}'"
     log_info "AEROSPIKE_EDITION: '${AEROSPIKE_EDITION}'"
     log_info "AEROSPIKE_DESCRIPTION: '${AEROSPIKE_DESCRIPTION}'"
     log_info "AEROSPIKE_X86_64_LINK: '${AEROSPIKE_X86_64_LINK}'"
@@ -196,189 +191,9 @@ function update_version() {
     done
 }
 
-function do_bake_test_group_targets() {
-    local distro=$1
-    local edition=$2
-
-    local output=""
-
-    for platform in "${c_platforms[@]}"; do
-        local short_platform=${platform#*/}
-        local target_str="${edition}_${distro}_${short_platform}"
-
-        output+="\"${target_str}\", "
-    done
-
-    echo "${output}"
-}
-
-function do_bake_group() {
-    local version_path=$1
-    local group=$2
-
-    local output="#------------------------------------ ${group} -----------------------------------\n\n"
-
-    output+="group \"${group}\" {\n    targets=["
-
-    for edition in "${c_editions[@]}"; do
-        support_source_config "${version_path}" "${edition}"
-
-        for distro in "${c_distros[@]}"; do
-            if [[ "${group}" == "test" ]]; then
-                output+="$(do_bake_test_group_targets "${distro}" "${edition}")"
-            elif [[ "${group}" == "push" ]]; then
-                output+="\"${edition}_${distro}\", "
-            else
-                log_warn "unexpected group '%{group}'"
-                exit 1
-            fi
-        done
-    done
-
-    # (Optional) Trailing comma causes no problem to Docker Buildx Bake.
-    output=${output%,*}
-    output+="]\n}\n"
-
-    echo "${output}"
-}
-
-function get_product_tags() {
-    local product=$1
-    local distro=$2
-
-    if [ -z "${distro}" ]; then
-        local distro_prefix=
-    else
-        local distro_prefix="-${distro}"
-    fi
-
-    local output="\"${product}:${g_server_version}${distro_prefix}\""
-
-    if [ -n "${g_container_release}" ]; then
-        output+=", \"${product}:${g_server_version}${distro_prefix}-${g_container_release}\""
-    fi
-
-    local short_version="${version_path#*/}"
-
-    output+=", \"${product}:${short_version}${distro_prefix}\""
-
-    echo "${output}"
-}
-
-function do_bake_test_target() {
-    local version_path=$1
-    local distro=$2
-    local edition=$3
-
-    local short_version="${version_path#*/}"
-    local output=""
-
-    for platform in "${c_platforms[@]}"; do
-        local short_platform="${platform#*/}"
-        local target_str="${edition}_${distro}_${short_platform}"
-        local product="aerospike/aerospike-server-${edition}-${short_platform}"
-
-        output+="target \"${target_str}\" {\n"
-        output+="    tags=["
-        output+="$(get_product_tags "${product}" "${distro}")"
-        output+="]\n"
-        output+="    platforms=[\"${platform}\"]\n"
-        output+="    context=\"./${version_path}/${edition}/${distro}\"\n"
-        output+="}\n\n"
-    done
-
-    echo "${output}"
-}
-
-function do_bake_push_target() {
-    local version_path=$1
-    local distro=$2
-    local edition=$3
-
-    printf -v platforms_str '%s,' "${c_platforms[@]}"
-    platforms_str="${platforms_str%,}"
-
-    local target_str="${edition}_${distro}"
-    local output="target \"${target_str}\" {\n"
-
-    local product="aerospike/aerospike-server"
-
-    if [ "${edition}" != "community" ]; then
-        product+="-${edition}"
-    fi
-
-    output+="    tags=["
-
-    if [ "${distro}" == "${c_distro_default}" ]; then
-        output+="$(get_product_tags "${product}" "")"
-
-        if [ "${g_latest_version}" = "${g_server_version}" ]; then
-            output+=", \"${product}:latest\""
-        fi
-
-        output+=",\n    "
-    fi
-
-    output+="$(get_product_tags "${product}" "${distro}")"
-
-    output+="]\n"
-    output+="    platforms=[\"${platforms_str}\"]\n"
-    output+="    context=\"./${version_path}/${edition}/${distro}\"\n"
-    output+="}\n\n"
-
-    echo "${output}"
-}
-
-function update_bake_file() {
-    local version_path=$1
-
-    local bake_file="${version_path}/bake.hcl"
-
-    cat <<-EOF >"${bake_file}"
-# This file contains the targets for the test images.
-# This file is auto-generated by the update.sh script and will be wiped out by the update.sh script.
-# Please don't edit this file.
-#
-# Build all test/push images:
-#      docker buildx bake -f ${bake_file} [test | push] --progressive plain [--load | --push]
-# Build selected images:
-#      docker buildx bake -f ${bake_file} [target name, ...] --progressive plain [--load | --push]
-
-EOF
-
-    local test_targets_str=""
-    local push_targets_str=""
-
-    # Generate new builds.
-    for edition in "${c_editions[@]}"; do
-        support_source_config "${version_path}" "${edition}"
-
-        for distro in "${c_distros[@]}"; do
-            test_targets_str+="$(do_bake_test_target "${version_path}" \
-                "${distro}" "${edition}")"
-            push_targets_str+="$(do_bake_push_target "${version_path}" \
-                "${distro}" "${edition}")"
-        done
-    done
-
-    local test_group_str
-    test_group_str="$(do_bake_group "${version_path}" "test")"
-    local push_group_str
-    push_group_str="$(do_bake_group "${version_path}" "push")"
-
-    {
-        printf "%b\n%b" "${test_group_str}" "${test_targets_str}"
-        printf "%b\n%b" "${push_group_str}" "${push_targets_str}"
-    } >>"${bake_file}"
-}
-
 function main() {
-    g_latest_version=$(find_latest_server_version)
-    local version_path=
-
     for version_path in "${g_images_dir}"/*; do
         update_version "${version_path}"
-        update_bake_file "${version_path}"
     done
 }
 
