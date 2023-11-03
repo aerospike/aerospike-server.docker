@@ -159,6 +159,7 @@ RUN \
       shadow-utils \
       tar \
       xz 2>&1; \
+    microdnf clean all; \
   }; \
   echo "done";
 
