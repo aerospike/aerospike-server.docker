@@ -132,7 +132,6 @@ function do_bake_group() {
     echo "${output}"
 }
 
-
 function get_product_tags() {
     local product=$1
     local distro=$2
@@ -317,9 +316,9 @@ function build_images() {
     created="$(date --rfc-3339=seconds)"
 
     verbose_call docker buildx bake --pull --progress plain ${params} \
-                 --set "\*.labels.org.opencontainers.image.revision=\"${revision}\"" \
-                 --set "\*.labels.org.opencontainers.image.created=\"${created}\"" \
-                 --file "${bake_file}" "${target}"
+        --set "\*.labels.org.opencontainers.image.revision=\"${revision}\"" \
+        --set "\*.labels.org.opencontainers.image.created=\"${created}\"" \
+        --file "${bake_file}" "${target}"
 }
 
 function main() {

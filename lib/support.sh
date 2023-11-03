@@ -9,7 +9,7 @@ function support_source_config() {
     local edition=$2
 
     local version=
-    version="$(basename ${version_path})"
+    version="$(basename "${version_path}")"
     local config_dir="${g_data_config_dir}/${version}"
 
     # shellcheck source=data/config/6.4/config.sh
