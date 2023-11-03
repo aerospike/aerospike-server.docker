@@ -12,8 +12,8 @@ jobs:
       with:
         fetch-depth: 0
     - name: Should not change anything
-      run: "./update.sh -g && [ -z \"$(git diff --stat)\" ]"
-  build-tagged:
+      run: "./update.sh && [ -z \"$(git diff --stat)\" ]"
+  build:
     runs-on: ubuntu-latest
     steps:
     - name: Set up QEMU
@@ -21,34 +21,6 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
     - uses: actions/checkout@v2
-    - name: Build
-      run: "./build.sh -t"
-    - name: Test
-      run: "./test.sh"
-  build-5-7:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - uses: actions/checkout@v3
-    - name: Update to 5.7.0.25 (debian10)
-      run: "./update.sh -s 5.7.0.25"
-    - name: Build
-      run: "./build.sh -t"
-    - name: Test
-      run: "./test.sh"
-  build-6-0:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - uses: actions/checkout@v3
-    - name: Update to 6.0.0.9 (no fed)
-      run: "./update.sh -s 6.0.0.9"
     - name: Build
       run: "./build.sh -t"
     - name: Test
