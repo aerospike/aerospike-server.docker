@@ -196,17 +196,13 @@ function main() {
         local short_version=
         short_version="$(basename "${version_path}")"
 
-        # shellcheck source=images/6.4/config.sh
-        source "${version_path}"/config.sh
+        support_source_config "${version_path}" ""
 
         for edition in "${c_editions[@]}"; do
             local container="aerospike-server-${edition}"
             local edition_config="${version_path}/config_${edition}.sh"
 
-            if [ -f "${edition_config}" ]; then
-                # shellcheck source=images/6.4/config_federal.sh
-                source "${edition_config}"
-            fi
+            support_source_config "${version_path}" "${edition}"
 
             for distro in "${c_distros[@]}"; do
                 local version
