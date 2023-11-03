@@ -5,6 +5,8 @@
       binutils \
       file \
       findutils \
+      gzip \
+      shadow-utils \
       tar \
       xz; \
   }; \

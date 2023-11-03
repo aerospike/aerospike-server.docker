@@ -4,6 +4,8 @@
       # binutils - dependency issues
       file \
       findutils \
+      # gzip - dependency issues
+      shadow-utils \
       tar \
       xz 2>&1; \
   }; \

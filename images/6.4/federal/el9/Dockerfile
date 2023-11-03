@@ -39,6 +39,8 @@ RUN \
       binutils \
       file \
       findutils \
+      gzip \
+      shadow-utils \
       tar \
       xz; \
   }; \
@@ -120,7 +122,7 @@ RUN \
   }; \
   { \
     # 30-install-tools.part - install asinfo and asadm.
-    find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
+    find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} + || true; \
     mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
     if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2" | sort -V | head -1)" != "${VERSION}" ]; then \
        mv aerospike/pkg/opt/aerospike/bin/aql /usr/bin; \
@@ -153,6 +155,8 @@ RUN \
       # binutils - dependency issues
       file \
       findutils \
+      # gzip - dependency issues
+      shadow-utils \
       tar \
       xz 2>&1; \
   }; \
