@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 source lib/globals.sh
 source lib/log.sh
 source lib/version.sh

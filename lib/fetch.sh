@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 function fetch() {
     local tag=$1
     local link=$2

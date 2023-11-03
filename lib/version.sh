@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 source lib/fetch.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}

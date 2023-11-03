@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 LOG_RED="\e[31m"
 LOG_GREEN="\e[32m"
 
