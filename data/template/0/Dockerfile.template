@@ -6,15 +6,6 @@
 
 FROM ${LINUX_BASE}
 
-LABEL org.opencontainers.image.title=\"Aerospike ${AEROSPIKE_EDITION^} Server\" \\
-      org.opencontainers.image.description=\"${AEROSPIKE_DESCRIPTION}\" \\
-      org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name=\"docker.io/library/${LINUX_BASE}\" \\
-      org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
-      org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version=\"${AEROSPIKE_VERSION}\" \\
-      org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
-
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
@@ -39,6 +30,15 @@ $(cat ${g_data_scripts_dir}/40-cleanup.part)
 $(cat ${g_data_scripts_dir}/50-remove-prelude-${LINUX_PKG_TYPE}.part)
   echo "done";
 
+LABEL org.opencontainers.image.title=\"Aerospike ${AEROSPIKE_EDITION^} Server\" \\
+      org.opencontainers.image.description=\"${AEROSPIKE_DESCRIPTION}\" \\
+      org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
+      org.opencontainers.image.base.name=\"docker.io/library/${LINUX_BASE}\" \\
+      org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
+      org.opencontainers.image.vendor="Aerospike" \
+      org.opencontainers.image.version=\"${AEROSPIKE_VERSION}\" \\
+      org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
+
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 
@@ -54,6 +54,9 @@ COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 #   3002 – mesh port, for cluster heartbeat
 #
 EXPOSE 3000 3001 3002
+
+RUN chown aerospike:aerospike /etc/aerospike/*
+USER aerospike:aerospike
 
 COPY entrypoint.sh /entrypoint.sh
 

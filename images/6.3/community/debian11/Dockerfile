@@ -7,15 +7,6 @@
 
 FROM debian:bullseye-slim
 
-LABEL org.opencontainers.image.title="Aerospike Community Server" \
-      org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
-      org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
-      org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
-      org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.3.0.12" \
-      org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
-
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
 # "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
@@ -176,6 +167,15 @@ RUN \
   }; \
   echo "done";
 
+LABEL org.opencontainers.image.title="Aerospike Community Server" \
+      org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
+      org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
+      org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
+      org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
+      org.opencontainers.image.vendor="Aerospike" \
+      org.opencontainers.image.version="6.3.0.12" \
+      org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
+
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 
@@ -191,6 +191,9 @@ COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 #   3002 – mesh port, for cluster heartbeat
 #
 EXPOSE 3000 3001 3002
+
+RUN chown aerospike:aerospike /etc/aerospike/*
+USER aerospike:aerospike
 
 COPY entrypoint.sh /entrypoint.sh
 

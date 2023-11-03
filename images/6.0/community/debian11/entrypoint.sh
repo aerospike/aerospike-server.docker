@@ -40,7 +40,7 @@ function bash_eval_template() {
     done <"${template_file}"
 
     # Ignore failure when template is mounted in a read-only filesystem.
-    rm "${template_file}" || true
+    rm -f "${template_file}" || true
 }
 
 # Fill out conffile with above values
