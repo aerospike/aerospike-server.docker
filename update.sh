@@ -88,46 +88,46 @@ function do_template() {
 
     for arch in "${c_archs[@]}"; do
         case ${arch} in
-            aarch64)
-                AEROSPIKE_AARCH64_LINK="$(get_package_link "${distro}" \
-                    "${edition}" "${g_server_version}" "${g_tools_version}" \
-                    "${arch}")"
-                AEROSPIKE_SHA_AARCH64="$(fetch_package_sha "${distro}" \
-                    "${edition}" "${g_server_version}" "${g_tools_version}" \
-                    "${arch}")"
+        aarch64)
+            AEROSPIKE_AARCH64_LINK="$(get_package_link "${distro}" \
+                "${edition}" "${g_server_version}" "${g_tools_version}" \
+                "${arch}")"
+            AEROSPIKE_SHA_AARCH64="$(fetch_package_sha "${distro}" \
+                "${edition}" "${g_server_version}" "${g_tools_version}" \
+                "${arch}")"
 
-                if [ -z "${AEROSPIKE_AARCH64_LINK}" ]; then
-                    log_warn "could not find aarch64 link"
-                    exit 1
-                fi
-
-                if [ -z "${AEROSPIKE_SHA_AARCH64}" ]; then
-                    log_warn "could not find aarch64 sha"
-                    exit 1
-                fi
-                ;;
-            x86_64)
-                AEROSPIKE_X86_64_LINK="$(get_package_link "${distro}" \
-                    "${edition}" "${g_server_version}" "${g_tools_version}" \
-                    "${arch}")"
-                AEROSPIKE_SHA_X86_64="$(fetch_package_sha "${distro}" \
-                    "${edition}" "${g_server_version}" "${g_tools_version}" \
-                    "${arch}")"
-
-                if [ -z "${AEROSPIKE_X86_64_LINK}" ]; then
-                    log_warn "could not find x86_64 link"
-                    exit 1
-                fi
-
-                if [ -z "${AEROSPIKE_SHA_X86_64}" ]; then
-                    log_warn "could not find x86_64 sha"
-                    exit 1
-                fi
-                ;;
-            *)
-                log_warn "unexpected arch '${arch}'"
+            if [ -z "${AEROSPIKE_AARCH64_LINK}" ]; then
+                log_warn "could not find aarch64 link"
                 exit 1
-                ;;
+            fi
+
+            if [ -z "${AEROSPIKE_SHA_AARCH64}" ]; then
+                log_warn "could not find aarch64 sha"
+                exit 1
+            fi
+            ;;
+        x86_64)
+            AEROSPIKE_X86_64_LINK="$(get_package_link "${distro}" \
+                "${edition}" "${g_server_version}" "${g_tools_version}" \
+                "${arch}")"
+            AEROSPIKE_SHA_X86_64="$(fetch_package_sha "${distro}" \
+                "${edition}" "${g_server_version}" "${g_tools_version}" \
+                "${arch}")"
+
+            if [ -z "${AEROSPIKE_X86_64_LINK}" ]; then
+                log_warn "could not find x86_64 link"
+                exit 1
+            fi
+
+            if [ -z "${AEROSPIKE_SHA_X86_64}" ]; then
+                log_warn "could not find x86_64 sha"
+                exit 1
+            fi
+            ;;
+        *)
+            log_warn "unexpected arch '${arch}'"
+            exit 1
+            ;;
         esac
     done
 
@@ -173,7 +173,7 @@ function update_version() {
 
         if [ -d "${path}" ]; then
             find "${version_path}/${edition}" -mindepth 1 -maxdepth 1 -type d \
-                 -exec rm -rf {} \;
+                -exec rm -rf {} \;
         fi
     done
 
