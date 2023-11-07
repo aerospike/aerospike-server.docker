@@ -11,5 +11,5 @@ function in_array() {
     shift
     local array=("$@")
 
-    printf '%s\0' "${array[@]}" | grep -Fxqz "${needle}";
+    printf '%s\0' "${array[@]}" | grep -Fxqz "${needle}"
 }
