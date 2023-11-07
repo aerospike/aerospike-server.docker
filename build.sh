@@ -19,13 +19,19 @@ g_container_release=1 # FIXME - may go away.
 
 function usage() {
     cat <<EOF
-Usage: $0 -h -d
+Usage: $0 [OPTION]...
 
-    -c clean
-    -d dry run
     -h display this help.
-    -p build for release/push to dockerhub
+
+    -c clean '${g_target_dir}'.
+    -r build '${g_target_dir}/bake.hcl' only.
+
+    -p build for release/push to dockerhub.
     -t build for invoking test in test.sh
+
+    -d <distro name> as it appears in 'config.sh'. May be repeated.
+    -e <Aerospike edition> as it appears in 'config.sh'. May be repeated.
+    -v <two digit version> as they appear under '${g_data_config_dir}'. May be repeated.
 EOF
 }
 
@@ -33,15 +39,21 @@ function parse_args() {
     g_dry_run='false'
     g_push_build='false'
     g_test_build='false'
+    g_filter_versions=()
+    g_filter_editions=()
+    g_filter_distros=()
 
-    while getopts "cdhtp" opt; do
+    while getopts "cd:e:hprtv:" opt; do
         case "${opt}" in
         c)
             rm -rf "${g_target_dir}"
             exit 0
             ;;
         d)
-            g_dry_run='true'
+            g_filter_distros+=("${OPTARG}")
+            ;;
+        e)
+            g_filter_editions+=("${OPTARG}")
             ;;
         h)
             usage
@@ -50,8 +62,14 @@ function parse_args() {
         p)
             g_push_build='true'
             ;;
+        r)
+            g_dry_run='true'
+            ;;
         t)
             g_test_build='true'
+            ;;
+        v)
+            g_filter_versions+=("${OPTARG}")
             ;;
         *)
             log_warn "** Invalid argument **"
@@ -66,6 +84,16 @@ function parse_args() {
     log_info "g_dry_run: '${g_dry_run}'"
     log_info "g_push_build: '${g_push_build}'"
     log_info "g_test_build: '${g_test_build}'"
+
+    local temp
+    temp="$(printf "'%s' " "${g_filter_versions[@]}")"
+    log_info "g_filter_versions: (${temp%" "})"
+
+    temp="$(printf "'%s' " "${g_filter_editions[@]}")"
+    log_info "g_filter_editions: (${temp%" "})"
+
+    temp="$(printf "'%s' " "${g_filter_distros[@]}")"
+    log_info "g_filter_distros: (${temp%" "})"
 
     if [ "${g_dry_run}" = "true" ]; then
         return
@@ -232,15 +260,27 @@ function build_bake_file() {
         local version=
         version="$(basename "${version_path}")"
 
+        if support_config_filter "${version}" "${g_filter_versions[@]}"; then
+            continue
+        fi
+
         # HACK - artifacts for server need first 3 digits.
         g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
 
         support_source_config "${version_path}" ""
 
         for edition in "${c_editions[@]}"; do
+            if support_config_filter "${edition}" "${g_filter_editions[@]}"; then
+                continue
+            fi
+
             support_source_config "${version_path}" "${edition}"
 
             for distro in "${c_distros[@]}"; do
+                if support_config_filter "${distro}" "${g_filter_distros[@]}"; then
+                    continue
+                fi
+
                 test_targets_str+="$(do_bake_test_target "${version_path}" \
                     "${distro}" "${edition}")"
                 push_targets_str+="$(do_bake_push_target "${version_path}" \

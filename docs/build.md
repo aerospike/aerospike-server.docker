@@ -53,8 +53,7 @@ cd aerospike-server.docker
 3.	After the update script has run, commit the changes and tag the release.
 
 	```shell
-	git add images
-	git commit -m "Adding version #.#"
+	git commit images -m "Adding version #.#"
 	```
 
 4.	Verify the tag format is correct.
@@ -67,7 +66,7 @@ cd aerospike-server.docker
 
 	```shell
 	./build.sh -t
-	./test.sh --clean
+	./test.sh
 	```
 
 6.	Build image for publishing and publish.
