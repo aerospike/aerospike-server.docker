@@ -5,10 +5,7 @@
   }; \
   { \
     # 20-install-dependencies-rpm.part - Install tools dependencies.
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "5.1" | sort -V | head -1)" != "${VERSION}" ]; then \
-      # Tools before 5.1 need python2.
-      microdnf install -y python2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
       # Tools before 6.0 need python3.
       microdnf install -y python3; \
     fi; \
@@ -17,8 +14,8 @@
   { \
     # 20-install-dependencies-rpm.part - Extract tools.
     pushd aerospike/pkg || exit 1; \
-    rpm2archive ../aerospike-tools*.rpm; \
-    tar xf ../aerospike-tools*.tgz -C .; \
-    rm -f ../aerospike-tools*.tgz; \
+    rpm2archive -n ../aerospike-tools*.rpm; \
+    tar xf ../aerospike-tools*.tar -C .; \
+    rm -f ../aerospike-tools*.tar; \
     popd || exit 1; \
   }; \

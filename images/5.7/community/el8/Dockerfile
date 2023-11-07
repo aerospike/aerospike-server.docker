@@ -7,13 +7,6 @@
 
 FROM redhat/ubi8-minimal
 
-# AEROSPIKE_EDITION - required - must be "community", "enterprise", or
-# "federal".
-# By selecting "community" you agree to the "COMMUNITY_LICENSE".
-# By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
-# By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="community"
-
 ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/5.7.0.31/aerospike-server-community-5.7.0.31-el8.tgz"
 ARG AEROSPIKE_SHA_X86_64="f6c557cf676e1dd03a13bd3592d25476d696117c699360ad50095f9d62308f09"
 ARG AEROSPIKE_AARCH64_LINK=""
@@ -94,10 +87,7 @@ RUN \
   }; \
   { \
     # 20-install-dependencies-rpm.part - Install tools dependencies.
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "5.1" | sort -V | head -1)" != "${VERSION}" ]; then \
-      # Tools before 5.1 need python2.
-      microdnf install -y python2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
       # Tools before 6.0 need python3.
       microdnf install -y python3; \
     fi; \
@@ -106,9 +96,9 @@ RUN \
   { \
     # 20-install-dependencies-rpm.part - Extract tools.
     pushd aerospike/pkg || exit 1; \
-    rpm2archive ../aerospike-tools*.rpm; \
-    tar xf ../aerospike-tools*.tgz -C .; \
-    rm -f ../aerospike-tools*.tgz; \
+    rpm2archive -n ../aerospike-tools*.rpm; \
+    tar xf ../aerospike-tools*.tar -C .; \
+    rm -f ../aerospike-tools*.tar; \
     popd || exit 1; \
   }; \
   { \
@@ -143,10 +133,10 @@ RUN \
   { \
     # 50-remove-prelude-rpm.part - Remove dependencies for scripts.
     microdnf remove -y \
-      # binutils - dependency issues
+      # binutils - dependency issues on ubi9
       file \
       findutils \
-      # gzip - dependency issues
+      # gzip - dependency issues on ubi9
       shadow-utils \
       tar \
       xz 2>&1; \

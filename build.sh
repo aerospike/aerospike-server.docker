@@ -191,9 +191,7 @@ function do_bake_push_target() {
     platforms_str="${platforms_str%,}"
 
     local target_str="${edition}_${distro}"
-
     local output="target \"${target_str}\" {\n"
-
     local product="aerospike/aerospike-server"
 
     if [ "${edition}" != "community" ]; then

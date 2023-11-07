@@ -6,13 +6,6 @@
 
 FROM ${LINUX_BASE}
 
-# AEROSPIKE_EDITION - required - must be "community", "enterprise", or
-# "federal".
-# By selecting "community" you agree to the "COMMUNITY_LICENSE".
-# By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
-# By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION=\"${AEROSPIKE_EDITION}\"
-
 ARG AEROSPIKE_X86_64_LINK=\"${AEROSPIKE_X86_64_LINK}\"
 ARG AEROSPIKE_SHA_X86_64=\"${AEROSPIKE_SHA_X86_64}\"
 ARG AEROSPIKE_AARCH64_LINK=\"${AEROSPIKE_AARCH64_LINK}\"
