@@ -149,10 +149,11 @@ function do_template() {
 }
 
 function update_version() {
-    local version_path=$1
+    local config_path=$1
 
     local version=
-    version="$(basename "${version_path}")"
+    version="$(basename "${config_path}")"
+    local version_path="${g_images_dir}/${version}/"
 
     # HACK - artifacts for server need first 3 digits.
     g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
@@ -191,8 +192,10 @@ function update_version() {
 }
 
 function main() {
-    for version_path in "${g_images_dir}"/*; do
-        update_version "${version_path}"
+    rm -rf "${g_images_dir:?}/"*
+
+    for config_path in "${g_data_config_dir}"/*; do
+        update_version "${config_path}"
     done
 }
 
