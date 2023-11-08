@@ -15,8 +15,6 @@ source lib/support.sh
 source lib/verbose_call.sh
 source lib/version.sh
 
-g_container_release=1 # FIXME - may go away.
-
 function usage() {
     cat <<EOF
 Usage: $0 [OPTION]...
@@ -172,9 +170,7 @@ function get_product_tags() {
 
     local output="\"${product}:${g_server_version}${distro_prefix}\""
 
-    if [ -n "${g_container_release}" ]; then
-        output+=", \"${product}:${g_server_version}${distro_prefix}-${g_container_release}\""
-    fi
+    output+=", \"${product}:${g_server_version}${distro_prefix}-${g_container_release}\""
 
     local short_version="${version_path#*/}"
 
@@ -250,6 +246,7 @@ function do_bake_push_target() {
 
 function build_bake_file() {
     g_latest_version=$(find_latest_server_version)
+    g_container_release="$(date --utc +%Y%m%dT%H%M%SZ -d "@${g_start_time}")"
 
     local test_targets_str=""
     local push_targets_str=""
@@ -351,7 +348,7 @@ function build_images() {
     local revision=
     revision="$(git rev-parse HEAD)"
     local created=
-    created="$(date --rfc-3339=seconds)"
+    created="$(date --utc --rfc-3339=seconds -d "@${g_start_time}")"
 
     verbose_call docker buildx bake --pull --progress plain ${params} \
         --set "\*.labels.org.opencontainers.image.revision=\"${revision}\"" \
@@ -361,6 +358,8 @@ function build_images() {
 
 function main() {
     parse_args "$@"
+
+    g_start_time="$(date --utc +%s)"
 
     build_bake_file
 
