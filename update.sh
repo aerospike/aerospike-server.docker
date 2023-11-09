@@ -146,7 +146,7 @@ function do_template() {
 
     copy_template "${target_path}"
     bash_eval_templates "${target_path}"
-    cp "${g_license["${edition}"]}" "${target_path}"
+    cp "${g_license["${edition}"]}" "${target_path}"/LICENSE
 }
 
 function update_version() {
