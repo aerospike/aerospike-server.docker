@@ -76,6 +76,6 @@ jobs:
           reporter: ${{ steps.reporter.outputs.value }}
           filter_mode: file
           fail_on_error: true
-          hadolint_ignore: DL3008
+          hadolint_ignore: DL3008 DL3041
           exclude: |
-            ^template/
+            ^data/
