@@ -34,6 +34,7 @@ EOF
 }
 
 function parse_args() {
+    g_registry='dockerhub'
     g_dry_run='false'
     g_push_build='false'
     g_test_build='false'
@@ -145,9 +146,8 @@ function do_bake_test_group_targets() {
 }
 
 function do_bake_group() {
-    local version_path=$1
-    local group=$2
-    local group_targets=$3
+    local group=$1
+    local group_targets=$2
 
     local output="#------------------------------------ ${group} -----------------------------------\n\n"
 
@@ -160,7 +160,8 @@ function do_bake_group() {
 
 function get_product_tags() {
     local product=$1
-    local distro=$2
+    local version=$2
+    local distro=$3
 
     if [ -z "${distro}" ]; then
         local distro_prefix=
@@ -171,32 +172,29 @@ function get_product_tags() {
     local output="\"${product}:${g_server_version}${distro_prefix}\""
 
     output+=", \"${product}:${g_server_version}${distro_prefix}-${g_container_release}\""
-
-    local short_version="${version_path#*/}"
-
-    output+=", \"${product}:${short_version}${distro_prefix}\""
+    output+=", \"${product}:${version}${distro_prefix}\""
 
     echo "${output}"
 }
 
 function do_bake_test_target() {
-    local version_path=$1
+    local version=$1
     local distro=$2
     local edition=$3
 
-    local short_version="${version_path#*/}"
+    local version_path="${g_images_dir}/${g_registry}/${version}"
     local output=""
 
     for platform in "${c_platforms[@]}"; do
         local short_platform="${platform#*/}"
         local target_str=
-        target_str="$(get_target_name "${short_version}" "${distro}" \
+        target_str="$(get_target_name "${version}" "${distro}" \
             "${edition}" "${short_platform}")"
         local product="aerospike/aerospike-server-${edition}-${short_platform}"
 
         output+="target \"${target_str}\" {\n"
         output+="    tags=["
-        output+="$(get_product_tags "${product}" "${distro}")"
+        output+="$(get_product_tags "${product}" "${version}" "${distro}")"
         output+="]\n"
         output+="    platforms=[\"${platform}\"]\n"
         output+="    context=\"./${version_path}/${edition}/${distro}\"\n"
@@ -207,7 +205,7 @@ function do_bake_test_target() {
 }
 
 function do_bake_push_target() {
-    local version_path=$1
+    local version=$1
     local distro=$2
     local edition=$3
 
@@ -222,10 +220,12 @@ function do_bake_push_target() {
         product+="-${edition}"
     fi
 
+    local version_path="${g_images_dir}/${g_registry}/${version}"
+
     output+="    tags=["
 
     if [ "${distro}" == "${c_distro_default}" ]; then
-        output+="$(get_product_tags "${product}" "")"
+        output+="$(get_product_tags "${product}" "${version}" "")"
 
         if [ "${g_latest_version}" = "${g_server_version}" ]; then
             output+=", \"${product}:latest\""
@@ -234,7 +234,7 @@ function do_bake_push_target() {
         output+=",\n    "
     fi
 
-    output+="$(get_product_tags "${product}" "${distro}")"
+    output+="$(get_product_tags "${product}" "${version}" "${distro}")"
 
     output+="]\n"
     output+="    platforms=[\"${platforms_str}\"]\n"
@@ -253,10 +253,7 @@ function build_bake_file() {
     local group_test_targets=""
     local group_push_targets=""
 
-    for version_path in "${g_images_dir}"/*; do
-        local version=
-        version="$(basename "${version_path}")"
-
+    for version in $(support_versions "${g_registry}"); do
         if support_config_filter "${version}" "${g_filter_versions[@]}"; then
             continue
         fi
@@ -264,23 +261,23 @@ function build_bake_file() {
         # HACK - artifacts for server need first 3 digits.
         g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
 
-        support_source_config "${version_path}" ""
+        support_source_config "${g_registry}" "${version}" ""
 
         for edition in "${c_editions[@]}"; do
             if support_config_filter "${edition}" "${g_filter_editions[@]}"; then
                 continue
             fi
 
-            support_source_config "${version_path}" "${edition}"
+            support_source_config "${g_registry}" "${version}" "${edition}"
 
             for distro in "${c_distros[@]}"; do
                 if support_config_filter "${distro}" "${g_filter_distros[@]}"; then
                     continue
                 fi
 
-                test_targets_str+="$(do_bake_test_target "${version_path}" \
+                test_targets_str+="$(do_bake_test_target "${version}" \
                     "${distro}" "${edition}")"
-                push_targets_str+="$(do_bake_push_target "${version_path}" \
+                push_targets_str+="$(do_bake_push_target "${version}" \
                     "${distro}" "${edition}")"
                 group_test_targets+="$(do_bake_test_group_targets "${distro}" \
                     "${edition}" "${version}")"
@@ -299,9 +296,9 @@ function build_bake_file() {
     group_push_targets=${group_push_targets%",\n    "}
 
     local test_group_str
-    test_group_str="$(do_bake_group "${version_path}" "test" "${group_test_targets}")"
+    test_group_str="$(do_bake_group "test" "${group_test_targets}")"
     local push_group_str
-    push_group_str="$(do_bake_group "${version_path}" "push" "${group_push_targets}")"
+    push_group_str="$(do_bake_group "push" "${group_push_targets}")"
 
     mkdir -p "${g_target_dir}"
 

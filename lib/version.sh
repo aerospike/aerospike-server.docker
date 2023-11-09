@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 
 source lib/fetch.sh
+source lib/globals.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
 RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)*'
@@ -125,9 +126,11 @@ function fetch_package_sha() {
 }
 
 function get_version_from_dockerfile() {
-    local version_path=$1
-    local distro=$2
-    local edition=$3
+    local registry=$1
+    local version=$2
+    local distro=$3
+    local edition=$4
 
-    grep "ARG AEROSPIKE_X86_64_LINK=" "${version_path}/${edition}/${distro}/Dockerfile" | grep -oE "/[0-9.]+(-rc[0-9]+)?/" | tr -d '/'
+    grep "ARG AEROSPIKE_X86_64_LINK=" "${g_images_dir}/${registry}/${version}/${edition}/${distro}/Dockerfile" \
+        | grep -oE "/[0-9.]+(-rc[0-9]+)?/" | tr -d '/'
 }

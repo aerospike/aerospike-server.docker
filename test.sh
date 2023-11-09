@@ -24,6 +24,7 @@ EOF
 }
 
 function parse_args() {
+    g_registry='dockerhub'
     g_clean="false"
 
     while getopts "ch" opt; do
@@ -45,7 +46,7 @@ function parse_args() {
 }
 
 function run_docker() {
-    local version=$1
+    local version_short=$1
     local edition=$2
     local platform=$3
     local container=$4
@@ -53,11 +54,11 @@ function run_docker() {
 
     log_info "running docker image '${image_tag}'"
 
-    if [ "${edition}" = "community" ] || version_compare_gt "${version}" "6.1"; then
+    if [ "${edition}" = "community" ] || version_compare_gt "${version_short}" "6.1"; then
         verbose_call docker run -td --name "${container}" \
             "${platform/#/"--platform="}" "${image_tag}"
     else
-        # Must supply a feature key when version is prior to 6.1.
+        # Must supply a feature key when version_short is prior to 6.1.
         verbose_call docker run -td --name "${container}" \
             "${platform/#/"--platform="}" -v "$(pwd)/${g_data_res_dir}/":/asfeat/ \
             -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" "${image_tag}"
@@ -83,12 +84,12 @@ function try() {
 }
 
 function check_container() {
-    local version=$1
+    local version_short=$1
     local edition=$2
     local platform=$3
     local container=$4
 
-    log_info "verifying container '${container}' version '${version}' platform '${platform}' ..."
+    log_info "verifying container '${container}' version_short '${version_short}' platform '${platform}' ..."
 
     if [ "$(docker container inspect -f '{{.State.Status}}' "${container}")" == "running" ]; then
         log_success "Container '${container}' started and running"
@@ -123,12 +124,12 @@ function check_container() {
     fi
 
     build=$(try 5 docker exec -t "${container}" bash -c \
-        'asadm -e "enable; asinfo -v build"' | grep -oE "^${version}")
+        'asadm -e "enable; asinfo -v build"' | grep -oE "^${version_short}")
 
     if [ -n "${build}" ]; then
-        log_success "(asadm) Aerospike database has correct version - '${build}'"
+        log_success "(asadm) Aerospike database has correct version_short - '${build}'"
     else
-        log_failure "**(asadm) Aerospike database has incorrect version - '${build}'**"
+        log_failure "**(asadm) Aerospike database has incorrect version_short - '${build}'**"
         exit 1
     fi
 
@@ -142,7 +143,7 @@ function check_container() {
         exit 1
     fi
 
-    if version_compare_gt "${version}" "6.2"; then
+    if version_compare_gt "${version_short}" "6.2"; then
         tool="asinfo"
         namespace=$(try 5 docker exec -t "${container}" bash -c \
             'asinfo -v namespaces' | grep -o "test")
@@ -192,30 +193,27 @@ function clean_docker() {
 function main() {
     parse_args "$@"
 
-    for version_path in images/*; do
-        local short_version=
-        short_version="$(basename "${version_path}")"
-
-        support_source_config "${version_path}" ""
+    for version_short in $(support_versions "${g_registry}"); do
+        support_source_config "${g_registry}" "${version_short}" ""
 
         for edition in "${c_editions[@]}"; do
             local container="aerospike-server-${edition}"
-            local edition_config="${version_path}/config_${edition}.sh"
 
-            support_source_config "${version_path}" "${edition}"
+            support_source_config "${g_registry}" "${version_short}" "${edition}"
 
             for distro in "${c_distros[@]}"; do
-                local version
-                version="$(get_version_from_dockerfile "${version_path}" "${distro}" "${edition}")"
+                local version_full
+                version_full="$(get_version_from_dockerfile "${g_registry}" \
+                    "${version_short}" "${distro}" "${edition}")"
 
                 for platform in "${c_platforms[@]}"; do
                     local short_platform=
                     short_platform="$(basename "${platform}")"
-                    local image_tag="aerospike/aerospike-server-${edition}-${short_platform}:${short_version}-${distro}"
+                    local image_tag="aerospike/aerospike-server-${edition}-${short_platform}:${version_full}-${distro}"
 
                     try_stop_docker "${container}"
-                    run_docker "${version}" "${edition}" "${platform}" "${container}" "${image_tag}"
-                    check_container "${version}" "${edition}" "${platform}" "${container}" "${image_tag}"
+                    run_docker "${version_full}" "${edition}" "${platform}" "${container}" "${image_tag}"
+                    check_container "${version_full}" "${edition}" "${platform}" "${container}" "${image_tag}"
                     clean_docker "${container}" "${image_tag}"
                 done
             done

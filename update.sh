@@ -58,10 +58,11 @@ function copy_template() {
 }
 
 function do_template() {
-    local version_path=$1
-    local edition=$2
-    local distro=$3
-    local distro_base=$4
+    local registry=$1
+    local version=$2
+    local edition=$3
+    local distro=$4
+    local distro_base=$5
 
     log_info "do_template() - edition '${edition}' distro '${distro}' distro_base '${distro_base}'"
 
@@ -91,10 +92,10 @@ function do_template() {
         aarch64)
             AEROSPIKE_AARCH64_LINK="$(get_package_link "${distro}" \
                 "${edition}" "${g_server_version}" "${g_tools_version}" \
-                "${arch}")"
+                aarch64)"
             AEROSPIKE_SHA_AARCH64="$(fetch_package_sha "${distro}" \
                 "${edition}" "${g_server_version}" "${g_tools_version}" \
-                "${arch}")"
+                aarch64)"
 
             if [ -z "${AEROSPIKE_AARCH64_LINK}" ]; then
                 log_warn "could not find aarch64 link"
@@ -109,10 +110,10 @@ function do_template() {
         x86_64)
             AEROSPIKE_X86_64_LINK="$(get_package_link "${distro}" \
                 "${edition}" "${g_server_version}" "${g_tools_version}" \
-                "${arch}")"
+                x86_64)"
             AEROSPIKE_SHA_X86_64="$(fetch_package_sha "${distro}" \
                 "${edition}" "${g_server_version}" "${g_tools_version}" \
-                "${arch}")"
+                x86_64)"
 
             if [ -z "${AEROSPIKE_X86_64_LINK}" ]; then
                 log_warn "could not find x86_64 link"
@@ -142,7 +143,7 @@ function do_template() {
     log_info "AEROSPIKE_AARCH64_LINK: '${AEROSPIKE_AARCH64_LINK}'"
     log_info "AEROSPIKE_SHA_AARCH64: '${AEROSPIKE_SHA_AARCH64}'"
 
-    local target_path="${version_path}/${edition}/${distro}"
+    local target_path="${g_images_dir}/${registry}/${version}/${edition}/${distro}"
 
     copy_template "${target_path}"
     bash_eval_templates "${target_path}"
@@ -150,16 +151,13 @@ function do_template() {
 }
 
 function update_version() {
-    local config_path=$1
-
-    local version=
-    version="$(basename "${config_path}")"
-    local version_path="${g_images_dir}/${version}/"
+    local registry=$1
+    local version=$2
 
     # HACK - artifacts for server need first 3 digits.
     g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
 
-    support_source_config "${version_path}" ""
+    support_source_config "${registry}" "${version}" ""
 
     for distro in "${c_distros[@]}"; do
         # Assumes that there will always be an 'enterprise' edition.
@@ -167,27 +165,17 @@ function update_version() {
         break
     done
 
-    log_info "update_version() - server '${version}' -> '${g_server_version}' tools '${g_tools_version}'"
-
-    # Clear prior builds.
-    for edition in "${g_all_editions[@]}"; do
-        local path="${version_path}/${edition}"
-
-        if [ -d "${path}" ]; then
-            find "${version_path}/${edition}" -mindepth 1 -maxdepth 1 -type d \
-                -exec rm -rf {} \;
-        fi
-    done
+    log_info "update_version() - registry '${registry}' server '${version}' -> '${g_server_version}' tools '${g_tools_version}'"
 
     # Generate new builds.
     for edition in "${c_editions[@]}"; do
-        support_source_config "${version_path}" "${edition}"
+        support_source_config "${registry}" "${version}" "${edition}"
 
         for distro_ix in "${!c_distros[@]}"; do
             local distro="${c_distros[${distro_ix}]}"
             local distro_base="${c_distro_bases[${distro_ix}]}"
 
-            do_template "${version_path}" "${edition}" "${distro}" "${distro_base}"
+            do_template "${registry}" "${version}" "${edition}" "${distro}" "${distro_base}"
         done
     done
 }
@@ -195,8 +183,10 @@ function update_version() {
 function main() {
     rm -rf "${g_images_dir:?}/"*
 
-    for config_path in "${g_data_config_dir}"/*; do
-        update_version "${config_path}"
+    for registry in $(support_registries); do
+        for version in $(support_versions "${registry}"); do
+            update_version "${registry}" "${version}"
+        done
     done
 }
 
