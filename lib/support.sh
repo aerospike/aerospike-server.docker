@@ -67,9 +67,9 @@ function _dir_dirs() {
     local search_dir=$1
 
     while IFS= read -r -d '' dir; do
-          local found_dir=
-          found_dir=$(basename "${dir}")
-          echo "${found_dir}"
+        local found_dir=
+        found_dir=$(basename "${dir}")
+        echo "${found_dir}"
     done < <(find "${search_dir}" -mindepth 1 -maxdepth 1 -type d -print0)
 }
 
