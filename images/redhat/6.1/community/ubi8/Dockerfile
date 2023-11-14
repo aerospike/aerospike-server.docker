@@ -5,12 +5,12 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM redhat/ubi9-minimal
+FROM registry.access.redhat.com/ubi8-minimal
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.6/aerospike-server-community_6.4.0.6_tools-9.2.1_el9_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="713f4a7515838b9d0a21df827564beb1e977db7a067fc96e0aa9f70c5092cebe"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.6/aerospike-server-community_6.4.0.6_tools-9.2.1_el9_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="aad5ef4b4fb1cd3569bb777f869578d33bdc44b26bc468915723a4cb0c0a7372"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.1.0.25/aerospike-server-community-6.1.0.25-el8.tgz"
+ARG AEROSPIKE_SHA_X86_64="541c0a4924545a4cf4d072da9c6c51aa2ac341ce967294d8028736147ac69950"
+ARG AEROSPIKE_AARCH64_LINK=""
+ARG AEROSPIKE_SHA_AARCH64=""
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -147,10 +147,10 @@ RUN \
 LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/redhat/ubi9-minimal" \
+      org.opencontainers.image.base.name="docker.io/library/ubi8-minimal" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.4.0.6" \
+      org.opencontainers.image.version="6.1.0.25" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

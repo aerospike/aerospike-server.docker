@@ -5,12 +5,12 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM redhat/ubi9-minimal
+FROM registry.access.redhat.com/ubi8-minimal
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.6/aerospike-server-enterprise_6.4.0.6_tools-9.2.1_el9_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="a54484817a59300369565eebeb682df48bfa216ec886cf8b8292b7c9e055f551"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.6/aerospike-server-enterprise_6.4.0.6_tools-9.2.1_el9_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="7f3a57beb6ca4aa3b2df3244a9356427b3b16779e13bfa3523fd708878e9e8f0"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.20/aerospike-server-community_6.2.0.20_tools-8.1.0_el8_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="01672b2e57c9522711aabb5b95e42dadeab2e99b9d4c0be5f8bccd4ee83d8ef7"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.20/aerospike-server-community_6.2.0.20_tools-8.1.0_el8_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="056879fd9b4c2a5c2524866718cd7b8a5200e7f5868201782cda5ec49867dc3f"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -144,13 +144,13 @@ RUN \
   }; \
   echo "done";
 
-LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
+LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/redhat/ubi9-minimal" \
+      org.opencontainers.image.base.name="docker.io/library/ubi8-minimal" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.4.0.6" \
+      org.opencontainers.image.version="6.2.0.20" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

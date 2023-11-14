@@ -22,14 +22,15 @@ Usage: $0 [OPTION]...
     -h display this help.
 
     -c clean '${g_target_dir}'.
-    -r build '${g_target_dir}/bake.hcl' only.
+    -r build '${g_target_dir}/<registry>/bake.hcl' only.
 
     -p build for release/push to dockerhub.
     -t build for invoking test in test.sh
 
+    -y <registry name> as it apprears in '${g_data_config_dir}. Default 'dockerhub'.
     -d <distro name> as it appears in 'config.sh'. May be repeated.
     -e <Aerospike edition> as it appears in 'config.sh'. May be repeated.
-    -v <two digit version> as they appear under '${g_data_config_dir}'. May be repeated.
+    -v <two digit version> as they appear under '${g_data_config_dir}/<registry>'. May be repeated.
 EOF
 }
 
@@ -42,7 +43,7 @@ function parse_args() {
     g_filter_editions=()
     g_filter_distros=()
 
-    while getopts "cd:e:hprtv:" opt; do
+    while getopts "cd:e:hprtv:y:" opt; do
         case "${opt}" in
         c)
             rm -rf "${g_target_dir}"
@@ -70,6 +71,9 @@ function parse_args() {
         v)
             g_filter_versions+=("${OPTARG}")
             ;;
+        y)
+            g_registry="${OPTARG}"
+            ;;
         *)
             log_warn "** Invalid argument **"
             usage
@@ -83,6 +87,7 @@ function parse_args() {
     log_info "g_dry_run: '${g_dry_run}'"
     log_info "g_push_build: '${g_push_build}'"
     log_info "g_test_build: '${g_test_build}'"
+    log_info "g_registry: '${g_registry}"
 
     local temp
     temp="$(printf "'%s' " "${g_filter_versions[@]}")"
@@ -149,7 +154,7 @@ function do_bake_group() {
     local group=$1
     local group_targets=$2
 
-    local output="#------------------------------------ ${group} -----------------------------------\n\n"
+    local output="#-------------------- ${group} --------------------\n\n"
 
     output+="group \"${group}\" {\n    targets=["
     output+="${group_targets}"
@@ -180,9 +185,12 @@ function get_product_tags() {
 function do_bake_test_target() {
     local version=$1
     local distro=$2
-    local edition=$3
+    local distro_dir=$3
+    local edition=$4
 
-    local version_path="${g_images_dir}/${g_registry}/${version}"
+    local version_path=
+    version_path="$(support_image_path "${g_registry}" "${version}" \
+        "${edition}" "${distro_dir}")"
     local output=""
 
     for platform in "${c_platforms[@]}"; do
@@ -197,7 +205,7 @@ function do_bake_test_target() {
         output+="$(get_product_tags "${product}" "${version}" "${distro}")"
         output+="]\n"
         output+="    platforms=[\"${platform}\"]\n"
-        output+="    context=\"./${version_path}/${edition}/${distro}\"\n"
+        output+="    context=\"./${version_path}\"\n"
         output+="}\n\n"
     done
 
@@ -207,7 +215,8 @@ function do_bake_test_target() {
 function do_bake_push_target() {
     local version=$1
     local distro=$2
-    local edition=$3
+    local distro_dir=$3
+    local edition=$4
 
     printf -v platforms_str '%s,' "${c_platforms[@]}"
     platforms_str="${platforms_str%,}"
@@ -219,8 +228,6 @@ function do_bake_push_target() {
     if [ "${edition}" != "community" ]; then
         product+="-${edition}"
     fi
-
-    local version_path="${g_images_dir}/${g_registry}/${version}"
 
     output+="    tags=["
 
@@ -236,9 +243,13 @@ function do_bake_push_target() {
 
     output+="$(get_product_tags "${product}" "${version}" "${distro}")"
 
+    local version_path=
+    version_path="$(support_image_path "${g_registry}" "${version}" \
+        "${edition}" "${distro_dir}")"
+
     output+="]\n"
     output+="    platforms=[\"${platforms_str}\"]\n"
-    output+="    context=\"./${version_path}/${edition}/${distro}\"\n"
+    output+="    context=\"./${version_path}\"\n"
     output+="}\n\n"
 
     echo "${output}"
@@ -261,7 +272,7 @@ function build_bake_file() {
         # HACK - artifacts for server need first 3 digits.
         g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
 
-        support_source_config "${g_registry}" "${version}" ""
+        support_source_config "${g_registry}" "${version}"
 
         for edition in "${c_editions[@]}"; do
             if support_config_filter "${edition}" "${g_filter_editions[@]}"; then
@@ -270,15 +281,18 @@ function build_bake_file() {
 
             support_source_config "${g_registry}" "${version}" "${edition}"
 
-            for distro in "${c_distros[@]}"; do
+            for distro_ix in "${!c_distros[@]}"; do
+                local distro="${c_distros[${distro_ix}]}"
+                local distro_dir="${c_distro_dir[${distro_ix}]}"
+
                 if support_config_filter "${distro}" "${g_filter_distros[@]}"; then
                     continue
                 fi
 
                 test_targets_str+="$(do_bake_test_target "${version}" \
-                    "${distro}" "${edition}")"
+                    "${distro}" "${distro_dir}" "${edition}")"
                 push_targets_str+="$(do_bake_push_target "${version}" \
-                    "${distro}" "${edition}")"
+                    "${distro}" "${distro_dir}" "${edition}")"
                 group_test_targets+="$(do_bake_test_group_targets "${distro}" \
                     "${edition}" "${version}")"
                 group_push_targets+="\"$(get_target_name "${version}" \
@@ -300,9 +314,9 @@ function build_bake_file() {
     local push_group_str
     push_group_str="$(do_bake_group "push" "${group_push_targets}")"
 
-    mkdir -p "${g_target_dir}"
+    mkdir -p "${g_target_dir}/${g_registry}"
 
-    local bake_file="${g_target_dir}/bake.hcl"
+    local bake_file="${g_target_dir}/${g_registry}/bake.hcl"
     cat <<-EOF >"${bake_file}"
 # This file contains the targets for the test images.
 # This file is auto-generated by the build.sh script and will be wiped out by
@@ -338,7 +352,7 @@ function build_images() {
         params="--push"
     fi
 
-    local bake_file="${g_target_dir}/bake.hcl"
+    local bake_file="${g_target_dir}/${g_registry}/bake.hcl"
 
     log_info "main() - build '${bake_file}'"
 

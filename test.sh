@@ -18,8 +18,11 @@ function usage() {
     cat <<EOF
 Usage: $0 [-c|--clean] [-h|--help]
 
-    -c cleanup the images after the test.
     -h display this help.
+
+    -c clean '${g_target_dir}'.
+
+    -y <registry name> as it apprears in '${g_data_config_dir}. Default 'dockerhub'.
 EOF
 }
 
@@ -27,7 +30,7 @@ function parse_args() {
     g_registry='dockerhub'
     g_clean="false"
 
-    while getopts "ch" opt; do
+    while getopts "chy:" opt; do
         case "${opt}" in
         c)
             g_clean="true"
@@ -36,6 +39,9 @@ function parse_args() {
             usage
             exit 0
             ;;
+        y)
+            g_registry="${OPTARG}"
+            ;;
         *)
             log_warn "** Invalid argument **"
             usage
@@ -43,6 +49,9 @@ function parse_args() {
             ;;
         esac
     done
+
+    log_info "g_clean: '${g_clean}'"
+    log_info "g_registry: '${g_registry}'"
 }
 
 function run_docker() {
@@ -84,12 +93,12 @@ function try() {
 }
 
 function check_container() {
-    local version_short=$1
+    local version=$1
     local edition=$2
     local platform=$3
     local container=$4
 
-    log_info "verifying container '${container}' version_short '${version_short}' platform '${platform}' ..."
+    log_info "verifying container '${container}' version '${version}' platform '${platform}' ..."
 
     if [ "$(docker container inspect -f '{{.State.Status}}' "${container}")" == "running" ]; then
         log_success "Container '${container}' started and running"
@@ -124,12 +133,12 @@ function check_container() {
     fi
 
     build=$(try 5 docker exec -t "${container}" bash -c \
-        'asadm -e "enable; asinfo -v build"' | grep -oE "^${version_short}")
+        'asadm -e "enable; asinfo -v build"' | grep -oE "^${version}")
 
     if [ -n "${build}" ]; then
-        log_success "(asadm) Aerospike database has correct version_short - '${build}'"
+        log_success "(asadm) Aerospike database has correct version - '${build}'"
     else
-        log_failure "**(asadm) Aerospike database has incorrect version_short - '${build}'**"
+        log_failure "**(asadm) Aerospike database has incorrect version - '${build}'**"
         exit 1
     fi
 
@@ -143,7 +152,7 @@ function check_container() {
         exit 1
     fi
 
-    if version_compare_gt "${version_short}" "6.2"; then
+    if version_compare_gt "${version}" "6.2"; then
         tool="asinfo"
         namespace=$(try 5 docker exec -t "${container}" bash -c \
             'asinfo -v namespaces' | grep -o "test")
@@ -194,17 +203,20 @@ function main() {
     parse_args "$@"
 
     for version_short in $(support_versions "${g_registry}"); do
-        support_source_config "${g_registry}" "${version_short}" ""
+        support_source_config "${g_registry}" "${version_short}"
 
         for edition in "${c_editions[@]}"; do
             local container="aerospike-server-${edition}"
 
             support_source_config "${g_registry}" "${version_short}" "${edition}"
 
-            for distro in "${c_distros[@]}"; do
+            for distro_ix in "${!c_distros[@]}"; do
+                local distro="${c_distros[${distro_ix}]}"
+                local distro_dir="${c_distro_dir[${distro_ix}]}"
+
                 local version_full
                 version_full="$(get_version_from_dockerfile "${g_registry}" \
-                    "${version_short}" "${distro}" "${edition}")"
+                    "${version_short}" "${distro_dir}" "${edition}")"
 
                 for platform in "${c_platforms[@]}"; do
                     local short_platform=

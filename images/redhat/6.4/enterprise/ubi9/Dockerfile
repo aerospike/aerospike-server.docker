@@ -5,12 +5,12 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM redhat/ubi9-minimal
+FROM registry.access.redhat.com/ubi9-minimal
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.4.0.6/aerospike-server-federal_6.4.0.6_tools-9.2.1_el9_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="b626ea60b199ad7317a55c664c62c8ef1d99080091159d60726b0f7f4fa29354"
-ARG AEROSPIKE_AARCH64_LINK=""
-ARG AEROSPIKE_SHA_AARCH64=""
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.7/aerospike-server-enterprise_6.4.0.7_tools-10.0.0_el9_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="94a340e62454dfa2aa2f9b5cd631e2b4ed5c2866c30cd88c519adf06e02f1ac5"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.7/aerospike-server-enterprise_6.4.0.7_tools-10.0.0_el9_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="231e9bee94893e0a7eaac778fa7f299cb238343c9d8769e9b5052ece037d6feb"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -144,13 +144,13 @@ RUN \
   }; \
   echo "done";
 
-LABEL org.opencontainers.image.title="Aerospike Federal Server" \
+LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/redhat/ubi9-minimal" \
+      org.opencontainers.image.base.name="docker.io/library/ubi9-minimal" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.4.0.6" \
+      org.opencontainers.image.version="6.4.0.7" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

@@ -5,12 +5,12 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:bullseye-slim
+FROM docker.io/debian:bullseye-slim
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.3.0.12/aerospike-server-community_6.3.0.12_tools-8.5.1_debian11_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="3124a424f6157a588c580c139d3a48a428d523bcba865b571d744e3ffbc7c69f"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.3.0.12/aerospike-server-community_6.3.0.12_tools-8.5.1_debian11_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="647ae14b09ad7b173c35ca3ed01e96cdf3f4f3598e9e209a405083b6bfa74552"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.3.0.13/aerospike-server-community_6.3.0.13_tools-8.5.1_debian11_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="a77cb1546b71f7c6b24a4c9a0c5084cf60d375e3a9df80d31b1d6bdaa80d3a2d"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.3.0.13/aerospike-server-community_6.3.0.13_tools-8.5.1_debian11_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="5ce3b918ecb727f95320895e707a794cec53bab3971902c1dddfb1b044c86d66"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -159,7 +159,7 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.3.0.12" \
+      org.opencontainers.image.version="6.3.0.13" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

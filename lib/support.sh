@@ -33,7 +33,11 @@ function support_platform_to_arch() {
 function support_source_config() {
     local registry=$1
     local version=$2
-    local edition=$3
+    local edition=""
+
+    if [ $# -ge 3 ]; then
+        edition=$3
+    fi
 
     # Apply registry config.
     local registry_config_dir="${g_data_config_dir}/${registry}"
@@ -102,4 +106,17 @@ function support_configs() {
         prev="${leaf_config_path}"
         echo "${leaf_config_path}"
     done < <(find "${g_data_config_dir}" -depth -type d -print0)
+}
+
+function support_image_path() {
+    # registry version edition distro
+    local args=("$@")
+
+    images_path=("${g_images_dir}" "${args[@]}")
+    echo "${images_path[*]}" | tr ' ' '/'
+}
+
+function template_overrides() {
+    find ${g_data_template_dir} -mindepth 1 -maxdepth 1 -type d -printf "%f\n" |
+        sort -V
 }

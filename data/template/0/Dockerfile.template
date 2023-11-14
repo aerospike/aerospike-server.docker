@@ -4,7 +4,7 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ${LINUX_BASE}
+FROM ${DOCKER_REGISTRY_URL}/${LINUX_BASE}
 
 ARG AEROSPIKE_X86_64_LINK=\"${AEROSPIKE_X86_64_LINK}\"
 ARG AEROSPIKE_SHA_X86_64=\"${AEROSPIKE_SHA_X86_64}\"

@@ -18,7 +18,8 @@ function bash_eval_template() {
         if grep -qE "[$][(]|[{]" <<<"${line}"; then
             local update
             update=$(eval echo "\"${line}\"") || exit 1
-            grep -qE "[^[:space:]]*" <<<"${update}" && echo "${update}" >>"${target_file}"
+            grep -qE "[^[:space:]]*" <<<"${update}" && \
+                echo "${update}" >>"${target_file}"
         else
             echo "${line}" >>"${target_file}"
         fi
@@ -46,8 +47,7 @@ function copy_template() {
 
     mkdir -p "${target_path}"
 
-    for override in \
-        $(find ${g_data_template_dir} -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort -V); do
+    for override in $(template_overrides); do
         if ! version_compare_gt "${override}" "${g_server_version}"; then
             local override_path="${g_data_template_dir}/${override}/"
 
@@ -62,12 +62,14 @@ function do_template() {
     local version=$2
     local edition=$3
     local distro=$4
-    local distro_base=$5
+    local distro_dir=$5
+    local distro_base=$6
 
     log_info "do_template() - edition '${edition}' distro '${distro}' distro_base '${distro_base}'"
 
     # These are variables used by the template.
     DEBUG="${DEBUG:=false}"
+    DOCKER_REGISTRY_URL="${c_registry_url}"
     LINUX_BASE="${distro_base}"
     LINUX_PKG_TYPE=
     AEROSPIKE_VERSION="${g_server_version}"
@@ -80,7 +82,7 @@ function do_template() {
 
     if grep -qo "debian:" <<<"${distro_base}"; then
         LINUX_PKG_TYPE="deb"
-    elif grep -qo "redhat/" <<<"${distro_base}"; then
+    elif grep -qEo "ubi[89]-" <<<"${distro_base}"; then
         LINUX_PKG_TYPE="rpm"
     else
         log_warn "unexpected distro_base '${distro_base}'"
@@ -133,6 +135,7 @@ function do_template() {
     done
 
     log_info "DEBUG: '${DEBUG}'"
+    log_info "DOCKER_REGISTRY_URL: '${DOCKER_REGISTRY_URL}'"
     log_info "LINUX_BASE: '${LINUX_BASE}'"
     log_info "LINUX_PKG_TYPE: '${LINUX_PKG_TYPE}'"
     log_info "AEROSPIKE_VERSION: '${AEROSPIKE_VERSION}'"
@@ -143,7 +146,9 @@ function do_template() {
     log_info "AEROSPIKE_AARCH64_LINK: '${AEROSPIKE_AARCH64_LINK}'"
     log_info "AEROSPIKE_SHA_AARCH64: '${AEROSPIKE_SHA_AARCH64}'"
 
-    local target_path="${g_images_dir}/${registry}/${version}/${edition}/${distro}"
+    local target_path=
+    target_path="$(support_image_path "${registry}" "${version}" "${edition}" \
+        "${distro_dir}")"
 
     copy_template "${target_path}"
     bash_eval_templates "${target_path}"
@@ -157,11 +162,12 @@ function update_version() {
     # HACK - artifacts for server need first 3 digits.
     g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
 
-    support_source_config "${registry}" "${version}" ""
+    support_source_config "${registry}" "${version}"
 
     for distro in "${c_distros[@]}"; do
         # Assumes that there will always be an 'enterprise' edition.
-        g_tools_version=$(find_latest_tools_version_for_server "${distro}" enterprise "${g_server_version}")
+        g_tools_version=$(find_latest_tools_version_for_server \
+            "${distro}" \enterprise "${g_server_version}")
         break
     done
 
@@ -173,9 +179,11 @@ function update_version() {
 
         for distro_ix in "${!c_distros[@]}"; do
             local distro="${c_distros[${distro_ix}]}"
+            local distro_dir="${c_distro_dir[${distro_ix}]}"
             local distro_base="${c_distro_bases[${distro_ix}]}"
 
-            do_template "${registry}" "${version}" "${edition}" "${distro}" "${distro_base}"
+            do_template "${registry}" "${version}" "${edition}" "${distro}" \
+                "${distro_dir}" "${distro_base}"
         done
     done
 }

@@ -5,12 +5,12 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:bookworm-slim
+FROM docker.io/debian:bookworm-slim
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.6/aerospike-server-enterprise_6.4.0.6_tools-9.2.1_debian12_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="6e39fe0cc77498ed9384829a40cde3ee0d073391ecb8a4d9b39ec00375b9944d"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.6/aerospike-server-enterprise_6.4.0.6_tools-9.2.1_debian12_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="4437394bdf010b722bc0924b2cbc2938bf64ec617079c141a0df194cd75b76c3"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.7/aerospike-server-enterprise_6.4.0.7_tools-10.0.0_debian12_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="5a49099a3d5a06aeb46b4014904858c3842b26afbe812c9ff2b1a3f463f940da"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.7/aerospike-server-enterprise_6.4.0.7_tools-10.0.0_debian12_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="82491448a4b11db2c87495afe39159c783fbd0e9aec4b55bc76941b6704d46f8"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -159,7 +159,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.base.name="docker.io/library/debian:bookworm-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.4.0.6" \
+      org.opencontainers.image.version="6.4.0.7" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

@@ -3,6 +3,7 @@
 export c_editions=("enterprise" "federal" "community")
 
 export c_distros=("debian11")
+export c_distro_dir=("debian11")
 export c_distro_default="debian11"
 export c_distro_bases=("debian:bullseye-slim")
 
