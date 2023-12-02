@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
-LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
+LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
+      org.opencontainers.image.base.name="docker.io/library/debian:bookworm-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.3.0.15" \
+      org.opencontainers.image.version="6.4.0.9" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,12 +21,12 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="enterprise"
+ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.3.0.15/aerospike-server-enterprise_6.3.0.15_tools-8.5.1_debian11_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="cc2766434fcc3bb2ce84251f1bbba8064b2321bfb2236eefbf10c5619ee50d79"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.3.0.15/aerospike-server-enterprise_6.3.0.15_tools-8.5.1_debian11_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="34ba8230e9bbaa1c79b1946f3bccd920b8e7b887264ac05bbceb74d8eed6a415"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.9/aerospike-server-community_6.4.0.9_tools-10.0.0_debian12_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="30f5de0bc338f5c0415f39c35ce24802eaf0b066aeffc8b95c9ca17dcb1beee4"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.9/aerospike-server-community_6.4.0.9_tools-10.0.0_debian12_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="1bfbb41e6b9f7583cfa1049e077c7c4d91436a1bba78926c6b2405acaa153675"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
