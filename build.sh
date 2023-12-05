@@ -24,7 +24,7 @@ Usage: $0 [OPTION]...
     -c clean '${g_target_dir}'.
     -r build '${g_target_dir}/<registry>/bake.hcl' only.
 
-    -p build for release/push to dockerhub.
+    -p build for release/push to configured registry.
     -t build for invoking test in test.sh
 
     -y <registry name> as it apprears in '${g_data_config_dir}. Default 'dockerhub'.
