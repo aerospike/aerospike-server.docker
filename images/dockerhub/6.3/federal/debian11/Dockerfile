@@ -7,8 +7,8 @@
 
 FROM docker.io/debian:bullseye-slim
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.3.0.13/aerospike-server-federal_6.3.0.13_tools-8.5.1_debian11_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="368348b1c343a9a7caf9937c8cb545a7b623c3f2c41ed2f03793172fbe2648e3"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.3.0.15/aerospike-server-federal_6.3.0.15_tools-8.5.1_debian11_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="362b52bfe6d506632fac88ee6f6945bd5bdf1e3e41f2d9840d9fa27d8a52e88b"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
@@ -159,7 +159,7 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.3.0.13" \
+      org.opencontainers.image.version="6.3.0.15" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile
