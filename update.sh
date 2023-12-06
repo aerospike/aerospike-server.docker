@@ -252,7 +252,7 @@ function update_version() {
     local registry=$1
     local version=$2
 
-    g_server_version=$(grep "^${version}"<<<"$(
+    g_server_version=$(grep "^${version}" <<<"$(
         printf '%s\n' "${g_filter_full_versions[@]}"
     )" || true)
 
