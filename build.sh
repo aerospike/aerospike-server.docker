@@ -92,10 +92,8 @@ function parse_args() {
     local temp
     temp="$(printf "'%s' " "${g_filter_versions[@]}")"
     log_info "g_filter_versions: (${temp%" "})"
-
     temp="$(printf "'%s' " "${g_filter_editions[@]}")"
     log_info "g_filter_editions: (${temp%" "})"
-
     temp="$(printf "'%s' " "${g_filter_distros[@]}")"
     log_info "g_filter_distros: (${temp%" "})"
 
@@ -269,10 +267,8 @@ function build_bake_file() {
             continue
         fi
 
-        # HACK - artifacts for server need first 3 digits.
-        g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
-
         support_source_config "${g_registry}" "${version}"
+        skip="false"
 
         for edition in "${c_editions[@]}"; do
             if support_config_filter "${edition}" "${g_filter_editions[@]}"; then
@@ -289,6 +285,19 @@ function build_bake_file() {
                     continue
                 fi
 
+                version_path="$(support_image_path "${g_registry}" \
+                    "${version}" "${edition}" "${distro_dir}")"
+
+                if [ ! -d "${version_path}" ]; then
+                    skip="true"
+                    continue
+                fi
+
+                # shellcheck disable=SC1090
+                source "${version_path}"/meta
+
+                g_server_version=${META_AEROSPIKE_VERSION}
+
                 test_targets_str+="$(do_bake_test_target "${version}" \
                     "${distro}" "${distro_dir}" "${edition}")"
                 push_targets_str+="$(do_bake_push_target "${version}" \
@@ -300,10 +309,12 @@ function build_bake_file() {
             done
         done
 
-        group_test_targets=${group_test_targets%", "}
-        group_push_targets=${group_push_targets%", "}
-        group_test_targets+=",\n    "
-        group_push_targets+=",\n    "
+        if [[ "${skip}" == "false" ]]; then
+           group_test_targets=${group_test_targets%", "}
+           group_push_targets=${group_push_targets%", "}
+           group_test_targets+=",\n    "
+           group_push_targets+=",\n    "
+        fi
     done
 
     group_test_targets=${group_test_targets%",\n    "}

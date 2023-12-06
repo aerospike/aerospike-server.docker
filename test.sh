@@ -207,6 +207,13 @@ function main() {
                 local distro="${c_distros[${distro_ix}]}"
                 local distro_dir="${c_distro_dir[${distro_ix}]}"
 
+                version_path="$(support_image_path "${g_registry}" \
+                    "${version_short}" "${edition}" "${distro_dir}")"
+
+                if [ ! -d "${version_path}" ]; then
+                    continue
+                fi
+
                 local version_full
                 version_full="$(get_version_from_dockerfile "${g_registry}" \
                     "${version_short}" "${distro_dir}" "${edition}")"

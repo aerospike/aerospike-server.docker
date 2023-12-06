@@ -8,6 +8,98 @@ source lib/log.sh
 source lib/support.sh
 source lib/version.sh
 
+function usage() {
+    cat <<EOF
+Usage: $0 [-s] [-h|--help]
+
+    -h display this help.
+
+    -y <registry name> as it apprears in '${g_data_config_dir}. May be repeated.
+    -d <distro name> as it appears in 'config.sh'. May be repeated.
+    -e <Aerospike edition> as it appears in 'config.sh'. May be repeated.
+    -s <full server version>.
+EOF
+}
+
+function parse_args() {
+    g_filter_registries=()
+    g_filter_full_versions=()
+    g_filter_short_versions=()
+    g_filter_editions=()
+    g_filter_distros=()
+
+    g_has_filters="false"
+
+    while getopts "d:e:hs:y:" opt; do
+        case "${opt}" in
+        d)
+            g_filter_distros+=("${OPTARG}")
+            g_has_filters="true"
+            ;;
+        e)
+            g_filter_editions+=("${OPTARG}")
+            g_has_filters="true"
+            ;;
+        h)
+            usage
+            exit 0
+            ;;
+        s)
+            g_filter_full_versions+=("${OPTARG}")
+            g_has_filters="true"
+            ;;
+        y)
+            g_filter_registries+=("${OPTARG}")
+            g_has_filters="true"
+            ;;
+
+        *)
+            log_warn "** Invalid argument **"
+            usage
+            exit 1
+            ;;
+        esac
+    done
+
+    local temp
+    temp="$(printf "'%s' " "${g_filter_registries[@]}")"
+    log_info "g_filter_registries: (${temp%" "})"
+    temp="$(printf "'%s' " "${g_filter_full_versions[@]}")"
+    log_info "g_filter_full_versions: (${temp%" "})"
+    temp="$(printf "'%s' " "${g_filter_editions[@]}")"
+    log_info "g_filter_editions: (${temp%" "})"
+    temp="$(printf "'%s' " "${g_filter_distros[@]}")"
+    log_info "g_filter_distros: (${temp%" "})"
+
+    for full_ver in "${g_filter_full_versions[@]}"; do
+        short_ver=$(sed -E 's/(\.[0-9]+){2}(-rc.*)?$//' <<<"${full_ver}")
+        g_filter_short_versions+=("${short_ver}")
+    done
+
+    temp="$(printf "'%s' " "${g_filter_short_versions[@]}")"
+    log_info "g_filter_short_versions: (${temp%" "})"
+}
+
+function create_meta() {
+    local target_path=$1
+
+    target_file="${target_path}/meta"
+
+    {
+        echo "META_DEBUG='${DEBUG}'"
+        echo "META_DOCKER_REGISTRY_URL='${DOCKER_REGISTRY_URL}'"
+        echo "META_LINUX_BASE='${LINUX_BASE}'"
+        echo "META_LINUX_PKG_TYPE='${LINUX_PKG_TYPE}'"
+        echo "META_AEROSPIKE_VERSION='${AEROSPIKE_VERSION}'"
+        echo "META_AEROSPIKE_EDITION='${AEROSPIKE_EDITION}'"
+        echo "META_AEROSPIKE_DESCRIPTION='${AEROSPIKE_DESCRIPTION}'"
+        echo "META_AEROSPIKE_X86_64_LINK='${AEROSPIKE_X86_64_LINK}'"
+        echo "META_AEROSPIKE_SHA_X86_64='${AEROSPIKE_SHA_X86_64}'"
+        echo "META_AEROSPIKE_AARCH64_LINK='${AEROSPIKE_AARCH64_LINK}'"
+        echo "META_AEROSPIKE_SHA_AARCH64='${AEROSPIKE_SHA_AARCH64}'"
+    } > "${target_file}"
+}
+
 function bash_eval_template() {
     local template_file=$1
     local target_file=$2
@@ -151,6 +243,7 @@ function do_template() {
         "${distro_dir}")"
 
     copy_template "${target_path}"
+    create_meta "${target_path}"
     bash_eval_templates "${target_path}"
     cp "${g_license["${edition}"]}" "${target_path}"/LICENSE
 }
@@ -159,8 +252,15 @@ function update_version() {
     local registry=$1
     local version=$2
 
-    # HACK - artifacts for server need first 3 digits.
-    g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
+    g_server_version=$(grep "^${version}"<<<"$(
+        printf '%s\n' "${g_filter_full_versions[@]}")" || true)
+
+    if [ -z "${g_server_version}" ]; then
+        # HACK - artifacts for server need first 3 digits.
+        g_server_version=$(find_latest_server_version_for_lineage "${version}.0")
+    fi
+
+    g_tools_version=
 
     support_source_config "${registry}" "${version}"
 
@@ -175,12 +275,20 @@ function update_version() {
 
     # Generate new builds.
     for edition in "${c_editions[@]}"; do
+        if support_config_filter "${edition}" "${g_filter_editions[@]}"; then
+            continue
+        fi
+
         support_source_config "${registry}" "${version}" "${edition}"
 
         for distro_ix in "${!c_distros[@]}"; do
             local distro="${c_distros[${distro_ix}]}"
             local distro_dir="${c_distro_dir[${distro_ix}]}"
             local distro_base="${c_distro_bases[${distro_ix}]}"
+
+            if support_config_filter "${distro}" "${g_filter_distros[@]}"; then
+                continue
+            fi
 
             do_template "${registry}" "${version}" "${edition}" "${distro}" \
                 "${distro_dir}" "${distro_base}"
@@ -189,13 +297,28 @@ function update_version() {
 }
 
 function main() {
+    parse_args "$@"
+
     rm -rf "${g_images_dir:?}/"*
 
     for registry in $(support_registries); do
+        if support_config_filter "${registry}" "${g_filter_registries[@]}"; then
+            continue
+        fi
+
         for version in $(support_versions "${registry}"); do
+            if support_config_filter \
+                   "${version}" "${g_filter_short_versions[@]}"; then
+                continue
+            fi
+
             update_version "${registry}" "${version}"
         done
     done
+
+    if [[ "${g_has_filters}" == "true" ]]; then
+        log_warn "Reminder - do not commit changes when updating with filters."
+    fi
 }
 
 main "$@"
