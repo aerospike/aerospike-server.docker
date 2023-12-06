@@ -18,7 +18,7 @@ function bash_eval_template() {
         if grep -qE "[$][(]|[{]" <<<"${line}"; then
             local update
             update=$(eval echo "\"${line}\"") || exit 1
-            grep -qE "[^[:space:]]*" <<<"${update}" && \
+            grep -qE "[^[:space:]]*" <<<"${update}" &&
                 echo "${update}" >>"${target_file}"
         else
             echo "${line}" >>"${target_file}"
@@ -167,7 +167,7 @@ function update_version() {
     for distro in "${c_distros[@]}"; do
         # Assumes that there will always be an 'enterprise' edition.
         g_tools_version=$(find_latest_tools_version_for_server \
-            "${distro}" \enterprise "${g_server_version}")
+            "${distro}" enterprise "${g_server_version}")
         break
     done
 

@@ -64,7 +64,7 @@ function run_docker() {
     log_info "running docker image '${image_tag}'"
 
     verbose_call docker run -td --name "${container}" \
-         "${platform/#/"--platform="}" "${image_tag}"
+        "${platform/#/"--platform="}" "${image_tag}"
 }
 
 function try() {
