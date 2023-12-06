@@ -63,15 +63,8 @@ function run_docker() {
 
     log_info "running docker image '${image_tag}'"
 
-    if [ "${edition}" = "community" ] || version_compare_gt "${version_short}" "6.1"; then
-        verbose_call docker run -td --name "${container}" \
-            "${platform/#/"--platform="}" "${image_tag}"
-    else
-        # Must supply a feature key when version_short is prior to 6.1.
-        verbose_call docker run -td --name "${container}" \
-            "${platform/#/"--platform="}" -v "$(pwd)/${g_data_res_dir}/":/asfeat/ \
-            -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" "${image_tag}"
-    fi
+    verbose_call docker run -td --name "${container}" \
+         "${platform/#/"--platform="}" "${image_tag}"
 }
 
 function try() {
