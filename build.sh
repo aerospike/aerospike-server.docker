@@ -97,7 +97,7 @@ function parse_args() {
     temp="$(printf "'%s' " "${g_filter_distros[@]}")"
     log_info "g_filter_distros: (${temp%" "})"
 
-    if [ "${g_dry_run}" = "true" ]; then
+    if [[ "${g_dry_run}" == "true" ]]; then
         return
     fi
 
@@ -293,7 +293,7 @@ function build_bake_file() {
                     continue
                 fi
 
-                # shellcheck disable=SC1090
+                # shellcheck disable=SC1090,SC1091
                 source "${version_path}"/meta
 
                 g_server_version=${META_AEROSPIKE_VERSION}
@@ -310,10 +310,10 @@ function build_bake_file() {
         done
 
         if [[ "${skip}" == "false" ]]; then
-           group_test_targets=${group_test_targets%", "}
-           group_push_targets=${group_push_targets%", "}
-           group_test_targets+=",\n    "
-           group_push_targets+=",\n    "
+            group_test_targets=${group_test_targets%", "}
+            group_push_targets=${group_push_targets%", "}
+            group_test_targets+=",\n    "
+            group_push_targets+=",\n    "
         fi
     done
 

@@ -97,7 +97,7 @@ function create_meta() {
         echo "META_AEROSPIKE_SHA_X86_64='${AEROSPIKE_SHA_X86_64}'"
         echo "META_AEROSPIKE_AARCH64_LINK='${AEROSPIKE_AARCH64_LINK}'"
         echo "META_AEROSPIKE_SHA_AARCH64='${AEROSPIKE_SHA_AARCH64}'"
-    } > "${target_file}"
+    } >"${target_file}"
 }
 
 function bash_eval_template() {
@@ -253,7 +253,8 @@ function update_version() {
     local version=$2
 
     g_server_version=$(grep "^${version}"<<<"$(
-        printf '%s\n' "${g_filter_full_versions[@]}")" || true)
+        printf '%s\n' "${g_filter_full_versions[@]}"
+    )" || true)
 
     if [ -z "${g_server_version}" ]; then
         # HACK - artifacts for server need first 3 digits.
@@ -308,7 +309,7 @@ function main() {
 
         for version in $(support_versions "${registry}"); do
             if support_config_filter \
-                   "${version}" "${g_filter_short_versions[@]}"; then
+                "${version}" "${g_filter_short_versions[@]}"; then
                 continue
             fi
 
