@@ -1,0 +1,16 @@
+  { \
+    # 00-prelude-rpm.part - Setup dependencies for scripts.
+    microdnf update -y; \
+    microdnf install -y \
+      binutils \
+      file \
+      findutils \
+      gzip \
+      shadow-utils \
+      tar \
+      xz; \
+  }; \
+  { \
+    # 00-prelude-rpm.part - Install procps for tests.
+    microdnf install -y procps-ng; \
+  }; \

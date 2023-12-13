@@ -1,6 +1,4 @@
-#!/usr/bin/env bash
-
-set -Eeuo pipefail
+# shellcheck shell=bash
 
 function fetch() {
     local tag=$1

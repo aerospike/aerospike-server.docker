@@ -5,51 +5,59 @@
 # Samples:
 #   build and push to docker repo: ./build.sh -p
 #   build all images for test: ./build.sh -t
-#   build images for specific edition/distribution: ./build.sh -e community -d debian11
 #-----------------------------------------------------------------------
 
 set -Eeuo pipefail
 
+source lib/globals.sh
 source lib/log.sh
 source lib/support.sh
 source lib/verbose_call.sh
+source lib/version.sh
 
 function usage() {
     cat <<EOF
-Usage: $0 -h -d <linux distro> -e <server edition>
+Usage: $0 [OPTION]...
 
     -h display this help.
-    -d <linux disto> (debian11) only build for this distro.
-    -e <server edition> (enterprise|federal|community) only build this server
-        edition.
+
+    -c clean '${g_target_dir}'.
+    -r build '${g_target_dir}/<registry>/bake.hcl' only.
+
+    -p build for release/push to configured registry.
     -t build for invoking test in test.sh
-    -p build for release/push to dockerhub
+
+    -y <registry name> as it apprears in '${g_data_config_dir}. Default 'dockerhub'.
 EOF
 }
 
 function parse_args() {
-    g_linux_distro=
-    g_server_edition=
-    g_test_build='false'
+    g_registry='dockerhub'
+    g_dry_run='false'
     g_push_build='false'
+    g_test_build='false'
 
-    while getopts "hd:e:tp" opt; do
+    while getopts "chprty:" opt; do
         case "${opt}" in
+        c)
+            rm -rf "${g_target_dir}"
+            exit 0
+            ;;
         h)
             usage
             exit 0
             ;;
-        d)
-            g_linux_distro="${OPTARG}"
+        p)
+            g_push_build='true'
             ;;
-        e)
-            g_server_edition="${OPTARG}"
+        r)
+            g_dry_run='true'
             ;;
         t)
             g_test_build='true'
             ;;
-        p)
-            g_push_build='true'
+        y)
+            g_registry="${OPTARG}"
             ;;
         *)
             log_warn "** Invalid argument **"
@@ -61,10 +69,14 @@ function parse_args() {
 
     shift $((OPTIND - 1))
 
-    log_info "g_linux_distro: '${g_linux_distro}'"
-    log_info "g_server_edition: '${g_server_edition}'"
-    log_info "g_test_build: '${g_test_build}'"
+    log_info "g_dry_run: '${g_dry_run}'"
     log_info "g_push_build: '${g_push_build}'"
+    log_info "g_test_build: '${g_test_build}'"
+    log_info "g_registry: '${g_registry}"
+
+    if [[ "${g_dry_run}" == "true" ]]; then
+        return
+    fi
 
     if [ "${g_test_build}" = "false" ] && [ "${g_push_build}" = "false" ]; then
         log_warn "Must provide either '-t' or '-p' option"
@@ -77,40 +89,235 @@ function parse_args() {
     fi
 }
 
-function main() {
-    parse_args "$@"
+function get_target_name() {
+    local short_version=$1
+    local distro=$2
+    local edition=$3
+    local short_platform=$4
 
-    local distro_in=${g_linux_distro}
-    local targets=
+    local target="${edition}_${distro}_${short_version}"
 
-    if [ -z "${g_server_edition}" ]; then
-        if [ "${g_test_build}" = "true" ]; then
-            targets="test"
-        elif [ "${g_push_build}" = "true" ]; then
-            targets="push"
-        fi
+    if [ -n "${short_platform}" ]; then
+        target+="_${short_platform}"
+    fi
+
+    target="${target/\./-}"
+
+    echo "${target}"
+}
+
+function do_bake_test_group_targets() {
+    local distro=$1
+    local edition=$2
+    local short_version=$3
+
+    local output=""
+
+    for platform in "${c_platforms[@]}"; do
+        local short_platform=${platform#*/}
+        local target_str=
+        target_str="$(get_target_name "${short_version}" "${distro}" \
+            "${edition}" "${short_platform}")"
+
+        output+="\"${target_str}\", "
+    done
+
+    echo "${output}"
+}
+
+function do_bake_group() {
+    local group=$1
+    local group_targets=$2
+
+    local output="#-------------------- ${group} --------------------\n\n"
+
+    output+="group \"${group}\" {\n    targets=["
+    output+="${group_targets}"
+    output+="]\n}\n"
+
+    echo "${output}"
+}
+
+function get_product_tags() {
+    local product=$1
+    local version=$2
+    local distro=$3
+
+    if [ -z "${distro}" ]; then
+        local distro_prefix=
     else
-        local distribution_list=("${distro_in}")
+        local distro_prefix="-${distro}"
+    fi
 
-        if [ -z "${distro_in}" ]; then
-            tmp_list=("$(find "${g_server_edition}"/* -maxdepth 0 -type d)")
-            distribution_list=("${tmp_list[@]/#"${g_server_edition}"\//}")
+    local output="\"${product}:${g_server_version}${distro_prefix}\""
+
+    output+=", \"${product}:${g_server_version}${distro_prefix}-${g_container_release}\""
+    output+=", \"${product}:${version}${distro_prefix}\""
+
+    echo "${output}"
+}
+
+function do_bake_test_target() {
+    local version=$1
+    local distro=$2
+    local distro_dir=$3
+    local edition=$4
+
+    local version_path=
+    version_path="$(support_image_path "${g_registry}" "${version}" \
+        "${edition}" "${distro_dir}")"
+    local output=""
+
+    for platform in "${c_platforms[@]}"; do
+        local short_platform="${platform#*/}"
+        local target_str=
+        target_str="$(get_target_name "${version}" "${distro}" \
+            "${edition}" "${short_platform}")"
+        local product="aerospike/aerospike-server-${edition}-${short_platform}"
+
+        output+="target \"${target_str}\" {\n"
+        output+="    tags=["
+        output+="$(get_product_tags "${product}" "${version}" "${distro}")"
+        output+="]\n"
+        output+="    platforms=[\"${platform}\"]\n"
+        output+="    context=\"./${version_path}\"\n"
+        output+="}\n\n"
+    done
+
+    echo "${output}"
+}
+
+function do_bake_push_target() {
+    local version=$1
+    local distro=$2
+    local distro_dir=$3
+    local edition=$4
+
+    printf -v platforms_str '%s,' "${c_platforms[@]}"
+    platforms_str="${platforms_str%,}"
+
+    local target_str="${edition}_${distro}"
+    local output="target \"${target_str}\" {\n"
+    local product="aerospike/aerospike-server"
+
+    if [ "${edition}" != "community" ]; then
+        product+="-${edition}"
+    fi
+
+    output+="    tags=["
+
+    if [ "${distro}" == "${c_distro_default}" ]; then
+        output+="$(get_product_tags "${product}" "${version}" "")"
+
+        if [ "${g_latest_version}" = "${g_server_version}" ]; then
+            output+=", \"${product}:latest\""
         fi
 
-        for distribution in "${distribution_list[@]}"; do
-            local version
-            version="$(get_version_from_dockerfile "${distribution}" "${g_server_edition}")"
-            IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${version}" "${g_server_edition}")"
+        output+=",\n    "
+    fi
 
-            if [ "${g_test_build}" = "true" ]; then
-                for platform in "${platform_list[@]}"; do
-                    short_platform=${platform#*/}
-                    targets+="${g_server_edition}_${distribution}_${short_platform} "
-                done
-            elif [ "${g_push_build}" = "true" ]; then
-                targets+="${g_server_edition}_${distribution} "
-            fi
+    output+="$(get_product_tags "${product}" "${version}" "${distro}")"
+
+    local version_path=
+    version_path="$(support_image_path "${g_registry}" "${version}" \
+        "${edition}" "${distro_dir}")"
+
+    output+="]\n"
+    output+="    platforms=[\"${platforms_str}\"]\n"
+    output+="    context=\"./${version_path}\"\n"
+    output+="}\n\n"
+
+    echo "${output}"
+}
+
+function build_bake_file() {
+    g_latest_version=$(find_latest_server_version)
+    g_container_release="$(date --utc +%Y%m%dT%H%M%SZ -d "@${g_start_time}")"
+
+    local test_targets_str=""
+    local push_targets_str=""
+    local group_test_targets=""
+    local group_push_targets=""
+
+    for version in $(support_versions "${g_registry}"); do
+        support_source_config "${g_registry}" "${version}"
+        skip="false"
+
+        for edition in "${c_editions[@]}"; do
+            support_source_config "${g_registry}" "${version}" "${edition}"
+
+            for distro_ix in "${!c_distros[@]}"; do
+                local distro="${c_distros[${distro_ix}]}"
+                local distro_dir="${c_distro_dir[${distro_ix}]}"
+
+                version_path="$(support_image_path "${g_registry}" \
+                    "${version}" "${edition}" "${distro_dir}")"
+
+                if [ ! -d "${version_path}" ]; then
+                    skip="true"
+                    continue
+                fi
+
+                # shellcheck disable=SC1090,SC1091
+                source "${version_path}"/meta
+
+                g_server_version=${META_AEROSPIKE_VERSION}
+
+                test_targets_str+="$(do_bake_test_target "${version}" \
+                    "${distro}" "${distro_dir}" "${edition}")"
+                push_targets_str+="$(do_bake_push_target "${version}" \
+                    "${distro}" "${distro_dir}" "${edition}")"
+                group_test_targets+="$(do_bake_test_group_targets "${distro}" \
+                    "${edition}" "${version}")"
+                group_push_targets+="\"$(get_target_name "${version}" \
+                    "${distro}" "${edition}" "")\", "
+            done
         done
+
+        if [[ "${skip}" == "false" ]]; then
+            group_test_targets=${group_test_targets%", "}
+            group_push_targets=${group_push_targets%", "}
+            group_test_targets+=",\n    "
+            group_push_targets+=",\n    "
+        fi
+    done
+
+    group_test_targets=${group_test_targets%",\n    "}
+    group_push_targets=${group_push_targets%",\n    "}
+
+    local test_group_str
+    test_group_str="$(do_bake_group "test" "${group_test_targets}")"
+    local push_group_str
+    push_group_str="$(do_bake_group "push" "${group_push_targets}")"
+
+    mkdir -p "${g_target_dir}/${g_registry}"
+
+    local bake_file="${g_target_dir}/${g_registry}/bake.hcl"
+    cat <<-EOF >"${bake_file}"
+# This file contains the targets for the test images.
+# This file is auto-generated by the build.sh script and will be wiped out by
+# the build.sh script. Please don't edit this file.
+#
+# Build all test/push images:
+#      docker buildx bake -f ${bake_file} [test | push] --progress plain [--load | --push]
+# Build selected images:
+#      docker buildx bake -f ${bake_file} [target name, ...] --progress plain [--load | --push]
+
+EOF
+
+    {
+        printf "%b\n%b" "${test_group_str}" "${test_targets_str}"
+        printf "%b\n%b" "${push_group_str}" "${push_targets_str}"
+    } >>"${bake_file}"
+}
+
+function build_images() {
+    local target=
+
+    if [ "${g_test_build}" = "true" ]; then
+        target="test"
+    elif [ "${g_push_build}" = "true" ]; then
+        target="push"
     fi
 
     local params=
@@ -121,16 +328,33 @@ function main() {
         params="--push"
     fi
 
-    local bake_file="bake.hcl"
+    local bake_file="${g_target_dir}/${g_registry}/bake.hcl"
+
+    log_info "main() - build '${bake_file}'"
+
     local revision=
     revision="$(git rev-parse HEAD)"
     local created=
-    created="$(date --rfc-3339=seconds)"
+    created="$(date --utc --rfc-3339=seconds -d "@${g_start_time}")"
 
     verbose_call docker buildx bake --pull --progress plain ${params} \
         --set "\*.labels.org.opencontainers.image.revision=\"${revision}\"" \
         --set "\*.labels.org.opencontainers.image.created=\"${created}\"" \
-        --file "${bake_file}" "${targets}"
+        --file "${bake_file}" "${target}"
+}
+
+function main() {
+    parse_args "$@"
+
+    g_start_time="$(date --utc +%s)"
+
+    build_bake_file
+
+    if [ "${g_dry_run}" = "true" ]; then
+        exit 0
+    fi
+
+    build_images
 }
 
 main "$@"
