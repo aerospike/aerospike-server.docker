@@ -27,4 +27,4 @@ jobs:
     - name: Build
       run: "./build.sh -t -y ${{ matrix.registry }}"
     - name: Test
-      run: "./test.sh"
+      run: "./test.sh -y ${{ matrix.registry }}"

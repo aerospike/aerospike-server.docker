@@ -106,4 +106,4 @@ Currently it performs the following tests:
 5.	The Aerospike database is running the expected version.
 6.	The Aerospike database is running the expected edition.
 
-The `test.sh` script's `--clean` option removes the test images after the tests complete successfully.
+The `test.sh` script's `-c` option removes the test images after the tests complete successfully.

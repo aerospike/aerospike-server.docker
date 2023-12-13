@@ -7,10 +7,10 @@
 
 FROM registry.access.redhat.com/ubi9-minimal
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.0.0.2/aerospike-server-community_7.0.0.2_tools-10.0.1_el9_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="d5856b406d94541646837e4727d2daeedd1b6e7d56927ea08c6fc0edb9e857dd"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.0.0.2/aerospike-server-community_7.0.0.2_tools-10.0.1_el9_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="ca61c09a3d8088ad1ecf9bbdf7de14fb85dadf4e80e7ac8de814caae782dbc4d"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.0.0.3/aerospike-server-community_7.0.0.3_tools-10.0.1_el9_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="a56a5f968b231bb78e004ea2e00b3b198b81132c1f1b47d0b2e38f93839e7677"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.0.0.3/aerospike-server-community_7.0.0.3_tools-10.0.1_el9_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="72d619c5eb54fc429f1d930fd89091607d438c0190b8edf75ff67e36b94b1574"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -150,7 +150,7 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.base.name="docker.io/library/ubi9-minimal" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.0.0.2" \
+      org.opencontainers.image.version="7.0.0.3" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile
