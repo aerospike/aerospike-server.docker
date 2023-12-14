@@ -28,6 +28,9 @@ Usage: $0 [OPTION]...
     -t build for invoking test in test.sh
 
     -y <registry name> as it apprears in '${g_data_config_dir}. Default 'dockerhub'.
+    -d <distro name> as it appears in 'config.sh'. May be repeated.
+    -e <Aerospike edition> as it appears in 'config.sh'. May be repeated.
+    -v <two digit version> as they appear under '${g_data_config_dir}/<registry>'. May be repeated.
 EOF
 }
 
@@ -36,12 +39,21 @@ function parse_args() {
     g_dry_run='false'
     g_push_build='false'
     g_test_build='false'
+    g_filter_versions=()
+    g_filter_editions=()
+    g_filter_distros=()
 
-    while getopts "chprty:" opt; do
+    while getopts "cd:e:hprtv:y:" opt; do
         case "${opt}" in
         c)
             rm -rf "${g_target_dir}"
             exit 0
+            ;;
+        d)
+            g_filter_distros+=("${OPTARG}")
+            ;;
+        e)
+            g_filter_editions+=("${OPTARG}")
             ;;
         h)
             usage
@@ -55,6 +67,9 @@ function parse_args() {
             ;;
         t)
             g_test_build='true'
+            ;;
+        v)
+            g_filter_versions+=("${OPTARG}")
             ;;
         y)
             g_registry="${OPTARG}"
@@ -73,6 +88,14 @@ function parse_args() {
     log_info "g_push_build: '${g_push_build}'"
     log_info "g_test_build: '${g_test_build}'"
     log_info "g_registry: '${g_registry}"
+
+    local temp
+    temp="$(printf "'%s' " "${g_filter_versions[@]}")"
+    log_info "g_filter_versions: (${temp%" "})"
+    temp="$(printf "'%s' " "${g_filter_editions[@]}")"
+    log_info "g_filter_editions: (${temp%" "})"
+    temp="$(printf "'%s' " "${g_filter_distros[@]}")"
+    log_info "g_filter_distros: (${temp%" "})"
 
     if [[ "${g_dry_run}" == "true" ]]; then
         return
@@ -240,15 +263,27 @@ function build_bake_file() {
     local group_push_targets=""
 
     for version in $(support_versions "${g_registry}"); do
+        if support_config_filter "${version}" "${g_filter_versions[@]}"; then
+            continue
+        fi
+
         support_source_config "${g_registry}" "${version}"
         skip="false"
 
         for edition in "${c_editions[@]}"; do
+            if support_config_filter "${edition}" "${g_filter_editions[@]}"; then
+                continue
+            fi
+
             support_source_config "${g_registry}" "${version}" "${edition}"
 
             for distro_ix in "${!c_distros[@]}"; do
                 local distro="${c_distros[${distro_ix}]}"
                 local distro_dir="${c_distro_dir[${distro_ix}]}"
+
+                if support_config_filter "${distro}" "${g_filter_distros[@]}"; then
+                    continue
+                fi
 
                 version_path="$(support_image_path "${g_registry}" \
                     "${version}" "${edition}" "${distro_dir}")"
