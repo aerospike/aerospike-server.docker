@@ -5,7 +5,7 @@ set -Eeuo pipefail
 source lib/fetch.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
-RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)*'
+RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]*[-]g[0-9a-z]*)?'
 
 function version_compare_gt() {
     v1=$1
