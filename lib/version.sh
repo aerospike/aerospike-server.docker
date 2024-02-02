@@ -130,5 +130,5 @@ function get_version_from_dockerfile() {
     local distro=$1
     local edition=$2
 
-    grep "ARG AEROSPIKE_X86_64_LINK=" "${edition}/${distro}/Dockerfile" | grep -oE "/[0-9.]+(-rc[0-9]+)?/" | tr -d '/'
+    grep "ARG AEROSPIKE_X86_64_LINK=" "${edition}/${distro}/Dockerfile" | grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]*[-]g[0-9a-z]*)?/" | tr -d '/' | tail -1
 }
