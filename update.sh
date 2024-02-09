@@ -179,6 +179,7 @@ function generate_templates() {
 function do_bake_test_group_targets() {
     local distro=$1
     local edition=$2
+    local os=$(echo $distro | sed 's/\./-/')
 
     local platform_list
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
@@ -187,7 +188,7 @@ function do_bake_test_group_targets() {
 
     for platform in "${platform_list[@]}"; do
         local short_platform=${platform#*/}
-        local target_str="${edition}_${distro}_${short_platform}"
+        local target_str="${edition}_${os}_${short_platform}"
 
         output+="\"${target_str}\", "
     done
@@ -197,6 +198,7 @@ function do_bake_test_group_targets() {
 
 function do_bake_group() {
     local group=$1
+    local os
 
     local output="#------------------------------------ ${group} -----------------------------------\n\n"
 
@@ -204,10 +206,11 @@ function do_bake_group() {
 
     for edition in "${g_editions[@]}"; do
         for distro in "${g_distros[@]}"; do
+            os=$(echo $distro | sed 's/\./-/')
             if [[ "${group}" == "test" ]]; then
                 output+="$(do_bake_test_group_targets "${distro}" "${edition}")"
             elif [[ "${group}" == "push" ]]; then
-                output+="\"${edition}_${distro}\", "
+                output+="\"${edition}_${os}\", "
             else
                 log_warn "unexpected group '%{group}'"
                 exit 1
@@ -225,15 +228,16 @@ function do_bake_group() {
 function do_bake_test_target() {
     local distro=$1
     local edition=$2
-
+    local os=$(echo $distro | sed 's/\./-/')
     local platform_list
+
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
 
     local output=""
 
     for platform in "${platform_list[@]}"; do
         local short_platform=${platform#*/}
-        local target_str="${edition}_${distro}_${short_platform}"
+        local target_str="${edition}_${os}_${short_platform}"
 
         output+="target \"${target_str}\" {\n"
         output+="    tags=[\"aerospike/aerospike-server-${edition}-${short_platform}:${g_server_version}\", \"aerospike/aerospike-server-${edition}-${short_platform}:latest\"]\n"
@@ -248,14 +252,14 @@ function do_bake_test_target() {
 function do_bake_push_target() {
     local distro=$1
     local edition=$2
-
+    local os=$(echo $distro | sed 's/\./-/')
     local platform_list
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
 
     printf -v platforms_str '%s,' "${platform_list[@]}"
     platforms_str="${platforms_str%,}"
 
-    local target_str="${edition}_${distro}"
+    local target_str="${edition}_${os}"
     local output="target \"${target_str}\" {\n"
 
     local product="aerospike/aerospike-server"
