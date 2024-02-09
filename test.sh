@@ -3,7 +3,7 @@
 #----------------------------------------------------------------------
 # Sample:
 #   All editions and distributions: ./test.sh --all
-#   enterprise, debian11 with cleanup: ./test.sh -e enterpise -d debian11 -c
+#   enterprise, ubuntu22.04 with cleanup: ./test.sh -e enterpise -d ubuntu22.04 -c
 #----------------------------------------------------------------------
 
 set -Eeuo pipefail
@@ -21,7 +21,7 @@ function usage() {
 Usage: $0 [-e|--edition EDITION] [-d|--distro DISTRIBUTION] [-c|--clean] [-h|--help]
 
     -e|--edition EDITION: community, enterprise, federal.
-    -d|--distro DISTRIBUTION: debian11.
+    -d|--distro DISTRIBUTION: ubuntu22.04.
     -c|--clean: cleanup the images after the test.
     -h|--help: this help.
 EOF
