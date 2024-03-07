@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.1.0.30" \
+      org.opencontainers.image.version="6.2.0.25" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,10 +23,10 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.1.0.30/aerospike-server-community-6.1.0.30-debian11.tgz"
-ARG AEROSPIKE_SHA_X86_64="bea2fb90a5b967b10705df1546a5c959a818129ed6c14fe2d97443dd01890e4e"
-ARG AEROSPIKE_AARCH64_LINK=""
-ARG AEROSPIKE_SHA_AARCH64=""
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.25/aerospike-server-community_6.2.0.25_tools-8.1.0_debian11_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="2cf56eb7c57caad14cf9718d2c2ef834721f3185bc4f2145e490c4720d6844d7"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.2.0.25/aerospike-server-community_6.2.0.25_tools-8.1.0_debian11_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="8bb1cd8eaac1bb4656e739f7fccf2e879a6270a6c7b6ce48fdf536f98f6f35f4"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
