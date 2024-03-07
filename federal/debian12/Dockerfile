@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.base.name="docker.io/library/debian:bookworm-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.4.0.12" \
+      org.opencontainers.image.version="7.0.0.5" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,8 +23,8 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="federal"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.4.0.12/aerospike-server-federal_6.4.0.12_tools-10.0.0_debian12_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="2318c6502546df5832efe1766e788c089e464b12a3dacd0aff5cccb5edca9f21"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/7.0.0.5/aerospike-server-federal_7.0.0.5_tools-10.2.1_debian12_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="1d92ca740510366f1a39d88a43f8841e7d7d003c6a31855e128259172a0461d2"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
