@@ -10,60 +10,36 @@
 #------------------------------------ test -----------------------------------
 
 group "test" {
-    targets=["enterprise_debian12_amd64", "enterprise_debian12_arm64", "federal_debian12_amd64", "community_debian12_amd64", "community_debian12_arm64"]
+    targets=["enterprise_ubuntu20.04_amd64", "community_ubuntu20.04_amd64"]
 }
 
-target "enterprise_debian12_amd64" {
-    tags=["aerospike/aerospike-server-enterprise-amd64:7.0.0.7", "aerospike/aerospike-server-enterprise-amd64:latest"]
+target "enterprise_ubuntu20.04_amd64" {
+    tags=["aerospike/aerospike-server-enterprise-amd64:5.7.0.31"]
     platforms=["linux/amd64"]
-    context="./enterprise/debian12"
+    context="./enterprise/ubuntu20.04"
 }
 
-target "enterprise_debian12_arm64" {
-    tags=["aerospike/aerospike-server-enterprise-arm64:7.0.0.7", "aerospike/aerospike-server-enterprise-arm64:latest"]
-    platforms=["linux/arm64"]
-    context="./enterprise/debian12"
-}
-
-target "federal_debian12_amd64" {
-    tags=["aerospike/aerospike-server-federal-amd64:7.0.0.7", "aerospike/aerospike-server-federal-amd64:latest"]
+target "community_ubuntu20.04_amd64" {
+    tags=["aerospike/aerospike-server-community-amd64:5.7.0.31"]
     platforms=["linux/amd64"]
-    context="./federal/debian12"
-}
-
-target "community_debian12_amd64" {
-    tags=["aerospike/aerospike-server-community-amd64:7.0.0.7", "aerospike/aerospike-server-community-amd64:latest"]
-    platforms=["linux/amd64"]
-    context="./community/debian12"
-}
-
-target "community_debian12_arm64" {
-    tags=["aerospike/aerospike-server-community-arm64:7.0.0.7", "aerospike/aerospike-server-community-arm64:latest"]
-    platforms=["linux/arm64"]
-    context="./community/debian12"
+    context="./community/ubuntu20.04"
 }
 
 #------------------------------------ push -----------------------------------
 
 group "push" {
-    targets=["enterprise_debian12", "federal_debian12", "community_debian12"]
+    targets=["enterprise_ubuntu20.04", "community_ubuntu20.04"]
 }
 
-target "enterprise_debian12" {
-    tags=["aerospike/aerospike-server-enterprise:7.0.0.7", "aerospike/aerospike-server-enterprise:7.0.0.7_1", "aerospike/aerospike-server-enterprise:latest"]
-    platforms=["linux/amd64,linux/arm64"]
-    context="./enterprise/debian12"
-}
-
-target "federal_debian12" {
-    tags=["aerospike/aerospike-server-federal:7.0.0.7", "aerospike/aerospike-server-federal:7.0.0.7_1", "aerospike/aerospike-server-federal:latest"]
+target "enterprise_ubuntu20.04" {
+    tags=["aerospike/aerospike-server-enterprise:5.7.0.31", "aerospike/aerospike-server-enterprise:5.7.0.31_3"]
     platforms=["linux/amd64"]
-    context="./federal/debian12"
+    context="./enterprise/ubuntu20.04"
 }
 
-target "community_debian12" {
-    tags=["aerospike/aerospike-server:7.0.0.7", "aerospike/aerospike-server:7.0.0.7_1", "aerospike/aerospike-server:latest"]
-    platforms=["linux/amd64,linux/arm64"]
-    context="./community/debian12"
+target "community_ubuntu20.04" {
+    tags=["aerospike/aerospike-server:5.7.0.31", "aerospike/aerospike-server:5.7.0.31_3"]
+    platforms=["linux/amd64"]
+    context="./community/ubuntu20.04"
 }
 
