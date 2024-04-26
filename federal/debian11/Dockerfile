@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:20.04
+FROM debian:bullseye-slim
 
-LABEL org.opencontainers.image.title="Aerospike Community Server" \
+LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:20.04" \
+      org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="5.7.0.31" \
+      org.opencontainers.image.version="6.1.0.32" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,10 +21,10 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="community"
+ARG AEROSPIKE_EDITION="federal"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/5.7.0.31/aerospike-server-community-5.7.0.31-ubuntu20.04.tgz"
-ARG AEROSPIKE_SHA_X86_64="f8575e66b59a8b79995ad5f40942c89524e3fb6ded56bcd36e606d6ab411b5e1"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.1.0.32/aerospike-server-federal-6.1.0.32-debian11.tgz"
+ARG AEROSPIKE_SHA_X86_64="9d20be6070c86dcc99ba95302c11d1c59e49d96efa76281f4a231ffe7b8f2674"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
@@ -124,6 +124,7 @@ RUN \
   }; \
   { \
     # 20-install-dependencies-deb.part - Extract tools.
+    # ar on debian10 doesn't support '--output'
     pushd aerospike/pkg || exit 1; \
     ar -x ../aerospike-tools*.deb; \
     popd || exit 1; \

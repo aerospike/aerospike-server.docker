@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:20.04
+FROM debian:bullseye-slim
 
 LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:20.04" \
+      org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="5.7.0.31" \
+      org.opencontainers.image.version="6.1.0.32" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,8 +23,8 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="enterprise"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/5.7.0.31/aerospike-server-enterprise-5.7.0.31-ubuntu20.04.tgz"
-ARG AEROSPIKE_SHA_X86_64="1f80b1b9fd69bce8248679401b3674736e373cbb4a641995d49574b94f04b3c6"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.1.0.32/aerospike-server-enterprise-6.1.0.32-debian11.tgz"
+ARG AEROSPIKE_SHA_X86_64="9baedb2720be225336d09381fa0e8a164c4e8aef8786728e5292191500877465"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
@@ -124,6 +124,7 @@ RUN \
   }; \
   { \
     # 20-install-dependencies-deb.part - Extract tools.
+    # ar on debian10 doesn't support '--output'
     pushd aerospike/pkg || exit 1; \
     ar -x ../aerospike-tools*.deb; \
     popd || exit 1; \

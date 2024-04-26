@@ -10,36 +10,48 @@
 #------------------------------------ test -----------------------------------
 
 group "test" {
-    targets=["enterprise_ubuntu20-04_amd64", "community_ubuntu20-04_amd64"]
+    targets=["enterprise_debian11_amd64", "federal_debian11_amd64", "community_debian11_amd64"]
 }
 
-target "enterprise_ubuntu20-04_amd64" {
-    tags=["aerospike/aerospike-server-enterprise-amd64:5.7.0.31"]
+target "enterprise_debian11_amd64" {
+    tags=["aerospike/aerospike-server-enterprise-amd64:6.1.0.32", "aerospike/aerospike-server-enterprise-amd64:latest"]
     platforms=["linux/amd64"]
-    context="./enterprise/ubuntu20.04"
+    context="./enterprise/debian11"
 }
 
-target "community_ubuntu20-04_amd64" {
-    tags=["aerospike/aerospike-server-community-amd64:5.7.0.31"]
+target "federal_debian11_amd64" {
+    tags=["aerospike/aerospike-server-federal-amd64:6.1.0.32", "aerospike/aerospike-server-federal-amd64:latest"]
     platforms=["linux/amd64"]
-    context="./community/ubuntu20.04"
+    context="./federal/debian11"
+}
+
+target "community_debian11_amd64" {
+    tags=["aerospike/aerospike-server-community-amd64:6.1.0.32", "aerospike/aerospike-server-community-amd64:latest"]
+    platforms=["linux/amd64"]
+    context="./community/debian11"
 }
 
 #------------------------------------ push -----------------------------------
 
 group "push" {
-    targets=["enterprise_ubuntu20-04", "community_ubuntu20-04"]
+    targets=["enterprise_debian11", "federal_debian11", "community_debian11"]
 }
 
-target "enterprise_ubuntu20-04" {
-    tags=["aerospike/aerospike-server-enterprise:5.7.0.31", "aerospike/aerospike-server-enterprise:5.7.0.31_3"]
+target "enterprise_debian11" {
+    tags=["aerospike/aerospike-server-enterprise:6.1.0.32", "aerospike/aerospike-server-enterprise:6.1.0.32_2"]
     platforms=["linux/amd64"]
-    context="./enterprise/ubuntu20.04"
+    context="./enterprise/debian11"
 }
 
-target "community_ubuntu20-04" {
-    tags=["aerospike/aerospike-server:5.7.0.31", "aerospike/aerospike-server:5.7.0.31_3"]
+target "federal_debian11" {
+    tags=["aerospike/aerospike-server-federal:6.1.0.32", "aerospike/aerospike-server-federal:6.1.0.32_2"]
     platforms=["linux/amd64"]
-    context="./community/ubuntu20.04"
+    context="./federal/debian11"
+}
+
+target "community_debian11" {
+    tags=["aerospike/aerospike-server:6.1.0.32", "aerospike/aerospike-server:6.1.0.32_2"]
+    platforms=["linux/amd64"]
+    context="./community/debian11"
 }
 
