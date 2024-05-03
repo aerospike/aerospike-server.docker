@@ -184,7 +184,8 @@ function do_bake_test_group_targets() {
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
 
     local output=""
-
+    
+    distro=$(echo $distro | sed "s/\./-/")
     for platform in "${platform_list[@]}"; do
         local short_platform=${platform#*/}
         local target_str="${edition}_${distro}_${short_platform}"
@@ -204,6 +205,7 @@ function do_bake_group() {
 
     for edition in "${g_editions[@]}"; do
         for distro in "${g_distros[@]}"; do
+            distro=$(echo $distro | sed "s/\./-/")
             if [[ "${group}" == "test" ]]; then
                 output+="$(do_bake_test_group_targets "${distro}" "${edition}")"
             elif [[ "${group}" == "push" ]]; then
@@ -225,15 +227,16 @@ function do_bake_group() {
 function do_bake_test_target() {
     local distro=$1
     local edition=$2
+    local distroTmp=$(echo $distro | sed "s/\./-/")
 
     local platform_list
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
 
     local output=""
-
+    
     for platform in "${platform_list[@]}"; do
         local short_platform=${platform#*/}
-        local target_str="${edition}_${distro}_${short_platform}"
+        local target_str="${edition}_${distroTmp}_${short_platform}"
 
         output+="target \"${target_str}\" {\n"
         output+="    tags=[\"aerospike/aerospike-server-${edition}-${short_platform}:${g_server_version}\", \"aerospike/aerospike-server-${edition}-${short_platform}:latest\"]\n"
@@ -248,6 +251,7 @@ function do_bake_test_target() {
 function do_bake_push_target() {
     local distro=$1
     local edition=$2
+    local distroTmp=$(echo $distro | sed "s/\./-/")
 
     local platform_list
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
@@ -255,7 +259,7 @@ function do_bake_push_target() {
     printf -v platforms_str '%s,' "${platform_list[@]}"
     platforms_str="${platforms_str%,}"
 
-    local target_str="${edition}_${distro}"
+    local target_str="${edition}_${distroTmp}"
     local output="target \"${target_str}\" {\n"
 
     local product="aerospike/aerospike-server"

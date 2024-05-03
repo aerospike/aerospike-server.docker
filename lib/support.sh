@@ -24,13 +24,13 @@ function support_distro_to_base() {
     local distro=$1
 
     case "${distro}" in
-    ubuntu20)
+    ubuntu20.04)
         echo "ubuntu:20.04"
         ;;
-    ubuntu22)
+    ubuntu22.04)
         echo "ubuntu:22.04"
         ;;
-    ubuntu24)
+    ubuntu24.04)
         echo "ubuntu:24.04"
         ;;
     *)
@@ -43,17 +43,17 @@ function support_distro_to_base() {
 function support_distros_for_asd() {
     local version=$1
 
-    if version_compare_gt "5.7" "${version}"; then
-        echo "ubuntu20"
-        return
-    fi
-
     if version_compare_gt "6.3" "${version}"; then
-        echo "ubuntu22"
+        echo "ubuntu20.04"
         return
     fi
 
-    echo "ubuntu22"
+    if version_compare_gt "7.1" "${version}"; then
+        echo "ubuntu22.04"
+        return
+    fi
+
+    echo "ubuntu24.04"
 }
 
 function support_arch_for_asd() {
