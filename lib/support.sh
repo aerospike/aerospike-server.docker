@@ -24,14 +24,14 @@ function support_distro_to_base() {
     local distro=$1
 
     case "${distro}" in
-    debian10)
-        echo "debian:buster-slim"
+    ubuntu20)
+        echo "ubuntu:20.04"
         ;;
-    debian11)
-        echo "debian:bullseye-slim"
+    ubuntu22)
+        echo "ubuntu:22.04"
         ;;
-    debian12)
-        echo "debian:bookworm-slim"
+    ubuntu24)
+        echo "ubuntu:24.04"
         ;;
     *)
         warn "unsupported distro '${distro}'"
@@ -43,17 +43,17 @@ function support_distro_to_base() {
 function support_distros_for_asd() {
     local version=$1
 
-    if version_compare_gt "6.0" "${version}"; then
-        echo "debian10"
+    if version_compare_gt "5.7" "${version}"; then
+        echo "ubuntu20"
         return
     fi
 
-    if version_compare_gt "6.4" "${version}"; then
-        echo "debian11"
+    if version_compare_gt "6.3" "${version}"; then
+        echo "ubuntu22"
         return
     fi
 
-    echo "debian12"
+    echo "ubuntu22"
 }
 
 function support_arch_for_asd() {
