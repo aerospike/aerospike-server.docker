@@ -139,6 +139,7 @@ function copy_template() {
 
     mkdir -p "${target_path}"
 
+    local override
     for override in $(template_overrides); do
         if ! version_compare_gt "${override}" "${g_server_version}"; then
             local override_path="${g_data_template_dir}/${override}/"
@@ -181,6 +182,7 @@ function do_template() {
         exit 1
     fi
 
+    local arch
     for arch in "${c_archs[@]}"; do
         case ${arch} in
         aarch64)
@@ -275,6 +277,7 @@ function update_version() {
     log_info "update_version() - registry '${registry}' server '${version}' -> '${g_server_version}' tools '${g_tools_version}'"
 
     # Generate new builds.
+    local edition
     for edition in "${c_editions[@]}"; do
         if support_config_filter "${edition}" "${g_filter_editions[@]}"; then
             continue
@@ -282,6 +285,7 @@ function update_version() {
 
         support_source_config "${registry}" "${version}" "${edition}"
 
+        local distro_ix
         for distro_ix in "${!c_distros[@]}"; do
             local distro="${c_distros[${distro_ix}]}"
             local distro_dir="${c_distro_dir[${distro_ix}]}"
@@ -302,11 +306,13 @@ function main() {
 
     rm -rf "${g_images_dir:?}/"*
 
+    local registry
     for registry in $(support_registries); do
         if support_config_filter "${registry}" "${g_filter_registries[@]}"; then
             continue
         fi
 
+        local version
         for version in $(support_versions "${registry}"); do
             if support_config_filter \
                 "${version}" "${g_filter_short_versions[@]}"; then

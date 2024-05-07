@@ -7,8 +7,8 @@
 
 FROM docker.io/debian:bookworm-slim
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/7.0.0.3/aerospike-server-federal_7.0.0.3_tools-10.0.1_debian12_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="f0bc49b242f502e7fa430085efdc765b5c9c72b73453cdf17f54f4cf12b68302"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/7.0.0.8/aerospike-server-federal_7.0.0.8_tools-10.2.1_debian12_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="8db0f055c3758976e2795a6f80c9ce9edf4b4e1a1d7411ef54dfa21ad15ad2ed"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
@@ -34,7 +34,7 @@ RUN \
   }; \
   { \
     # 10-download.part - Vars used for tini and tools.
-    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)*/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/')"; \
+    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]+[-]g[0-9a-z]*)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
   }; \
   { \
     # 10-common.part - Install tini.
@@ -159,7 +159,7 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.base.name="docker.io/library/debian:bookworm-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.0.0.3" \
+      org.opencontainers.image.version="7.0.0.8" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

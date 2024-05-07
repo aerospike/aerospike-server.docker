@@ -7,8 +7,8 @@
 
 FROM registry.access.redhat.com/ubi8-minimal
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.1.0.28/aerospike-server-community-6.1.0.28-el8.tgz"
-ARG AEROSPIKE_SHA_X86_64="b0cb8960e6c5a815f368aca0d7f33c2a99d75f9005aafbe850e45dbec010cab0"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.1.0.33/aerospike-server-community-6.1.0.33-el8.tgz"
+ARG AEROSPIKE_SHA_X86_64="fe41fcfec7e1b36c92238deacfe45b9758c208063c968eed69af11b9fb858f1c"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
@@ -34,7 +34,7 @@ RUN \
   }; \
   { \
     # 10-download.part - Vars used for tini and tools.
-    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)*/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/')"; \
+    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]+[-]g[0-9a-z]*)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
   }; \
   { \
     # 10-common.part - Install tini.
@@ -150,7 +150,7 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.base.name="docker.io/library/ubi8-minimal" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.1.0.28" \
+      org.opencontainers.image.version="6.1.0.33" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

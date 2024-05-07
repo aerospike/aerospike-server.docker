@@ -4,7 +4,7 @@ source lib/fetch.sh
 source lib/globals.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
-RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)*'
+RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]*[-]g[0-9a-z]*)?'
 
 function version_compare_gt() {
     v1=$1
@@ -132,5 +132,5 @@ function get_version_from_dockerfile() {
     local edition=$4
 
     grep "ARG AEROSPIKE_X86_64_LINK=" "${g_images_dir}/${registry}/${version}/${edition}/${distro}/Dockerfile" |
-        grep -oE "/[0-9.]+(-rc[0-9]+)?/" | tr -d '/'
+        grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]*[-]g[0-9a-z]*)?/" | tr -d '/' | tail -1
 }

@@ -7,10 +7,10 @@
 
 FROM registry.access.redhat.com/ubi9-minimal
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.3/aerospike-server-enterprise_7.0.0.3_tools-10.0.1_el9_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="0a761afdbec60b94a0b8453747fda01cd89864ab274a51f27d3f39686b5506e0"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.3/aerospike-server-enterprise_7.0.0.3_tools-10.0.1_el9_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="39538afccecb080f74e9143e24a1fb59bdce38040f40bca3a4357f6a2b3e4eb0"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.8/aerospike-server-enterprise_7.0.0.8_tools-10.2.1_el9_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="b8cea2f3f4552832dde4d8ec6b4db54482defa13d55b90a508514ef23617f33a"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.8/aerospike-server-enterprise_7.0.0.8_tools-10.2.1_el9_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="6e4dd85c92ed926df9a3220cc6a3a6babe55d0763b377b1a05a901a385976e19"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -34,7 +34,7 @@ RUN \
   }; \
   { \
     # 10-download.part - Vars used for tini and tools.
-    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)*/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/')"; \
+    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]+[-]g[0-9a-z]*)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
   }; \
   { \
     # 10-common.part - Install tini.
@@ -150,7 +150,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.base.name="docker.io/library/ubi9-minimal" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.0.0.3" \
+      org.opencontainers.image.version="7.0.0.8" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

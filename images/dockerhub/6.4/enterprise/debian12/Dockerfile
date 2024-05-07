@@ -7,10 +7,10 @@
 
 FROM docker.io/debian:bookworm-slim
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.10/aerospike-server-enterprise_6.4.0.10_tools-10.0.0_debian12_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="4483bf2e21299f4fe9760be86b96ad271523b4570fe74a5cc6c38e37df2ee77d"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.10/aerospike-server-enterprise_6.4.0.10_tools-10.0.0_debian12_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="313d35cc128b5456e2ccd22eb98a16fe972921ea13410c0384e7635d541293b3"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.15/aerospike-server-enterprise_6.4.0.15_tools-10.0.0_debian12_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="1949a805922017ff2f378055a74ed08464d583a7b01c65d13b5e6274a93c6b0b"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.4.0.15/aerospike-server-enterprise_6.4.0.15_tools-10.0.0_debian12_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="732463174c5ab9ddc12b0ea7561a0e3b9b5bc767ee3ac00b1b1cc7280330ccd7"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -34,7 +34,7 @@ RUN \
   }; \
   { \
     # 10-download.part - Vars used for tini and tools.
-    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)*/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/')"; \
+    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]+[-]g[0-9a-z]*)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
   }; \
   { \
     # 10-common.part - Install tini.
@@ -159,7 +159,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.base.name="docker.io/library/debian:bookworm-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.4.0.10" \
+      org.opencontainers.image.version="6.4.0.15" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile
