@@ -8,7 +8,7 @@ jobs:
   run-update:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: Should not change anything
@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      uses: docker/setup-qemu-action@v3
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - uses: actions/checkout@v2
+      uses: docker/setup-buildx-action@v3
+    - uses: actions/checkout@v4
     - name: Build
       run: "./build.sh -t"
     - name: Test
@@ -29,10 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      uses: docker/setup-qemu-action@v3
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - uses: actions/checkout@v3
+      uses: docker/setup-buildx-action@v3
+    - uses: actions/checkout@v4
     - name: Update to 5.7.0.25 (ubuntu20)
       run: "./update.sh -s 5.7.0.25"
     - name: Build
@@ -43,10 +43,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      uses: docker/setup-qemu-action@v3
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - uses: actions/checkout@v3
+      uses: docker/setup-buildx-action@v3
+    - uses: actions/checkout@v4
     - name: Update to 6.0.0.9 (no fed)
       run: "./update.sh -s 6.0.0.9"
     - name: Build
