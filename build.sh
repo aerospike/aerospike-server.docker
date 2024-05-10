@@ -5,7 +5,7 @@
 # Samples:
 #   build and push to docker repo: ./build.sh -p
 #   build all images for test: ./build.sh -t
-#   build images for specific edition/distribution: ./build.sh -e community -d debian11
+#   build images for specific edition/distribution: ./build.sh -e community -d ubuntu20
 #-----------------------------------------------------------------------
 
 set -Eeuo pipefail
@@ -19,7 +19,7 @@ function usage() {
 Usage: $0 -h -d <linux distro> -e <server edition>
 
     -h display this help.
-    -d <linux disto> (debian11) only build for this distro.
+    -d <linux disto> (ubuntu20) only build for this distro.
     -e <server edition> (enterprise|federal|community) only build this server
         edition.
     -t build for invoking test in test.sh

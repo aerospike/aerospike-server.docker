@@ -17,6 +17,7 @@ function copy_template() {
 
     mkdir -p "${target_path}"
 
+    local override
     for override in \
         $(find template/* -maxdepth 1 -type d -printf "%f\n" | sort -V); do
         if ! version_compare_gt "${override}" "${g_server_version}"; then
@@ -34,6 +35,7 @@ function bash_eval_template() {
 
     echo "" >"${target_file}"
 
+    local line
     while IFS= read -r line; do
         if grep -qE "[$][(]|[{]" <<<"${line}"; then
             local update
@@ -51,6 +53,7 @@ function bash_eval_template() {
 function bash_eval_templates() {
     local target_path=$1
 
+    local template_file
     while IFS= read -r -d '' template_file; do
         target_file="${template_file%.template}"
         bash_eval_template "${template_file}" "${target_file}"
@@ -125,6 +128,7 @@ function parse_args() {
             g_server_edition="${OPTARG}"
             ;;
         g)
+            local git_describe
             git_describe="$(git describe --abbrev=0)"
 
             if grep -q "_" <<<"${git_describe}"; then
@@ -164,12 +168,15 @@ function generate_templates() {
     IFS=' ' read -r -a all_editions <<<"$(support_all_editions)"
 
     # Clear prior builds.
+    local edition
     for edition in "${all_editions[@]}"; do
         find "${edition}"/* -maxdepth 0 -type d -exec rm -rf {} \;
     done
 
     # Generate new builds.
+    local edition
     for edition in "${g_editions[@]}"; do
+        local distro
         for distro in "${g_distros[@]}"; do
             do_template "${distro}" "${edition}"
         done
@@ -177,7 +184,7 @@ function generate_templates() {
 }
 
 function do_bake_test_group_targets() {
-    local distro=$1
+    local distro="${1//\./-}"
     local edition=$2
 
     local platform_list
@@ -185,6 +192,7 @@ function do_bake_test_group_targets() {
 
     local output=""
 
+    local platform
     for platform in "${platform_list[@]}"; do
         local short_platform=${platform#*/}
         local target_str="${edition}_${distro}_${short_platform}"
@@ -202,8 +210,11 @@ function do_bake_group() {
 
     output+="group \"${group}\" {\n    targets=["
 
+    local edition
     for edition in "${g_editions[@]}"; do
+        local distro
         for distro in "${g_distros[@]}"; do
+            distro="${distro//\./-}"
             if [[ "${group}" == "test" ]]; then
                 output+="$(do_bake_test_group_targets "${distro}" "${edition}")"
             elif [[ "${group}" == "push" ]]; then
@@ -226,14 +237,17 @@ function do_bake_test_target() {
     local distro=$1
     local edition=$2
 
+    local distroTmp
     local platform_list
-    IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
-
     local output=""
 
+    distroTmp="${distro//\./-}"
+    IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
+
+    local platform
     for platform in "${platform_list[@]}"; do
         local short_platform=${platform#*/}
-        local target_str="${edition}_${distro}_${short_platform}"
+        local target_str="${edition}_${distroTmp}_${short_platform}"
 
         output+="target \"${target_str}\" {\n"
         output+="    tags=[\"aerospike/aerospike-server-${edition}-${short_platform}:${g_server_version}\", \"aerospike/aerospike-server-${edition}-${short_platform}:latest\"]\n"
@@ -248,14 +262,16 @@ function do_bake_test_target() {
 function do_bake_push_target() {
     local distro=$1
     local edition=$2
-
+    local distroTmp
     local platform_list
+
+    distroTmp="${distro//\./-}"
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
 
     printf -v platforms_str '%s,' "${platform_list[@]}"
     platforms_str="${platforms_str%,}"
 
-    local target_str="${edition}_${distro}"
+    local target_str="${edition}_${distroTmp}"
     local output="target \"${target_str}\" {\n"
 
     local product="aerospike/aerospike-server"
@@ -300,7 +316,9 @@ EOF
     local test_targets_str=""
     local push_targets_str=""
 
+    local edition
     for edition in "${g_editions[@]}"; do
+        local distro
         for distro in "${g_distros[@]}"; do
             test_targets_str+="$(do_bake_test_target "${distro}" "${edition}")"
             push_targets_str+="$(do_bake_push_target "${distro}" "${edition}")"
