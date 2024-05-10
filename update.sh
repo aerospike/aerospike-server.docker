@@ -173,7 +173,7 @@ function do_template() {
     AEROSPIKE_AARCH64_LINK=
     AEROSPIKE_SHA_AARCH64=
 
-    if grep -qo "debian:" <<<"${distro_base}"; then
+    if grep -qo "ubuntu:" <<<"${distro_base}"; then
         LINUX_PKG_TYPE="deb"
     elif grep -qEo "ubi[89]-" <<<"${distro_base}"; then
         LINUX_PKG_TYPE="rpm"

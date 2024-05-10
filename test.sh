@@ -2,8 +2,7 @@
 
 #----------------------------------------------------------------------
 # Sample:
-#   All editions and distributions: ./test.sh --all
-#   enterprise, debian11 with cleanup: ./test.sh -e enterpise -d debian11 -c
+#   All editions and distributions: ./test.sh
 #----------------------------------------------------------------------
 
 set -Eeuo pipefail
@@ -152,7 +151,7 @@ function check_container() {
     else
         tool="aql"
         namespace=$(try 5 docker exec -t "${container}" bash -c \
-            'aql -o raw <<<"SHOW namespaces" 2>/dev/null' | grep "namespaces: \"test\"")
+            'aql -o raw <<<"SHOW namespaces" 2>/dev/null' | grep "namespaces: \"test\"" | tr -d '\r')
     fi
 
     if [ -n "${namespace}" ]; then
@@ -169,9 +168,7 @@ function try_stop_docker() {
 
     log_info "stop and remove containers '${container}' form prior failed run ..."
 
-    if verbose_call docker stop "${container}"; then
-        verbose_call docker rm -f "${container}"
-    fi
+    verbose_call docker rm -f "$(docker stop -q "${container}")" >/dev/null 2>&1 || true
 
     log_info "stop and remove containers form prior failed run complete"
 }

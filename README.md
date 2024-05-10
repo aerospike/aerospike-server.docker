@@ -332,7 +332,7 @@ Aerospike Telemetry is a feature that allows us to collect certain anonymized us
 
 ## Image Versions
 
-These images are based on [debian:*-slim](https://hub.docker.com/_/debian).
+These images are based on [ubuntu:*](https://hub.docker.com/_/ubuntu).
 
 ## Reporting Issues
 

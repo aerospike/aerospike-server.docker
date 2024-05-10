@@ -7,8 +7,8 @@
 
 FROM registry.access.redhat.com/ubi8-minimal
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.1.0.33/aerospike-server-enterprise-6.1.0.33-el8.tgz"
-ARG AEROSPIKE_SHA_X86_64="78d1c21391a6adff9338263c96b45a93850e679c5d8660286699c514eb62eafa"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.1.0.34/aerospike-server-enterprise-6.1.0.34-el8.tgz"
+ARG AEROSPIKE_SHA_X86_64="10a5f82705e048d0e3cb0f59c8f26cc74490e94b81def6fe307b3ee654953ccb"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
@@ -150,7 +150,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.base.name="docker.io/library/ubi8-minimal" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.1.0.33" \
+      org.opencontainers.image.version="6.1.0.34" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

@@ -20,9 +20,6 @@
   }; \
   { \
     # 20-install-dependencies-deb.part - Extract tools.
-    # ar on debian10 doesn't support '--output'
-    pushd aerospike/pkg || exit 1; \
-    ar -x ../aerospike-tools*.deb; \
-    popd || exit 1; \
+    ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg; \
     tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/; \
   }; \

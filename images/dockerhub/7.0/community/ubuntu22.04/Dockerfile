@@ -5,32 +5,32 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM registry.access.redhat.com/ubi9-minimal
+FROM docker.io/ubuntu:22.04
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.3.0.22/aerospike-server-enterprise_6.3.0.22_tools-8.5.1_el9_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="6764d5c2758aec0d2b7c9c3c8a76de9935f00ab704f0e4f10b43ffee663aaa00"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.3.0.22/aerospike-server-enterprise_6.3.0.22_tools-8.5.1_el9_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="f4030360b9e6f602479ff27909a9da7eb771006f5543486f6d644b957a5fe533"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.0.0.9/aerospike-server-community_7.0.0.9_tools-10.2.1_ubuntu22.04_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="2340856f5429fa5b70bd66899e45d2846ceb2361729881a61726e71ea1b79e8c"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.0.0.9/aerospike-server-community_7.0.0.9_tools-10.2.1_ubuntu22.04_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="b4a302fa9eebca18d19af67ba617f5d9de3e1c3e07e3a3cc77892de051f19b76"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
 RUN \
   { \
-    # 00-prelude-rpm.part - Setup dependencies for scripts.
-    microdnf update -y; \
-    microdnf install -y \
+    # 00-prelude-deb.part - Setup dependencies for scripts.
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update -y; \
+    apt-get install -y --no-install-recommends apt-utils; \
+    apt-get install -y --no-install-recommends \
       binutils \
+      ca-certificates \
+      curl \
       file \
-      findutils \
-      gzip \
-      shadow-utils \
-      tar \
-      xz; \
+      xz-utils; \
   }; \
   { \
-    # 00-prelude-rpm.part - Install procps for tests.
-    microdnf install -y procps-ng; \
+    # 00-prelude-deb.part - Install procps for tests.
+    apt-get install -y --no-install-recommends procps; \
   }; \
   { \
     # 10-download.part - Vars used for tini and tools.
@@ -81,25 +81,29 @@ RUN \
     cp aerospike/LICENSE /licenses; \
   }; \
   { \
-    # 20-install-dependencies-rpm.part - Install server and dependencies.
-    rpm -i aerospike/aerospike-server-*.rpm; \
+    # 20-install-dependencies-deb.part - Install server and dependencies.
+    apt-get install -y --no-install-recommends \
+      # required for EE and pre 6.0
+      libcurl4 \
+      # required for EE
+      libldap-2.4.2; \
+    dpkg -i aerospike/aerospike-server-*.deb; \
     rm -rf /opt/aerospike/bin; \
   }; \
   { \
-    # 20-install-dependencies-rpm.part - Install tools dependencies.
+    # 20-install-dependencies-deb.part - Install tools dependencies.
     if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
       # Tools before 6.0 need python3.
-      microdnf install -y python3; \
+      apt-get install -y --no-install-recommends \
+        python3 \
+        python3-distutils; \
     fi; \
     # Tools after 6.0 bundled their own python interpreter.
   }; \
   { \
-    # 20-install-dependencies-rpm.part - Extract tools.
-    pushd aerospike/pkg || exit 1; \
-    rpm2archive -n ../aerospike-tools*.rpm; \
-    tar xf ../aerospike-tools*.tar -C .; \
-    rm -f ../aerospike-tools*.tar; \
-    popd || exit 1; \
+    # 20-install-dependencies-deb.part - Extract tools.
+    ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg; \
+    tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/; \
   }; \
   { \
     # 30-install-tools.part - install asinfo and asadm.
@@ -131,26 +135,28 @@ RUN \
     rm -rf aerospike; \
   }; \
   { \
-    # 50-remove-prelude-rpm.part - Remove dependencies for scripts.
-    microdnf remove -y \
-      # binutils - dependency issues on ubi9
+    # 50-remove-prelude-deb.part - Remove dependencies for scripts.
+    rm -rf /var/lib/apt/lists/*; \
+    dpkg --purge \
+      apt-utils \
+      binutils \
+      ca-certificates \
+      curl \
       file \
-      findutils \
-      # gzip - dependency issues on ubi9
-      shadow-utils \
-      tar \
-      xz 2>&1; \
-    microdnf clean all; \
+      xz-utils 2>&1; \
+    apt-get purge -y; \
+    apt-get autoremove -y; \
+    unset DEBIAN_FRONTEND; \
   }; \
   echo "done";
 
-LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
+LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubi9-minimal" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:22.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.3.0.22" \
+      org.opencontainers.image.version="7.0.0.9" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

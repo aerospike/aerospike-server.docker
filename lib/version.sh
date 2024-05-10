@@ -64,7 +64,7 @@ function find_latest_tools_version_for_server() {
     local tools_version
     tools_version="$(
         fetch "${FUNCNAME[0]}" "${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/" |
-            grep -oE "_tools-[0-9.-]+(-g[a-f0-9]{7})?_${distro}_x86_64.tgz" |
+            grep -oE "_tools-[0-9.-]+(-rc[0-9]+)?(-g[a-f0-9]{7})?_${distro}_x86_64.tgz" |
             cut -d _ -f 2 |
             sort -V |
             tail -1

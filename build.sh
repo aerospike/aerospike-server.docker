@@ -118,13 +118,11 @@ function get_target_name() {
     local edition=$3
     local short_platform=$4
 
-    local target="${edition}_${distro}_${short_version}"
+    local target="${edition}_${distro/\./-}_${short_version/\./-}"
 
     if [ -n "${short_platform}" ]; then
         target+="_${short_platform}"
     fi
-
-    target="${target/\./-}"
 
     echo "${target}"
 }
@@ -219,7 +217,8 @@ function do_bake_push_target() {
     printf -v platforms_str '%s,' "${c_platforms[@]}"
     platforms_str="${platforms_str%,}"
 
-    local target_str="${edition}_${distro}"
+    # FIXME use get_target_name()
+    local target_str="${edition}_${distro/\./-}"
     local output="target \"${target_str}\" {\n"
     local product="aerospike/aerospike-server"
 
