@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:bookworm-slim
+FROM debian:bullseye-slim
 
-LABEL org.opencontainers.image.title="Aerospike Community Server" \
+LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/debian:bookworm-slim" \
+      org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.0.0.8" \
+      org.opencontainers.image.version="6.1.0.34" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,12 +21,12 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="community"
+ARG AEROSPIKE_EDITION="federal"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.0.0.8/aerospike-server-community_7.0.0.8_tools-10.2.1_debian12_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="54eba8c7c413015b2f9d4571599238e0634ec8b66adf8e65cb9db6be1bdf1980"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.0.0.8/aerospike-server-community_7.0.0.8_tools-10.2.1_debian12_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="f4a8106ff23da8f07f1bd7b69b1aea1312fbb73a4dd3f1d8cc70db93b6e63e8e"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.1.0.34/aerospike-server-federal-6.1.0.34-debian11.tgz"
+ARG AEROSPIKE_SHA_X86_64="8b9b8236508d72cf7c8748aed9784971fdaa7f104f1d9dfd27ad5802494b8be1"
+ARG AEROSPIKE_AARCH64_LINK=""
+ARG AEROSPIKE_SHA_AARCH64=""
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 

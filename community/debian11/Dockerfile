@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:bookworm-slim
+FROM debian:bullseye-slim
 
-LABEL org.opencontainers.image.title="Aerospike Federal Server" \
+LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/debian:bookworm-slim" \
+      org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.0.0.8" \
+      org.opencontainers.image.version="6.1.0.34" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,10 +21,10 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="federal"
+ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/7.0.0.8/aerospike-server-federal_7.0.0.8_tools-10.2.1_debian12_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="8db0f055c3758976e2795a6f80c9ce9edf4b4e1a1d7411ef54dfa21ad15ad2ed"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.1.0.34/aerospike-server-community-6.1.0.34-debian11.tgz"
+ARG AEROSPIKE_SHA_X86_64="0a4d8dac7115da69902692553ba5a06daae9e5b7548005f28c0534b0cd5d49d1"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 

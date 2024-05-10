@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM debian:bookworm-slim
+FROM debian:bullseye-slim
 
 LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/debian:bookworm-slim" \
+      org.opencontainers.image.base.name="docker.io/library/debian:bullseye-slim" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.0.0.8" \
+      org.opencontainers.image.version="6.1.0.34" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,10 +23,10 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="enterprise"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.8/aerospike-server-enterprise_7.0.0.8_tools-10.2.1_debian12_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="a092f046debcf70d33c5dc6ed99a89d030a1077b5462119530f531914f63ee6b"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.8/aerospike-server-enterprise_7.0.0.8_tools-10.2.1_debian12_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="686b85375e53e3b6aa1f35d89ecf22ad6677a7b2cc235c8f36b401ab0abf32f3"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.1.0.34/aerospike-server-enterprise-6.1.0.34-debian11.tgz"
+ARG AEROSPIKE_SHA_X86_64="708776a9d482394078f4c2239659651a044e76b72252e8f36ede0492cd573730"
+ARG AEROSPIKE_AARCH64_LINK=""
+ARG AEROSPIKE_SHA_AARCH64=""
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
