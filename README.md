@@ -7,24 +7,24 @@
 ![aerospike_square_logo](https://user-images.githubusercontent.com/133497/114279415-7425dc00-99e9-11eb-8eab-104042d38c44.png)
 
 -	[Getting Started](#getting-started)
-    - [Running an Aerospike Server node](#running-an-aerospike-server-node)
-    - [Enterprise Edition](#enterprise-edition)
-    - [Federal Edition](#federal-edition)
-    - [Community Edition](#community-edition)
+	-	[Running an Aerospike Server node](#running-an-aerospike-server-node)
+	-	[Enterprise Edition](#enterprise-edition)
+	-	[Federal Edition](#federal-edition)
+	-	[Community Edition](#community-edition)
 -	[Connecting to your Aerospike Container](#connecting-to-your-aerospike-container)
-    - [Using aql](#using-aql)
-    - [Using asadm](#using-asadm)
+	-	[Using aql](#using-aql)
+	-	[Using asadm](#using-asadm)
 -	[Customizing the Default Developer nvironment](#customizing-the-default-developer-template)
-    - [List of template variables](#list-of-template-variables)
-    - [Preconfigured namespace](#preconfigured-namespace)
+	-	[List of template variables](#list-of-template-variables)
+	-	[Preconfigured namespace](#preconfigured-namespace)
 -	[Advanced Configuration](#advanced-configuration)
-    - [Persistent data directory](#persistent-data-directory)
-    - [Block storage](#block-storage)
-    - [Persistent Lua cache](#persistent-lua-cache)
-    - [A note about security](#a-note-about-security)
-    - [Networking](#networking)
-    - [Configuring the node's access address](#configuring-the-nodes-access-address)
-    - [Mesh clustering](#mesh-clustering)
+	-	[Persistent data directory](#persistent-data-directory)
+	-	[Block storage](#block-storage)
+	-	[Persistent Lua cache](#persistent-lua-cache)
+	-	[A note about security](#a-note-about-security)
+	-	[Networking](#networking)
+	-	[Configuring the node's access address](#configuring-the-nodes-access-address)
+	-	[Mesh clustering](#mesh-clustering)
 -	[Sending Performance Data to Aerospike](#sending-performance-data-to-aerospike)
 -	[Image Versions](#image-versions)
 -	[Reporting Issues](#reporting-issues)
@@ -105,7 +105,7 @@ docker run -ti aerospike/aerospike-tools:latest aql -h  $(docker inspect -f '{{.
 
 Seed:         172.17.0.2
 User:         None
-Config File:  /etc/aerospike/astools.conf /root/.aerospike/astools.conf
+Config File:  /etc/aerospike/astools.conf /root/.aerospike/astools.conf 
 Aerospike Query Client
 Version 7.0.4
 C Client Version 6.0.0
@@ -138,7 +138,7 @@ Online:  172.17.0.2:3000
 Admin> info
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Network Information (2022-11-01 00:48:05 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
            Node|         Node ID|             IP|    Build|Migrations|~~~~~~~~~~~~~~~~~~Cluster~~~~~~~~~~~~~~~~~~|Client|  Uptime
-               |                |               |         |          |Size|         Key|Integrity|      Principal| Conns|
+               |                |               |         |          |Size|         Key|Integrity|      Principal| Conns|        
 172.17.0.2:3000|*BB9020011AC4202|172.17.0.2:3000|E-6.1.0.3|   0.000  |   1|19E628721D9A|True     |BB9020011AC4202|     8|00:02:09
 Number of rows: 1
 
@@ -146,16 +146,16 @@ Number of rows: 1
 Namespace|           Node|  Total|Expirations|Evictions|  Stop|~~~~~~~~~~Device~~~~~~~~~~|~~~~~~~~~~Memory~~~~~~~~~|~Primary~
          |               |Records|           |         |Writes|    Used|Used%|HWM%|Avail%|    Used|Used%|HWM%|Stop%|~~Index~~
          |               |       |           |         |      |        |     |    |      |        |     |    |     |     Type
-test     |172.17.0.2:3000|0.000  |    0.000  |  0.000  |False |0.000 B |  0.0|   0|    99|0.000 B |  0.0|   0|   90|shmem
-test     |               |0.000  |    0.000  |  0.000  |      |0.000 B |  0.0|    |      |0.000 B |  0.0|    |     |
+test     |172.17.0.2:3000|0.000  |    0.000  |  0.000  |False |0.000 B |  0.0|   0|    99|0.000 B |  0.0|   0|   90|shmem    
+test     |               |0.000  |    0.000  |  0.000  |      |0.000 B |  0.0|    |      |0.000 B |  0.0|    |     |         
 Number of rows: 1
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Namespace Object Information (2022-11-01 00:48:05 UTC)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Namespace|           Node|Rack|  Repl|  Total|~~~~~~~~~~Objects~~~~~~~~~~|~~~~~~~~~Tombstones~~~~~~~~|~~~~Pending~~~~
          |               |  ID|Factor|Records| Master|  Prole|Non-Replica| Master|  Prole|Non-Replica|~~~~Migrates~~~
          |               |    |      |       |       |       |           |       |       |           |     Tx|     Rx
-test     |172.17.0.2:3000|   0|     1|0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  |    0.000  |0.000  |0.000
-test     |               |    |      |0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  |    0.000  |0.000  |0.000
+test     |172.17.0.2:3000|   0|     1|0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  
+test     |               |    |      |0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  
 Number of rows: 1
 
 Admin>
