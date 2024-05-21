@@ -119,6 +119,7 @@ EOF
 function parse_args() {
     g_server_edition=
     g_server_version=
+    g_server_maj_min_version=
     g_container_release='1'
     g_tools_version=
 
@@ -161,6 +162,8 @@ function parse_args() {
     done
 
     shift $((OPTIND - 1))
+    
+    g_server_maj_min_version="$(cut -sd . -f 1-2 <<<"${g_server_version}")"
 }
 
 function generate_templates() {
@@ -281,7 +284,8 @@ function do_bake_push_target() {
     fi
 
     output+="    tags=[\"${product}:${g_server_version}\""
-
+    output+=", \"${product}:${g_server_maj_min_version}\""
+    
     if [ -n "${g_container_release}" ]; then
         output+=", \"${product}:${g_server_version}_${g_container_release}\""
     fi
