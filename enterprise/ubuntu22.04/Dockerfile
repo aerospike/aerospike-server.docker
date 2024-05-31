@@ -24,9 +24,9 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 ARG AEROSPIKE_EDITION="enterprise"
 
 ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.1.0.0/aerospike-server-enterprise_7.1.0.0_tools-11.0.0_ubuntu22.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="db6b69aa3e4a39ae6ec9f23845f98bfc12a2cb40672648f860cbc88e9ebc1999"
+ARG AEROSPIKE_SHA_X86_64="6046f85cd37ebbbca8f3ad7a2079954a223de5a433ddb34104a8362846bdd002"
 ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.1.0.0/aerospike-server-enterprise_7.1.0.0_tools-11.0.0_ubuntu22.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="2d253419b4c7a8b7a4b7416d22fbfdc46ee1e25df9c1d75ce38d3be0f62b5a53"
+ARG AEROSPIKE_SHA_AARCH64="20f50036269a1b59b611dae35952f80f77fdd549355590011af9fa51c7c1a94f"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
