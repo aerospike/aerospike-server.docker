@@ -1,0 +1,12 @@
+  { \
+    # 50-remove-prelude-rpm.part - Remove dependencies for scripts.
+    microdnf remove -y \
+      # binutils - dependency issues on ubi9
+      file \
+      findutils \
+      # gzip - dependency issues on ubi9
+      shadow-utils \
+      tar \
+      xz 2>&1; \
+    microdnf clean all; \
+  }; \
