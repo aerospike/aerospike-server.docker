@@ -48,7 +48,7 @@ function support_distros_for_asd() {
         return
     fi
 
-    if version_compare_gt "7.1" "${version}"; then
+    if version_compare_gt "7.2" "${version}"; then
         echo "ubuntu22.04"
         return
     fi
