@@ -1,4 +1,4 @@
-name: private-aerospike-server.docker
+name: aerospike-server.docker
 
 container:
   - base:
