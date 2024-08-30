@@ -1,0 +1,15 @@
+name: private-aerospike-server.docker
+
+container:
+  - base:
+      - docker.qe.aerospike.com/build/aerospike-tools-alt:ubuntu-20.04
+
+build:
+  - name: default
+    environment:
+      BUILD_TRIGGER: 8-30-24
+
+qe-registry:
+  - dockerfile: enterprise/ubuntu22.04/nightly.Dockerfile
+    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:arm-mrt2
+    allow-rebuild: True
