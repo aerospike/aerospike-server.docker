@@ -2,7 +2,8 @@ name: aerospike-server.docker
 
 container:
   - base:
-      - docker.qe.aerospike.com/build/aerospike-tools-alt:arm-ubuntu-20.04
+      # - docker.qe.aerospike.com/build/aerospike-tools-alt:arm-ubuntu-20.04
+      - docker.qe.aerospike.com/build/aerospike-tools-alt:x86-ubuntu-20.04
 
 build:
   - name: default
