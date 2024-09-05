@@ -2,13 +2,13 @@ name: aerospike-server.docker
 
 container:
   - base:
-      - docker.qe.aerospike.com/build/aerospike-tools-alt:arm-ubuntu-20.04
-      # - docker.qe.aerospike.com/build/aerospike-tools-alt:ubuntu-20.04
+      # - docker.qe.aerospike.com/build/aerospike-tools-alt:arm-ubuntu-20.04
+      - docker.qe.aerospike.com/build/aerospike-tools-alt:ubuntu-20.04
 
 build:
   - name: default
     environment:
-      BUILD_TRIGGER: 9-5-24-1
+      BUILD_TRIGGER: 9-5-24-2
 
 qe-registry:
   - dockerfile: enterprise/ubuntu22.04/nightly.Dockerfile
