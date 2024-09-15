@@ -14,31 +14,31 @@ group "test" {
 }
 
 target "enterprise_ubuntu22-04_amd64" {
-    tags=["aerospike/aerospike-server-enterprise-amd64:7.1.0.6", "aerospike/aerospike-server-enterprise-amd64:latest"]
+    tags=["aerospike/aerospike-server-enterprise-amd64:6.4.0.23", "aerospike/aerospike-server-enterprise-amd64:latest"]
     platforms=["linux/amd64"]
     context="./enterprise/ubuntu22.04"
 }
 
 target "enterprise_ubuntu22-04_arm64" {
-    tags=["aerospike/aerospike-server-enterprise-arm64:7.1.0.6", "aerospike/aerospike-server-enterprise-arm64:latest"]
+    tags=["aerospike/aerospike-server-enterprise-arm64:6.4.0.23", "aerospike/aerospike-server-enterprise-arm64:latest"]
     platforms=["linux/arm64"]
     context="./enterprise/ubuntu22.04"
 }
 
 target "federal_ubuntu22-04_amd64" {
-    tags=["aerospike/aerospike-server-federal-amd64:7.1.0.6", "aerospike/aerospike-server-federal-amd64:latest"]
+    tags=["aerospike/aerospike-server-federal-amd64:6.4.0.23", "aerospike/aerospike-server-federal-amd64:latest"]
     platforms=["linux/amd64"]
     context="./federal/ubuntu22.04"
 }
 
 target "community_ubuntu22-04_amd64" {
-    tags=["aerospike/aerospike-server-community-amd64:7.1.0.6", "aerospike/aerospike-server-community-amd64:latest"]
+    tags=["aerospike/aerospike-server-community-amd64:6.4.0.23", "aerospike/aerospike-server-community-amd64:latest"]
     platforms=["linux/amd64"]
     context="./community/ubuntu22.04"
 }
 
 target "community_ubuntu22-04_arm64" {
-    tags=["aerospike/aerospike-server-community-arm64:7.1.0.6", "aerospike/aerospike-server-community-arm64:latest"]
+    tags=["aerospike/aerospike-server-community-arm64:6.4.0.23", "aerospike/aerospike-server-community-arm64:latest"]
     platforms=["linux/arm64"]
     context="./community/ubuntu22.04"
 }
@@ -50,19 +50,19 @@ group "push" {
 }
 
 target "enterprise_ubuntu22-04" {
-    tags=["aerospike/aerospike-server-enterprise:7.1.0.6", "aerospike/aerospike-server-enterprise:7.1.0.6_1", "aerospike/aerospike-server-enterprise:latest"]
+    tags=["aerospike/aerospike-server-enterprise:6.4.0.23", "aerospike/aerospike-server-enterprise:6.4.0.23_2"]
     platforms=["linux/amd64,linux/arm64"]
     context="./enterprise/ubuntu22.04"
 }
 
 target "federal_ubuntu22-04" {
-    tags=["aerospike/aerospike-server-federal:7.1.0.6", "aerospike/aerospike-server-federal:7.1.0.6_1", "aerospike/aerospike-server-federal:latest"]
+    tags=["aerospike/aerospike-server-federal:6.4.0.23", "aerospike/aerospike-server-federal:6.4.0.23_2"]
     platforms=["linux/amd64"]
     context="./federal/ubuntu22.04"
 }
 
 target "community_ubuntu22-04" {
-    tags=["aerospike/aerospike-server:7.1.0.6", "aerospike/aerospike-server:7.1.0.6_1", "aerospike/aerospike-server:latest"]
+    tags=["aerospike/aerospike-server:6.4.0.23", "aerospike/aerospike-server:6.4.0.23_2"]
     platforms=["linux/amd64,linux/arm64"]
     context="./community/ubuntu22.04"
 }
