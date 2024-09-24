@@ -8,9 +8,9 @@ container:
 build:
   - name: default
     environment:
-      BUILD_TRIGGER: 9-11-24
+      BUILD_TRIGGER: 9-24-24
 
 qe-registry:
   - dockerfile: enterprise/ubuntu22.04/nightly.Dockerfile
-    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:arm-mrt2
+    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:test
 allow-rebuild: True
