@@ -7,10 +7,10 @@
 
 FROM registry.access.redhat.com/ubi9-minimal
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.9/aerospike-server-enterprise_7.0.0.9_tools-10.2.1_el9_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="a7e3461465f0975438f5fe6599bde0980e03612477b6a0dd01d5d7b4b5367585"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.9/aerospike-server-enterprise_7.0.0.9_tools-10.2.1_el9_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="a606500ce95ca618c2448c6972c0c1c6a51f3eabc74ceefe92abf7541c72626c"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.15/aerospike-server-enterprise_7.0.0.15_tools-10.2.1_el9_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="9758f4b3d57ff891ba3174f536a74deae7985291e4cbc995573e1aeaddb4af05"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.0.0.15/aerospike-server-enterprise_7.0.0.15_tools-10.2.1_el9_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="4f2a6d1c904f8c1c7c1a5304ffc06e16915051dc312c8ac4c04289d21c5087de"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -49,7 +49,12 @@ RUN \
       echo "Unsuported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    curl -fsSL "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static; \
+    tini_link="https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}"; \
+    if [ "$(curl -fsSL "${tini_link}" --output /usr/bin/as-tini-static --write-out "%{response_code}")" != "200" ]; then \
+      echo "Could not fetch pkg - ${tini_link}" >&2; \
+      cat /usr/bin/as-tini-static; \
+      exit 1; \
+    fi; \
     echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -; \
     chmod +x /usr/bin/as-tini-static; \
   }; \
@@ -67,8 +72,9 @@ RUN \
       echo "Unsuported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    if ! curl -fsSL "${pkg_link}" --output aerospike-server.tgz; then \
+    if [ "$(curl -fsSL "${pkg_link}" --output aerospike-server.tgz --write-out "%{response_code}")" != "200" ]; then \
       echo "Could not fetch pkg - ${pkg_link}" >&2; \
+      cat aerospike-server.tgz; \
       exit 1; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
@@ -150,7 +156,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.base.name="docker.io/library/ubi9-minimal" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.0.0.9" \
+      org.opencontainers.image.version="7.0.0.15" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile

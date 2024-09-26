@@ -15,7 +15,12 @@
       echo "Unsuported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    curl -fsSL "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static; \
+    tini_link="https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}"; \
+    if [ "$(curl -fsSL "${tini_link}" --output /usr/bin/as-tini-static --write-out "%{response_code}")" != "200" ]; then \
+      echo "Could not fetch pkg - ${tini_link}" >&2; \
+      cat /usr/bin/as-tini-static; \
+      exit 1; \
+    fi; \
     echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -; \
     chmod +x /usr/bin/as-tini-static; \
   }; \
@@ -33,8 +38,9 @@
       echo "Unsuported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    if ! curl -fsSL "${pkg_link}" --output aerospike-server.tgz; then \
+    if [ "$(curl -fsSL "${pkg_link}" --output aerospike-server.tgz --write-out "%{response_code}")" != "200" ]; then \
       echo "Could not fetch pkg - ${pkg_link}" >&2; \
+      cat aerospike-server.tgz; \
       exit 1; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \

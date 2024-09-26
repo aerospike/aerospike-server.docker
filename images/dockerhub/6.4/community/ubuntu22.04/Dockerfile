@@ -7,10 +7,10 @@
 
 FROM docker.io/ubuntu:22.04
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.16/aerospike-server-community_6.4.0.16_tools-10.0.0_ubuntu22.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="99baf2831a01855d3edb776d07312bf4e852ba2e8ac3eb02bf0a88fa29a31cb6"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.16/aerospike-server-community_6.4.0.16_tools-10.0.0_ubuntu22.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="4df9ef7ab5b14c484970a0995d52f7335586f6132f5fcd173389e63e51f66961"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.23/aerospike-server-community_6.4.0.23_tools-10.0.0_ubuntu22.04_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="1d38b1893235c24c4538a14e91711638bc1384a5c7bad9c455a41038dae05f8f"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.4.0.23/aerospike-server-community_6.4.0.23_tools-10.0.0_ubuntu22.04_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="20a793a3fc5b001567e2da3b427fcd42f9802e2899c3f43a5e4ed4915244e7fa"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -49,7 +49,12 @@ RUN \
       echo "Unsuported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    curl -fsSL "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static; \
+    tini_link="https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}"; \
+    if [ "$(curl -fsSL "${tini_link}" --output /usr/bin/as-tini-static --write-out "%{response_code}")" != "200" ]; then \
+      echo "Could not fetch pkg - ${tini_link}" >&2; \
+      cat /usr/bin/as-tini-static; \
+      exit 1; \
+    fi; \
     echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -; \
     chmod +x /usr/bin/as-tini-static; \
   }; \
@@ -67,8 +72,9 @@ RUN \
       echo "Unsuported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    if ! curl -fsSL "${pkg_link}" --output aerospike-server.tgz; then \
+    if [ "$(curl -fsSL "${pkg_link}" --output aerospike-server.tgz --write-out "%{response_code}")" != "200" ]; then \
       echo "Could not fetch pkg - ${pkg_link}" >&2; \
+      cat aerospike-server.tgz; \
       exit 1; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
@@ -156,7 +162,7 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.base.name="docker.io/library/ubuntu:22.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="6.4.0.16" \
+      org.opencontainers.image.version="6.4.0.23" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # Add the Aerospike configuration specific to this dockerfile
