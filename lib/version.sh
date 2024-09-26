@@ -2,9 +2,10 @@
 
 source lib/fetch.sh
 source lib/globals.sh
+source lib/log.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
-RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]*[-]g[0-9a-z]*)?'
+RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-(alpa|beta|rc)[0-9]+)?([-][0-9]*[-]g[0-9a-z]*)?'
 
 function version_compare_gt() {
     v1=$1
@@ -64,7 +65,7 @@ function find_latest_tools_version_for_server() {
     local tools_version
     tools_version="$(
         fetch "${FUNCNAME[0]}" "${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/" |
-            grep -oE "_tools-[0-9.-]+(-rc[0-9]+)?(-g[a-f0-9]{7})?_${distro}_x86_64.tgz" |
+            grep -oE "_tools-[0-9.-]+(-[a-z0-9]+)?(-g[a-f0-9]{7})?_${distro}_x86_64.tgz" |
             cut -d _ -f 2 |
             sort -V |
             tail -1
@@ -132,5 +133,5 @@ function get_version_from_dockerfile() {
     local edition=$4
 
     grep "ARG AEROSPIKE_X86_64_LINK=" "${g_images_dir}/${registry}/${version}/${edition}/${distro}/Dockerfile" |
-        grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]*[-]g[0-9a-z]*)?/" | tr -d '/' | tail -1
+        grep -oE "/${RE_VERSION}?/" | tr -d '/' | tail -1
 }
