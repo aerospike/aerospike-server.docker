@@ -207,7 +207,7 @@ The storage-engine [`data-in-memory`](https://docs.aerospike.com/reference/confi
 
 #### `DEFAULT_TTL`
 
-The namespace [`default-ttl`](https://docs.aerospike.com/reference/configuration#default-ttl). Default: *30d*
+The namespace [`default-ttl`](https://docs.aerospike.com/reference/configuration#default-ttl). Default: *0*
 
 #### `MEM_GB`
 
@@ -215,7 +215,7 @@ The namespace [`memory-size`](https://docs.aerospike.com/reference/configuration
 
 #### `NSUP_PERIOD`
 
-The namespace [`nsup-period`](https://docs.aerospike.com/reference/configuration#nsup-period). Default: *120* , nsup-period in seconds
+The namespace [`nsup-period`](https://docs.aerospike.com/reference/configuration#nsup-period). Default: *120* , nsup-period in seconds - also disabled when `default-ttl` is `0`.
 
 #### `STORAGE_GB`
 
