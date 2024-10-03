@@ -10,24 +10,36 @@
 #------------------------------------ test -----------------------------------
 
 group "test" {
-    targets=["enterprise_ubuntu20-04_amd64", "federal_ubuntu20-04_amd64", "community_ubuntu20-04_amd64"]
+    targets=["enterprise_ubuntu20-04_amd64", "enterprise_ubuntu20-04_arm64", "federal_ubuntu20-04_amd64", "community_ubuntu20-04_amd64", "community_ubuntu20-04_arm64"]
 }
 
 target "enterprise_ubuntu20-04_amd64" {
-    tags=["aerospike/aerospike-server-enterprise-amd64:6.1.0.42", "aerospike/aerospike-server-enterprise-amd64:latest"]
+    tags=["aerospike/aerospike-server-enterprise-amd64:6.2.0.32", "aerospike/aerospike-server-enterprise-amd64:latest"]
     platforms=["linux/amd64"]
     context="./enterprise/ubuntu20.04"
 }
 
+target "enterprise_ubuntu20-04_arm64" {
+    tags=["aerospike/aerospike-server-enterprise-arm64:6.2.0.32", "aerospike/aerospike-server-enterprise-arm64:latest"]
+    platforms=["linux/arm64"]
+    context="./enterprise/ubuntu20.04"
+}
+
 target "federal_ubuntu20-04_amd64" {
-    tags=["aerospike/aerospike-server-federal-amd64:6.1.0.42", "aerospike/aerospike-server-federal-amd64:latest"]
+    tags=["aerospike/aerospike-server-federal-amd64:6.2.0.32", "aerospike/aerospike-server-federal-amd64:latest"]
     platforms=["linux/amd64"]
     context="./federal/ubuntu20.04"
 }
 
 target "community_ubuntu20-04_amd64" {
-    tags=["aerospike/aerospike-server-community-amd64:6.1.0.42", "aerospike/aerospike-server-community-amd64:latest"]
+    tags=["aerospike/aerospike-server-community-amd64:6.2.0.32", "aerospike/aerospike-server-community-amd64:latest"]
     platforms=["linux/amd64"]
+    context="./community/ubuntu20.04"
+}
+
+target "community_ubuntu20-04_arm64" {
+    tags=["aerospike/aerospike-server-community-arm64:6.2.0.32", "aerospike/aerospike-server-community-arm64:latest"]
+    platforms=["linux/arm64"]
     context="./community/ubuntu20.04"
 }
 
@@ -38,20 +50,20 @@ group "push" {
 }
 
 target "enterprise_ubuntu20-04" {
-    tags=["aerospike/aerospike-server-enterprise:6.1.0.42", "aerospike/aerospike-server-enterprise:6.1.0.42_1"]
-    platforms=["linux/amd64"]
+    tags=["aerospike/aerospike-server-enterprise:6.2.0.32", "aerospike/aerospike-server-enterprise:6.2.0.32_1"]
+    platforms=["linux/amd64,linux/arm64"]
     context="./enterprise/ubuntu20.04"
 }
 
 target "federal_ubuntu20-04" {
-    tags=["aerospike/aerospike-server-federal:6.1.0.42", "aerospike/aerospike-server-federal:6.1.0.42_1"]
+    tags=["aerospike/aerospike-server-federal:6.2.0.32", "aerospike/aerospike-server-federal:6.2.0.32_1"]
     platforms=["linux/amd64"]
     context="./federal/ubuntu20.04"
 }
 
 target "community_ubuntu20-04" {
-    tags=["aerospike/aerospike-server:6.1.0.42", "aerospike/aerospike-server:6.1.0.42_1"]
-    platforms=["linux/amd64"]
+    tags=["aerospike/aerospike-server:6.2.0.32", "aerospike/aerospike-server:6.2.0.32_1"]
+    platforms=["linux/amd64,linux/arm64"]
     context="./community/ubuntu20.04"
 }
 
