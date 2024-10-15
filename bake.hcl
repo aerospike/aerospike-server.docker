@@ -50,19 +50,19 @@ group "push" {
 }
 
 target "enterprise_ubuntu24-04" {
-    tags=["aerospike/aerospike-server-enterprise:7.2.0.1", "aerospike/aerospike-server-enterprise:7.2.0.1_1", "aerospike/aerospike-server-enterprise:latest"]
+    tags=["aerospike/aerospike-server-enterprise:7.2.0.1", "aerospike/aerospike-server-enterprise:7.2.0.1_2", "aerospike/aerospike-server-enterprise:latest"]
     platforms=["linux/amd64,linux/arm64"]
     context="./enterprise/ubuntu24.04"
 }
 
 target "federal_ubuntu24-04" {
-    tags=["aerospike/aerospike-server-federal:7.2.0.1", "aerospike/aerospike-server-federal:7.2.0.1_1", "aerospike/aerospike-server-federal:latest"]
+    tags=["aerospike/aerospike-server-federal:7.2.0.1", "aerospike/aerospike-server-federal:7.2.0.1_2", "aerospike/aerospike-server-federal:latest"]
     platforms=["linux/amd64"]
     context="./federal/ubuntu24.04"
 }
 
 target "community_ubuntu24-04" {
-    tags=["aerospike/aerospike-server:7.2.0.1", "aerospike/aerospike-server:7.2.0.1_1", "aerospike/aerospike-server:latest"]
+    tags=["aerospike/aerospike-server:7.2.0.1", "aerospike/aerospike-server:7.2.0.1_2", "aerospike/aerospike-server:latest"]
     platforms=["linux/amd64,linux/arm64"]
     context="./community/ubuntu24.04"
 }
