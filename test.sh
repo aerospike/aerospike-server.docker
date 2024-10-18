@@ -76,14 +76,16 @@ function run_docker() {
 
     log_info "------ Running docker image ${IMAGE_TAG} ..."
 
-    if [ "${EDITION}" = "community" ] || version_compare_gt "${version}" "6.1"; then
-        verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
-            "${IMAGE_TAG}"
+    if [ "${EDITION}" = "community" ] ||
+           version_compare_gt "${version}" "6.1"; then
+        verbose_call docker run -td --name "${CONTAINER}" -e "DEFAULT_TTL=30d" \
+            "${PLATFORM/#/"--platform="}" "${IMAGE_TAG}"
     else
         # Must supply a feature key when version is prior to 6.1.
-        verbose_call docker run -td --name "${CONTAINER}" "${PLATFORM/#/"--platform="}" \
-            -v "/$(pwd)/res/":/asfeat/ -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" \
-            "${IMAGE_TAG}"
+        verbose_call docker run -td --name "${CONTAINER}" \
+            "${PLATFORM/#/"--platform="}" -v "/$(pwd)/res/":/asfeat/ \
+            -e "DEFAULT_TTL=30d" \
+            -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" "${IMAGE_TAG}"
     fi
 }
 
@@ -171,6 +173,14 @@ function check_container() {
         log_success "(${tool}) Aerospike database has namespace 'test' - '${namespace}'"
     else
         log_failure "**(${tool}) Aerospike database does not have namespace 'test' - '${namespace}'"
+    fi
+
+    default_ttl=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v "get-config:context=namespace;id=test" -l' | grep default-ttl | grep -oE "[0-9]+")
+
+    if (( ${default_ttl} == 2592000 )); then
+        log_success "Found expected 30d ttl - '${default_ttl}'"
+    else
+        log_failure "Did not find expected 30d ttl - '${default_ttl}'"
     fi
 
     log_info "------ Verify docker image completed successfully"
