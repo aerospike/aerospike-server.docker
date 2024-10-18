@@ -76,8 +76,7 @@ function run_docker() {
 
     log_info "------ Running docker image ${IMAGE_TAG} ..."
 
-    if [ "${EDITION}" = "community" ] ||
-           version_compare_gt "${version}" "6.1"; then
+    if [ "${EDITION}" = "community" ] || version_compare_gt "${version}" "6.1"; then
         verbose_call docker run -td --name "${CONTAINER}" -e "DEFAULT_TTL=30d" \
             "${PLATFORM/#/"--platform="}" "${IMAGE_TAG}"
     else
@@ -177,7 +176,7 @@ function check_container() {
 
     default_ttl=$(try 5 docker exec -t "${CONTAINER}" bash -c 'asinfo -v "get-config:context=namespace;id=test" -l' | grep default-ttl | grep -oE "[0-9]+")
 
-    if (( ${default_ttl} == 2592000 )); then
+    if ((default_ttl == 2592000)); then
         log_success "Found expected 30d ttl - '${default_ttl}'"
     else
         log_failure "Did not find expected 30d ttl - '${default_ttl}'"
