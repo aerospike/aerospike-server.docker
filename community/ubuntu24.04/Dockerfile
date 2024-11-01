@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:22.04" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.1.0.9" \
+      org.opencontainers.image.version="7.2.0.3" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,10 +23,10 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.1.0.9/aerospike-server-community_7.1.0.9_tools-11.0.2_ubuntu22.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="8b8eef08f55d0049fa3cccf781646fd41738d7899ca0c6551446c92fb436d28d"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.1.0.9/aerospike-server-community_7.1.0.9_tools-11.0.2_ubuntu22.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="c2eb28953890c96be420b5a4eba997912fc122fbb11bc637b5cd84edf85ad638"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.2.0.3/aerospike-server-community_7.2.0.3_tools-11.1.0_ubuntu24.04_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="d3a1c213879fd459ca340fc6fd57a16e07f0c7196cc88ee4bb6adba5099b6c6e"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/7.2.0.3/aerospike-server-community_7.2.0.3_tools-11.1.0_ubuntu24.04_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="537b8c8e02e4c8878ca057942d6af663555ee25ff859d08e35b07c0c445339e0"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
