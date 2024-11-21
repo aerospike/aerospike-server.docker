@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:24.04
+FROM ubuntu:20.04
 
-LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
+LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:20.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.2.0.3" \
+      org.opencontainers.image.version="6.1.0.44" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,12 +21,12 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="enterprise"
+ARG AEROSPIKE_EDITION="federal"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.2.0.3/aerospike-server-enterprise_7.2.0.3_tools-11.1.0_ubuntu24.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="b165d757b6877dca3750f29e6acc836bdd8888e4d9fca62940fd19cb2bdd08a7"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.2.0.3/aerospike-server-enterprise_7.2.0.3_tools-11.1.0_ubuntu24.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="8b9efedcda5e92be7f27e987eb46aeb4cd439106d86a744ba971adfb828c8a9f"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/6.1.0.44/aerospike-server-federal-6.1.0.44-ubuntu20.04.tgz"
+ARG AEROSPIKE_SHA_X86_64="fa074e3c445d8eb70e5afee1db77b60f75dbe90c4022e3fd8021bf151db7ea6b"
+ARG AEROSPIKE_AARCH64_LINK=""
+ARG AEROSPIKE_SHA_AARCH64=""
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
