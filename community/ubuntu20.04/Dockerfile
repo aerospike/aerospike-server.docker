@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:24.04
+FROM ubuntu:20.04
 
 LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:20.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.0.0.0-rc3" \
+      org.opencontainers.image.version="6.1.0.46" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,10 +23,10 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="community"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/8.0.0.0-rc3/aerospike-server-community_8.0.0.0-rc3_tools-11.1.1_ubuntu24.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="f88caea1358954ef8b31b21ea7e0e258f436a7a82636dafa087b6eaea92b7329"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/8.0.0.0-rc3/aerospike-server-community_8.0.0.0-rc3_tools-11.1.1_ubuntu24.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="93bcf5c99b7ee1e9def9712993394d9452fb8ccdc25e53edf2f698c0d74dac62"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/6.1.0.46/aerospike-server-community-6.1.0.46-ubuntu20.04.tgz"
+ARG AEROSPIKE_SHA_X86_64="c5dd04de750145d7392f030abcba905cff0b890873ed3f0abdf82c2f86b79866"
+ARG AEROSPIKE_AARCH64_LINK=""
+ARG AEROSPIKE_SHA_AARCH64=""
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 

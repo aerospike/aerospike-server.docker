@@ -5,15 +5,15 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:24.04
+FROM ubuntu:20.04
 
 LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:20.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.0.0.0-rc3" \
+      org.opencontainers.image.version="6.1.0.46" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,10 +23,10 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="enterprise"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/8.0.0.0-rc3/aerospike-server-enterprise_8.0.0.0-rc3_tools-11.1.1_ubuntu24.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="05c361f97d96178b5c832f0510e06ce58f3bd2f7f4667d20eb4e462eed0a1e1a"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/8.0.0.0-rc3/aerospike-server-enterprise_8.0.0.0-rc3_tools-11.1.1_ubuntu24.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="bafa444be0767f5698304e30bf8fc33822b51998c5351e93af6600fade4dc77c"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/6.1.0.46/aerospike-server-enterprise-6.1.0.46-ubuntu20.04.tgz"
+ARG AEROSPIKE_SHA_X86_64="c9c4c1a628322c64174489f5509aae586cd724ef6b77109e1b95b476f98ca617"
+ARG AEROSPIKE_AARCH64_LINK=""
+ARG AEROSPIKE_SHA_AARCH64=""
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
