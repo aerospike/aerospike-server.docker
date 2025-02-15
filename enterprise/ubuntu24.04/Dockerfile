@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.2.0.8" \
+      org.opencontainers.image.version="8.0.0.3" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,10 +23,10 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="enterprise"
 
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.2.0.8/aerospike-server-enterprise_7.2.0.8_tools-11.2.0_ubuntu24.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="b120f610e9eb2c8138d752a4dcc723bee8a5d4ac82735f5f2914ad0e71d46209"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.2.0.8/aerospike-server-enterprise_7.2.0.8_tools-11.2.0_ubuntu24.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="80213902a07e42e7670ec14832e3312233979c637c60d044a3e7396fc1cc821a"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/8.0.0.3/aerospike-server-enterprise_8.0.0.3_tools-11.2.0_ubuntu24.04_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="788ced5386fe117270dbae762a622f3258febd1a3a2f031f981f0c9fc855ed83"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/8.0.0.3/aerospike-server-enterprise_8.0.0.3_tools-11.2.0_ubuntu24.04_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="a1c33abd94a79bed4da806b4d10f04f0feecb1b9e9e90cad43894331e45b20b3"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
