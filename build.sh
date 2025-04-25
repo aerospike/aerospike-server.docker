@@ -163,6 +163,7 @@ function get_product_tags() {
     local product=$1
     local version=$2
     local distro=$3
+    local ubi=""
 
     if [ -z "${distro}" ]; then
         local distro_prefix=
@@ -170,10 +171,14 @@ function get_product_tags() {
         local distro_prefix="-${distro}"
     fi
 
-    local output="\"${product}:${g_server_version}${distro_prefix}\""
+    if [[ "${distro}" =~ "el" ]]; then
+       ubi='-ubi'
+    fi
 
-    output+=", \"${product}:${g_server_version}${distro_prefix}-${g_container_release}\""
-    output+=", \"${product}:${version}${distro_prefix}\""
+    local output="\"${product}${ubi}:${g_server_version}${distro_prefix}\""
+
+    output+=", \"${product}${ubi}:${g_server_version}${distro_prefix}-${g_container_release}\""
+    output+=", \"${product}${ubi}:${version}${distro_prefix}\""
 
     echo "${output}"
 }
@@ -188,13 +193,16 @@ function do_bake_test_target() {
     version_path="$(support_image_path "${g_registry}" "${version}" \
         "${edition}" "${distro_dir}")"
     local output=""
-
+    local ubi=""
+    if [[ "${distro}" =~ "el" ]]; then
+       ubi='-ubi'
+    fi
     for platform in "${c_platforms[@]}"; do
         local short_platform="${platform#*/}"
         local target_str=
         target_str="$(get_target_name "${version}" "${distro}" \
             "${edition}" "${short_platform}")"
-        local product="aerospike/aerospike-server-${edition}-${short_platform}"
+	local product="aerospike/aerospike-server-${edition}${ubi}-${short_platform}"
 
         output+="target \"${target_str}\" {\n"
         output+="    tags=["
@@ -220,10 +228,16 @@ function do_bake_push_target() {
     # FIXME use get_target_name()
     local target_str="${edition}_${distro/\./-}"
     local output="target \"${target_str}\" {\n"
+    local ubi=""
+
+    if [[ "${distro}" =~ "el" ]]; then
+       ubi='-ubi'
+    fi
+
     local product="aerospike/aerospike-server"
 
     if [ "${edition}" != "community" ]; then
-        product+="-${edition}"
+        product+="-${edition}${ubi}"
     fi
 
     output+="    tags=["
@@ -232,7 +246,7 @@ function do_bake_push_target() {
         output+="$(get_product_tags "${product}" "${version}" "")"
 
         if [ "${g_latest_version}" = "${g_server_version}" ]; then
-            output+=", \"${product}:latest\""
+            output+=", \"${product}${ubi}:latest\""
         fi
 
         output+=",\n    "
