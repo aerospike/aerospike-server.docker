@@ -10,6 +10,10 @@ build:
     environment:
       BUILD_TRIGGER: 9-5-24-6
 
+cross-repo-docker-build:
+  - repo: git@github.com:citrusleaf/qe-docker.git
+  - directory: build/aerospike-tools-alt
+
 qe-registry:
   - dockerfile: enterprise/ubuntu22.04/nightly.Dockerfile
     tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:arm-mrt2
