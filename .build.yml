@@ -10,7 +10,7 @@ build:
     environment:
       BUILD_TRIGGER: 9-5-24-6
 
-cross-repo-docker-build:
+cross-repo-docker:
   - repo: git@github.com:citrusleaf/qe-docker.git
   - directory: build/aerospike-tools-alt
 
