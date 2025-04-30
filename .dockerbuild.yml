@@ -1,5 +1,6 @@
 cross-repo-docker:
   - repo: git@github.com:citrusleaf/qe-docker.git
+    directory: build/aerospike-tools-alt/
     dockerfile: build/aerospike-tools-alt/arm-rhel-8.Dockerfile
-    tag: docker.qe.aerospike.com/build/aerospike-tools-alt/docker.qe.aerospike.com
+    tag: docker.qe.aerospike.com/build/aerospike-tools-alt:arm-rhel-8
       
