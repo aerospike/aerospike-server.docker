@@ -8,11 +8,7 @@ container:
 build:
   - name: default
     environment:
-      BUILD_TRIGGER: 9-5-24-6
-
-# cross-repo-docker:
-#   - repo: git@github.com:citrusleaf/qe-docker.git
-#   - directory: build/aerospike-tools-alt
+      BUILD_TRIGGER: 5-1-2025-1
 
 qe-registry:
   - dockerfile: enterprise/ubuntu22.04/nightly.Dockerfile
