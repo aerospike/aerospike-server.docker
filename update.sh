@@ -345,7 +345,7 @@ function main() {
         g_server_version=$(find_latest_server_version)
         g_latest_version=g_server_version
     else
-        g_server_version=$(find_latest_server_version_for_lineage "${g_server_version}")
+#        g_server_version=$(find_latest_server_version_for_lineage "${g_server_version}")
         g_latest_version=$(find_latest_server_version)
     fi
 
