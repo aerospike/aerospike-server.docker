@@ -5,7 +5,7 @@ set -Eeuo pipefail
 source lib/fetch.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
-RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*([-_a-z0-9]*)*'
+RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*[-_a-z0-9]*'
 
 function version_compare_gt() {
     v1=$1
@@ -130,5 +130,5 @@ function get_version_from_dockerfile() {
     local distro=$1
     local edition=$2
 
-    grep "ARG AEROSPIKE_X86_64_LINK=" "${edition}/${distro}/Dockerfile" | grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*([-_a-z0-9]*)*/" | tr -d '/' | tail -1
+    grep "ARG AEROSPIKE_X86_64_LINK=" "${edition}/${distro}/Dockerfile" | grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*[-_a-z0-9]*/" | tr -d '/' | tail -1
 }
