@@ -1,25 +1,27 @@
   { \
-    # 30-install-tools.part - install asinfo and asadm.
-    find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
-    mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2" | sort -V | head -1)" != "${VERSION}" ]; then \
-       mv aerospike/pkg/opt/aerospike/bin/aql /usr/bin; \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "8.1" | sort -V | head -1)" != "${VERSION}" ]; then \
+      # 30-install-tools.part - install asinfo and asadm.
+      find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
+      mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
+      if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2" | sort -V | head -1)" != "${VERSION}" ]; then \
+         mv aerospike/pkg/opt/aerospike/bin/aql /usr/bin; \
+      fi; \
+      if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
+        # Since tools release 7.0.5, asadm has been moved from
+        # /opt/aerospike/bin/asadm to /opt/aerospike/bin/asadm/asadm
+        # (inside an asadm directory).
+        mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
+      else \
+        mkdir /usr/lib/asadm; \
+        mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/; \
+      fi; \
+      ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+      if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then \
+        # Since tools release 7.1.1, asinfo has been moved from
+        # /opt/aerospike/bin/asinfo to /opt/aerospike/bin/asadm/asinfo
+        # (inside an asadm directory).
+        mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/; \
+      fi; \
+      ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
     fi; \
-    if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
-      # Since tools release 7.0.5, asadm has been moved from
-      # /opt/aerospike/bin/asadm to /opt/aerospike/bin/asadm/asadm
-      # (inside an asadm directory).
-      mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
-    else \
-      mkdir /usr/lib/asadm; \
-      mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/; \
-    fi; \
-    ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
-    if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then \
-      # Since tools release 7.1.1, asinfo has been moved from
-      # /opt/aerospike/bin/asinfo to /opt/aerospike/bin/asadm/asinfo
-      # (inside an asadm directory).
-      mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/; \
-    fi; \
-    ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
   }; \
