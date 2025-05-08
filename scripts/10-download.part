@@ -33,16 +33,22 @@
       echo "Unsuported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    if ! curl -fsSL "${pkg_link}" --output aerospike-server.tgz; then \
-      echo "Could not fetch pkg - ${pkg_link}" >&2; \
-      exit 1; \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "8.1" | sort -V | head -1)" != "${VERSION}" ]; then \
+      if ! curl -fsSL "${pkg_link}" --output aerospike-server.tgz; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
+      echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
+      tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
+      rm aerospike-server.tgz; \
+    else \
+      if ! curl -fsSL "${pkg_link}" --output aerospike-server.deb; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
+      echo "${sha256} aerospike-server.deb" | sha256sum -c -; \
+      mv aerospike-server.deb  aerospike\aerospike-server-.deb; \
     fi; \
-    echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
-    tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
-    rm aerospike-server.tgz; \
     # These directories are required for backward compatibility.
     mkdir -p /var/{log,run}/aerospike; \
-    # Copy license file to standard location.
-    mkdir -p /licenses; \
-    cp aerospike/LICENSE /licenses; \
   }; \

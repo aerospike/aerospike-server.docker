@@ -4,7 +4,12 @@ set -Eeuo pipefail
 
 source lib/fetch.sh
 
-ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
+if (( $(echo  "$g_server_version < 8.1" | bc -l) )); then
+    ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://aerospike.jfrog.io/artifactory/devops-deb-test"}
+else
+    ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"} 
+fi	
+
 RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*[-_a-z0-9]*'
 
 function version_compare_gt() {
@@ -99,8 +104,13 @@ function get_package_link() {
             return
         fi
 
-        # Package names 6.2 and later.
-        link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}_tools-${tools_version}_${distro}_${arch}.tgz"
+	if version_compare_gt "${server_version}" "8.1"; then
+	   # 8.1 and later
+	   link="${ARTIFACTS_DOMAIN}/${edition}/${server_version}/aerospike-server-${edition}_${server_version}-1${distro}_${arch}.deb"
+        else
+           # 6.2 or later but prior to 8.1		
+           link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}_tools-${tools_version}_${distro}_${arch}.tgz"
+	fi	
     fi
 
     echo "${link}"
