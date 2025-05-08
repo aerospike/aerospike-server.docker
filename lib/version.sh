@@ -4,12 +4,7 @@ set -Eeuo pipefail
 
 source lib/fetch.sh
 
-if (( $(echo  "$g_server_version < 8.1" | bc -l) )); then
-    ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://aerospike.jfrog.io/artifactory/devops-deb-test"}
-else
-    ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"} 
-fi	
-
+ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"} 
 RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*[-_a-z0-9]*'
 
 function version_compare_gt() {
