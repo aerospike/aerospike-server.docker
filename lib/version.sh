@@ -101,7 +101,13 @@ function get_package_link() {
 
 	if version_compare_gt "${server_version}" "8.1"; then
 	   # 8.1 and later
-	   link="${ARTIFACTS_DOMAIN}/${edition}/${server_version}/aerospike-server-${edition}_${server_version}-1${distro}_${arch}.deb"
+	   if [ "${arch}" = "aarch64" ]; then
+	      arch="arm64"
+	   elif [ "${arch}" = "x86_64" ]; then
+              arch="amd64"
+           fi	      
+
+	   link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}-1${distro}_${arch}.deb"
         else
            # 6.2 or later but prior to 8.1		
            link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}_tools-${tools_version}_${distro}_${arch}.tgz"

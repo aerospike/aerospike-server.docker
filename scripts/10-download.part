@@ -47,7 +47,7 @@
         exit 1; \
       fi; \
       echo "${sha256} aerospike-server.deb" | sha256sum -c -; \
-      mv aerospike-server.deb  aerospike\aerospike-server-.deb; \
+      mv aerospike-server.deb  aerospike/aerospike-server-.deb; \
     fi; \
     # These directories are required for backward compatibility.
     mkdir -p /var/{log,run}/aerospike; \
