@@ -1,6 +1,6 @@
   { \
     # 10-download.part - Vars used for tini and tools.
-    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-rc[0-9]+)?([-][0-9]+[-]g[0-9a-z]*)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
+    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*[-_a-z0-9]*/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
   }; \
   { \
     # 10-common.part - Install tini.
@@ -38,14 +38,23 @@
       echo "Unsuported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    if [ "$(curl -fsSL "${pkg_link}" --output aerospike-server.tgz --write-out "%{response_code}")" != "200" ]; then \
-      echo "Could not fetch pkg - ${pkg_link}" >&2; \
-      cat aerospike-server.tgz; \
-      exit 1; \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "8.1" | sort -V | head -1)" != "${VERSION}" ]; then \
+      if [ "$(curl -fsSL "${pkg_link}" --output aerospike-server.tgz --write-out "%{response_code}")" != "200" ]; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        cat aerospike-server.tgz; \
+        exit 1; \
+      fi; \
+      echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
+      tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
+      rm -f aerospike-server.tgz; \
+    else \
+      if ! curl -fsSL "${pkg_link}" --output aerospike-server-; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
+      echo "${sha256} aerospike-server-" | sha256sum -c -; \
+      #mv aerospike-server.deb  aerospike/aerospike-server-; \
     fi; \
-    echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
-    tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
-    rm -f aerospike-server.tgz; \
     # These directories are required for backward compatibility.
     mkdir -p /var/{log,run}/aerospike; \
     # Copy license file to standard location.

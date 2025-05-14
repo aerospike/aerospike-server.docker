@@ -4,8 +4,9 @@ source lib/fetch.sh
 source lib/globals.sh
 source lib/log.sh
 
-ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
-RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-(alpa|beta|rc)[0-9]+)?([-][0-9]*[-]g[0-9a-z]*)?'
+#ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
+ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://stage.aerospike.com/artifacts/docker"}
+RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*[-_a-z0-9]*'
 
 function version_compare_gt() {
     v1=$1
@@ -82,6 +83,7 @@ function get_package_link() {
     local arch=$5
 
     local link=
+    local rpm_version="${server_version//-/_}"
 
     if version_compare_gt "6.2" "${server_version}"; then
         if [ "${arch}" = "aarch64" ]; then
@@ -100,7 +102,22 @@ function get_package_link() {
         fi
 
         # Package names 6.2 and later.
-        link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}_tools-${tools_version}_${distro}_${arch}.tgz"
+        if version_compare_gt "${server_version}" "8.1"; then
+           # 8.1 and later
+           if [[ $distro =~ "el" ]]; then
+              link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}-${rpm_version}-1.${distro}.${arch}.rpm"
+           else
+              if [ "${arch}" = "aarch64" ]; then
+                 arch="arm64"
+              elif [ "${arch}" = "x86_64" ]; then
+                 arch="amd64"
+              fi
+              link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}-1${distro}_${arch}.deb"
+           fi
+        else
+           # 6.2 or later but prior to 8.1              
+           link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}_tools-${tools_version}_${distro}_${arch}.tgz"
+        fi
     fi
 
     echo "${link}"

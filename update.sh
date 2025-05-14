@@ -72,7 +72,7 @@ function parse_args() {
     log_info "g_filter_distros: (${temp%" "})"
 
     for full_ver in "${g_filter_full_versions[@]}"; do
-        short_ver=$(sed -E 's/(\.[0-9]+){2}(-rc.*)?$//' <<<"${full_ver}")
+        short_ver=$(sed -E 's/^([0-9]+\.[0-9]+)\..*/\1/' <<<"${full_ver}")
         g_filter_short_versions+=("${short_ver}")
     done
 
