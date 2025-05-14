@@ -4,8 +4,7 @@ source lib/fetch.sh
 source lib/globals.sh
 source lib/log.sh
 
-#ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
-ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://stage.aerospike.com/artifacts/docker"}
+ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
 RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*[-_a-z0-9]*'
 
 function version_compare_gt() {

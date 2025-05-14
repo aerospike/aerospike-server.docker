@@ -2,6 +2,9 @@
     # 20-install-dependencies-rpm.part - Install server and dependencies.
     rpm -i aerospike/aerospike-server-*; \
     rm -rf /opt/aerospike/bin; \
+    # Copy license file to standard location.
+    mkdir -p /licenses; \
+    cp /opt/aerospike/doc/LICENSE /licenses; \
   }; \
   { \
     # 20-install-dependencies-rpm.part - Install tools dependencies.

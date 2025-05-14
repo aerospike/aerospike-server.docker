@@ -7,6 +7,9 @@
       libldap-2.4.2; \
     dpkg -i aerospike/aerospike-server-*; \
     rm -rf /opt/aerospike/bin; \
+    # Copy license file to standard location.
+    mkdir -p /licenses; \
+    cp /opt/aerospike/doc/LICENSE /licenses; \
   }; \
   { \
     # 20-install-dependencies-deb.part - Install tools dependencies.

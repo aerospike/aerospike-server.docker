@@ -48,16 +48,12 @@
       tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
       rm -f aerospike-server.tgz; \
     else \
-      if ! curl -fsSL "${pkg_link}" --output aerospike-server-; then \
+      if ! curl -fsSL "${pkg_link}" --output aerospike/aerospike-server-; then \
         echo "Could not fetch pkg - ${pkg_link}" >&2; \
         exit 1; \
       fi; \
-      echo "${sha256} aerospike-server-" | sha256sum -c -; \
-      #mv aerospike-server.deb  aerospike/aerospike-server-; \
+      echo "${sha256} aerospike/aerospike-server-" | sha256sum -c -; \
     fi; \
     # These directories are required for backward compatibility.
     mkdir -p /var/{log,run}/aerospike; \
-    # Copy license file to standard location.
-    mkdir -p /licenses; \
-    cp aerospike/LICENSE /licenses; \
   }; \
