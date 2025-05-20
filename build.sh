@@ -175,10 +175,10 @@ function get_product_tags() {
        ubi='-ubi'
     fi
 
-    local output="\"${product}${ubi}:${g_server_version}${distro_prefix}\""
-
-    output+=", \"${product}${ubi}:${g_server_version}${distro_prefix}-${g_container_release}\""
-    output+=", \"${product}${ubi}:${version}${distro_prefix}\""
+    local output="\"${product}${ubi}:${g_server_version}\""
+ 
+    output+=", \"${product}${ubi}:${g_server_version}-${g_container_release}\""
+    output+=", \"${product}${ubi}:${version}\""
 
     echo "${output}"
 }
@@ -237,13 +237,13 @@ function do_bake_push_target() {
     local product="aerospike/aerospike-server"
 
     if [ "${edition}" != "community" ]; then
-        product+="-${edition}${ubi}"
+        product+="-${edition}"
     fi
 
     output+="    tags=["
 
     if [ "${distro}" == "${c_distro_default}" ]; then
-        output+="$(get_product_tags "${product}" "${version}" "")"
+        output+="$(get_product_tags "${product}" "${version}" "${distro}")"
 
         if [ "${g_latest_version}" = "${g_server_version}" ]; then
             output+=", \"${product}${ubi}:latest\""
@@ -252,7 +252,7 @@ function do_bake_push_target() {
         output+=",\n    "
     fi
 
-    output+="$(get_product_tags "${product}" "${version}" "${distro}")"
+#    output+="$(get_product_tags "${product}" "${version}" "${distro}")"
 
     local version_path=
     version_path="$(support_image_path "${g_registry}" "${version}" \
@@ -268,7 +268,7 @@ function do_bake_push_target() {
 
 function build_bake_file() {
     g_latest_version=$(find_latest_server_version)
-    g_container_release="$(date --utc +%Y%m%dT%H%M%SZ -d "@${g_start_time}")"
+    g_container_release="$(date +%Y%m%d -d "@${g_start_time}")"
 
     local test_targets_str=""
     local push_targets_str=""
