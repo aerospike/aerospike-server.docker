@@ -268,7 +268,7 @@ function do_bake_push_target() {
 
 function build_bake_file() {
     g_latest_version=$(find_latest_server_version)
-    g_container_release="$(date +%Y%m%d -d "@${g_start_time}")"
+    g_container_release="$(date --utc +%Y%m%dT%H%M%SZ -d "@${g_start_time}")"
 
     local test_targets_str=""
     local push_targets_str=""

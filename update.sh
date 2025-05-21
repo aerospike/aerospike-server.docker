@@ -304,7 +304,7 @@ function update_version() {
 function main() {
     parse_args "$@"
 
-    rm -rf "${g_images_dir:?}/"*
+#    rm -rf "${g_images_dir:?}/"*
 
     local registry
     for registry in $(support_registries); do
