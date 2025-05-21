@@ -80,4 +80,39 @@ if [ "$1" = 'asd' ]; then
     set -- "$@" --foreground
 fi
 
+telemetry() {
+    # Check if AEROSPIKE_TELEMETRY is set to FALSE, if so, user has opted out.
+    if [ "${AEROSPIKE_TELEMETRY:-"TRUE"}" = "FALSE" ]; then
+        return 0
+    fi
+
+    # Check if curl is on the machine. Silently abort if no curl is found
+    if ! command -v curl >/dev/null 2>&1; then
+        return 0
+    fi
+
+    SERIAL_NUMBER="0"
+    VERSION_FULL="$(asd --version)"
+    VERSION=$(echo "${VERSION_FULL}" | grep -oE "[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+.*$")
+    EDITION=$(echo "${VERSION_FULL}" | grep -oE "Community|Enterprise|Federal")
+    LINUX_BASE="${AEROSPIKE_LINUX_BASE:-"unknown"}"
+
+    if [ "${EDITION}" != "Community" ]; then
+        return 0
+    fi
+
+    if [ -f "${FEATURE_KEY_FILE}" ]; then
+        SERIAL_NUMBER=$(grep -E "^serial-number" "${FEATURE_KEY_FILE}" | grep -oE "[[:digit:]]+$")
+    fi
+
+    # Construct the POST request
+    local TELEMETRY_VERSION="1"
+    local DATA="version=${VERSION}&edition=${EDITION}&linux_base=${LINUX_BASE}&serial_number=${SERIAL_NUMBER}"
+    local AEROSPIKE_BASE_URL="https://telem.aerospike.com/v${TELEMETRY_VERSION}/docker/start/asdb"
+
+    curl --connect-timeout 1 -X POST "${AEROSPIKE_BASE_URL}?${DATA}"
+}
+
+telemetry &>/dev/null &
+
 exec "$@"

@@ -25,7 +25,7 @@
 	-	[Networking](#networking)
 	-	[Configuring the node's access address](#configuring-the-nodes-access-address)
 	-	[Mesh clustering](#mesh-clustering)
--	[Sending Performance Data to Aerospike](#sending-performance-data-to-aerospike)
+-	[Sending telemetry data to Aerospike](#sending-telemetry-data-to-aerospike)
 -	[Image Versions](#image-versions)
 -	[Reporting Issues](#reporting-issues)
 -	[License](#license)
@@ -326,9 +326,11 @@ In order for the Aerospike node to properly broadcast its address to the cluster
 
 See [How do I get a 2 nodes Aerospike cluster running quickly in Docker without editing a single file?](https://medium.com/aerospike-developer-blog/how-do-i-get-a-2-node-aerospike-cluster-running-quickly-in-docker-without-editing-a-single-file-1c2a94564a99?source=friends_link&sk=4ff6a22f0106596c42aa4b77d6cdc3a5)
 
-## Sending Performance Data to Aerospike
+## Sending telemetry data to Aerospike
 
-Aerospike Telemetry is a feature that allows us to collect certain anonymized use data – not the database data – on your Aerospike Community Edition server use. We’d like to know when clusters are created and destroyed, cluster size, cluster workload, how often queries are run, whether instances are deployed purely in-memory or with Flash. Aerospike Telemetry collects information from running Community Edition server instances every 10 minutes. The data helps us to understand how the product is being used, identify issues, and create a better experience for the end user. [More Info](http://www.aerospike.com/aerospike-telemetry/)
+Aerospike Telemetry is a feature that allows us to collect certain anonymized usage data – not the database data – on your Aerospike Community Edition server use. [More Info](http://www.aerospike.com/aerospike-telemetry/)
+
+> [!TIP] Telemetry can be disabled by passing the environment variable `AEROSPIKE_TELEMETRY` to `FALSE` within the container's environment.
 
 ## Image Versions
 
@@ -344,8 +346,8 @@ Community Edition users may report problems or ask questions about this image on
 
 ## License
 
-If you are using the Aerospike Database Enterprise Edition evaluation feature key file, you are operating under the [Aerospike Evaluation License Agreement](https://www.aerospike.com/forms/evaluation-license-agreement/).
+If you are using the Aerospike Database Enterprise Edition evaluation feature key file, you are operating under the [Aerospike Evaluation License Agreement](https://aerospike.com/legal/evaluation-license-agreement/).
 
-If you are using a feature key file you received as part of your commercial enterprise license, you are operating under the [Aerospike Master License Agreement](https://www.aerospike.com/forms/master-license%20-agreement/).
+If you are using a feature key file you received as part of your commercial enterprise license, you are operating under the [Aerospike Master License Agreement](https://aerospike.com/legal/master-license-agreement/).
 
 If you are using Aerospike Database CE refer to the license information in the [aerospike/aerospike-server](https://github.com/aerospike/aerospike-server) repository.
