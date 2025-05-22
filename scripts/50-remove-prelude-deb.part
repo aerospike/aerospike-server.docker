@@ -4,8 +4,6 @@
     dpkg --purge \
       apt-utils \
       binutils \
-      ca-certificates \
-      curl \
       xz-utils 2>&1; \
     apt-get purge -y; \
     apt-get autoremove -y; \

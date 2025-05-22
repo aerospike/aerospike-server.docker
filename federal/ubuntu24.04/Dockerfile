@@ -23,6 +23,7 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="federal"
 
+ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
 ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/7.2.0.10/aerospike-server-federal_7.2.0.10_tools-11.2.2_ubuntu24.04_x86_64.tgz"
 ARG AEROSPIKE_SHA_X86_64="5653522e357c0a8304287b65b42ef28b9dbbc95ead12c4cb1130eec088954943"
 ARG AEROSPIKE_AARCH64_LINK=""
@@ -39,13 +40,11 @@ RUN \
     apt-get install -y --no-install-recommends apt-utils; \
     apt-get install -y --no-install-recommends \
       binutils \
-      ca-certificates \
-      curl \
       xz-utils; \
   }; \
   { \
-    # 00-prelude-deb.part - Install procps for tests.
-    apt-get install -y --no-install-recommends procps; \
+    # 00-prelude-deb.part - Install curl & ca-certificates for telemetry and procps for tests.
+    apt-get install -y --no-install-recommends ca-certificates curl procps; \
   }; \
   { \
     # 10-download.part - Vars used for tini and tools.
@@ -162,8 +161,6 @@ RUN \
     dpkg --purge \
       apt-utils \
       binutils \
-      ca-certificates \
-      curl \
       xz-utils 2>&1; \
     apt-get purge -y; \
     apt-get autoremove -y; \
