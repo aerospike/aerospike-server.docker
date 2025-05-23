@@ -43,20 +43,20 @@ Since server version 6.1, Aerospike EE starts in a single-node cluster evaluatio
 Running Enterprise Edition with default evaluation feature key (versions 6.1+).
 
 ```sh
-docker run -d --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise
+docker run -d --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-enterprise
 ```
 
 Running Enterprise Edition with a feature key file in a mapped directory:
 
 ```sh
-docker run -d -v DIR:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise
+docker run -d -v DIR:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-enterprise
 ```
 
 Running Enterprise Edition with a feature key file in an environment variable:
 
 ```sh
 FEATKEY=$(base64 ~/Desktop/evaluation-features.conf)
-docker run -d -e "FEATURES=$FEATKEY" -e "FEATURE_KEY_FILE=env-b64:FEATURES" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise
+docker run -d -e "FEATURES=$FEATKEY" -e "FEATURE_KEY_FILE=env-b64:FEATURES" --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-enterprise
 ```
 
 Above, *DIR* is a directory on your machine where you drop your feature key file. Make sure Docker Desktop has file sharing permission to bind mount it into Docker containers.
@@ -66,13 +66,13 @@ Above, *DIR* is a directory on your machine where you drop your feature key file
 Running Enterprise Edition for US Federal with default evaluation feature key (versions 6.1+).
 
 ```sh
-docker run -d --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-federal
+docker run -d --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-federal
 ```
 
 Running Aerospike Enterprise Edition for US Federal with a feature key file in a mapped directory:
 
 ```sh
-docker run -d -v DIR:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-federal
+docker run -d -v DIR:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-federal
 ```
 
 Above, *DIR* is a directory on your machine where you drop your feature key file. Make sure Docker Desktop has file sharing permission to bind mount it into Docker containers.
@@ -81,7 +81,7 @@ Running Aerospike Enterprise Edition for US Federal with a feature key file in a
 
 ```sh
 FEATKEY=$(base64 ~/Desktop/evaluation-features.conf)
-docker run -d -e "FEATURES=$FEATKEY" -e "FEATURE_KEY_FILE=env-b64:FEATURES" --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-federal
+docker run -d -e "FEATURES=$FEATKEY" -e "FEATURE_KEY_FILE=env-b64:FEATURES" --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-federal
 ```
 
 #### Community Edition
@@ -91,7 +91,7 @@ By using Aerospike Community Edition you agree to the [COMMUNITY_LICENSE](commun
 Running Aerospike Community Edition:
 
 ```sh
-docker run -d --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server
+docker run -d --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server
 ```
 
 ## Connecting to your Aerospike Container
@@ -170,7 +170,7 @@ You can inject parameters into the default configuration template using containe
 For example, to set the default [namespace](https://docs.aerospike.com/server/architecture/data-model) name to *demo*:
 
 ```sh
-docker run -d --name aerospike -e "NAMESPACE=demo" -p 3000-3002:3000-3002 -v /my/dir:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" aerospike/aerospike-server-enterprise
+docker run -d --name aerospike -e "NAMESPACE=demo" -p 3000-3002:3000-3002 -v /my/dir:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" docker.aerospike.com/aerospike/aerospike-server-enterprise
 ```
 
 Injecting configuration parameters into the configuration template isn't compatible with providing a configuration file. You can use one or the other.
@@ -230,7 +230,7 @@ You should first `-v` map a local directory, which Docker will bind mount. Next,
 For example:
 
 ```sh
-docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise --config-file /opt/aerospike/etc/aerospike.conf
+docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-enterprise --config-file /opt/aerospike/etc/aerospike.conf
 ```
 
 ### Persistent data directory
@@ -240,7 +240,7 @@ With Docker, the files within the container are not persisted past the life of t
 For example:
 
 ```sh
-docker run -d  -v /opt/aerospike/data:/opt/aerospike/data  -v /opt/aerospike/etc:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" aerospike/aerospike-server-enterprise
+docker run -d  -v /opt/aerospike/data:/opt/aerospike/data  -v /opt/aerospike/etc:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" docker.aerospike.com/aerospike/aerospike-server-enterprise
 ```
 
 The example above uses the configuration template, where the single defined namespace is in-memory with file-based persistence. Just mounting the predefined */opt/aerospike/data* directory enables the data to be persisted on the host.
@@ -261,7 +261,7 @@ namespace test {
 In this example we also mount the data directory in a similar way, using a custom configuration file
 
 ```sh
-docker run -d -v /opt/aerospike/data:/opt/aerospike/data -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server-enterprise
+docker run -d -v /opt/aerospike/data:/opt/aerospike/data -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-enterprise --config-file /opt/aerospike/etc/aerospike.conf
 ```
 
 ### Block storage
@@ -283,7 +283,7 @@ namespace test {
 Now to map a host drive /dev/sdc to /dev/xvdc on a container
 
 ```sh
-docker run -d --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server-enterprise
+docker run -d --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-enterprise --config-file /opt/aerospike/etc/aerospike.conf
 ```
 
 ### Persistent Lua cache
@@ -291,7 +291,7 @@ docker run -d --device '/dev/sdc:/dev/xvdc' -v /opt/aerospike/etc/:/opt/aerospik
 Upon restart, your Lua cache will become emptied. To persist the cache, you will want to mount a directory from the host to the container's */opt/aerospike/usr/udf/lua* using the `-v` option:
 
 ```sh
-docker run -d -v /opt/aerospike/lua:/opt/aerospike/usr/udf/lua -v /opt/aerospike/data:/opt/aerospike/data --name aerospike -p 3000-3002:3000-3002 --config-file /opt/aerospike/etc/aerospike.conf aerospike/aerospike-server-enterprise
+docker run -d -v /opt/aerospike/lua:/opt/aerospike/usr/udf/lua -v /opt/aerospike/data:/opt/aerospike/data --name aerospike -p 3000-3002:3000-3002 docker.aerospike.com/aerospike/aerospike-server-enterprise --config-file /opt/aerospike/etc/aerospike.conf
 ```
 
 ### A note about security
