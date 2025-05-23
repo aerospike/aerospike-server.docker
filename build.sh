@@ -146,6 +146,22 @@ function do_bake_test_group_targets() {
     echo "${output}"
 }
 
+function do_bake_push_group_targets() {
+    local distro=$1
+    local edition=$2
+    local short_version=$3
+
+    local output=""
+
+    local target_str=
+    target_str="$(get_target_name "${short_version}" "${distro}" \
+        "${edition}" "")"
+
+        output+="\"${target_str}\", "
+
+    echo "${output}"
+}
+
 function do_bake_group() {
     local group=$1
     local group_targets=$2
@@ -225,8 +241,8 @@ function do_bake_push_target() {
     printf -v platforms_str '%s,' "${c_platforms[@]}"
     platforms_str="${platforms_str%,}"
 
-    # FIXME use get_target_name()
-    local target_str="${edition}_${distro/\./-}"
+    local target_str="$(get_target_name "${version}" "${distro}" \
+            "${edition}" "")"
     local output="target \"${target_str}\" {\n"
     local ubi=""
 
@@ -251,8 +267,6 @@ function do_bake_push_target() {
 
         output+=",\n    "
     fi
-
-#    output+="$(get_product_tags "${product}" "${version}" "${distro}")"
 
     local version_path=
     version_path="$(support_image_path "${g_registry}" "${version}" \
@@ -317,8 +331,8 @@ function build_bake_file() {
                     "${distro}" "${distro_dir}" "${edition}")"
                 group_test_targets+="$(do_bake_test_group_targets "${distro}" \
                     "${edition}" "${version}")"
-                group_push_targets+="\"$(get_target_name "${version}" \
-                    "${distro}" "${edition}" "")\", "
+                group_push_targets+="$(do_bake_push_group_targets "${distro}" \
+                    "${edition}" "${version}")"
             done
         done
 
