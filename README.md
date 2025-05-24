@@ -4,7 +4,9 @@
 
 [Aerospike](http://aerospike.com) is a distributed NoSQL database purposefully designed for high performance applications. Aerospike supports key-value and document data models, and has multiple data types including List, Map, HyperLogLog, GeoJSON, and Blob. Aerospike's patented hybrid memory architecture delivers predictable high performance at scale and high data density per node.
 
-![aerospike_square_logo](https://djeqr6to3dedg.cloudfront.net/repo-logos/library/aerospike/live/logo-1719428943367.png)
+![aerospike_square_logo](https://avatars.githubusercontent.com/u/2214313?s=400&u=ffc4d53a6b48b7296acf88c72131427412603713)
+
+<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=01310955-9b45-449b-9553-678ed2e952bf" />
 
 -	[Getting Started](#getting-started)
 	-	[Running an Aerospike Server node](#running-an-aerospike-server-node)
@@ -119,8 +121,6 @@ aql> show namespaces
 [172.17.0.2:3000] 1 row in set (0.002 secs)
 
 OK
-
-aql> 
 ```
 
 ### Using asadm
@@ -157,8 +157,6 @@ Namespace|           Node|Rack|  Repl|  Total|~~~~~~~~~~Objects~~~~~~~~~~|~~~~~~
 test     |172.17.0.2:3000|   0|     1|0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  
 test     |               |    |      |0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  |    0.000  |0.000  |0.000  
 Number of rows: 1
-
-Admin>
 ```
 
 ## Customizing the Default Developer Environment
@@ -317,7 +315,6 @@ In order for the Aerospike node to properly broadcast its address to the cluster
             port 3000                    # Listening Port
             access-address 192.168.1.100 # IP Address used by cluster nodes and applications
         }
-
     ...
     }
 ```
@@ -334,7 +331,7 @@ Aerospike Telemetry is a feature that allows us to collect certain anonymized us
 
 ## Image Versions
 
-These images are based on [debian:*-slim](https://hub.docker.com/_/debian).
+These images are based on [ubuntu:*](https://hub.docker.com/_/ubuntu).
 
 ## Reporting Issues
 
