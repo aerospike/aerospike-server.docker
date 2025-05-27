@@ -14,31 +14,31 @@ group "test" {
 }
 
 target "enterprise_ubuntu24-04_amd64" {
-    tags=["aerospike/aerospike-server-enterprise-amd64:7.2.0.10", "aerospike/aerospike-server-enterprise-amd64:latest"]
+    tags=["aerospike/aerospike-server-enterprise-amd64:8.0.0.8", "aerospike/aerospike-server-enterprise-amd64:latest"]
     platforms=["linux/amd64"]
     context="./enterprise/ubuntu24.04"
 }
 
 target "enterprise_ubuntu24-04_arm64" {
-    tags=["aerospike/aerospike-server-enterprise-arm64:7.2.0.10", "aerospike/aerospike-server-enterprise-arm64:latest"]
+    tags=["aerospike/aerospike-server-enterprise-arm64:8.0.0.8", "aerospike/aerospike-server-enterprise-arm64:latest"]
     platforms=["linux/arm64"]
     context="./enterprise/ubuntu24.04"
 }
 
 target "federal_ubuntu24-04_amd64" {
-    tags=["aerospike/aerospike-server-federal-amd64:7.2.0.10", "aerospike/aerospike-server-federal-amd64:latest"]
+    tags=["aerospike/aerospike-server-federal-amd64:8.0.0.8", "aerospike/aerospike-server-federal-amd64:latest"]
     platforms=["linux/amd64"]
     context="./federal/ubuntu24.04"
 }
 
 target "community_ubuntu24-04_amd64" {
-    tags=["aerospike/aerospike-server-community-amd64:7.2.0.10", "aerospike/aerospike-server-community-amd64:latest"]
+    tags=["aerospike/aerospike-server-community-amd64:8.0.0.8", "aerospike/aerospike-server-community-amd64:latest"]
     platforms=["linux/amd64"]
     context="./community/ubuntu24.04"
 }
 
 target "community_ubuntu24-04_arm64" {
-    tags=["aerospike/aerospike-server-community-arm64:7.2.0.10", "aerospike/aerospike-server-community-arm64:latest"]
+    tags=["aerospike/aerospike-server-community-arm64:8.0.0.8", "aerospike/aerospike-server-community-arm64:latest"]
     platforms=["linux/arm64"]
     context="./community/ubuntu24.04"
 }
@@ -50,19 +50,19 @@ group "push" {
 }
 
 target "enterprise_ubuntu24-04" {
-    tags=["aerospike/aerospike-server-enterprise:7.2.0.10", "aerospike/aerospike-server-enterprise:7.2.0.10_1"]
+    tags=["aerospike/aerospike-server-enterprise:8.0.0.8", "aerospike/aerospike-server-enterprise:8.0.0.8_1", "aerospike/aerospike-server-enterprise:latest"]
     platforms=["linux/amd64,linux/arm64"]
     context="./enterprise/ubuntu24.04"
 }
 
 target "federal_ubuntu24-04" {
-    tags=["aerospike/aerospike-server-federal:7.2.0.10", "aerospike/aerospike-server-federal:7.2.0.10_1"]
+    tags=["aerospike/aerospike-server-federal:8.0.0.8", "aerospike/aerospike-server-federal:8.0.0.8_1", "aerospike/aerospike-server-federal:latest"]
     platforms=["linux/amd64"]
     context="./federal/ubuntu24.04"
 }
 
 target "community_ubuntu24-04" {
-    tags=["aerospike/aerospike-server:7.2.0.10", "aerospike/aerospike-server:7.2.0.10_1"]
+    tags=["aerospike/aerospike-server:8.0.0.8", "aerospike/aerospike-server:8.0.0.8_1", "aerospike/aerospike-server:latest"]
     platforms=["linux/amd64,linux/arm64"]
     context="./community/ubuntu24.04"
 }
