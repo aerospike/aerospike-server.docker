@@ -11,5 +11,5 @@ build:
 
 qe-registry:
   - dockerfile: enterprise/ubuntu22.04/nightly.Dockerfile
-    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:x86-mrt2
+    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:x86-preview
 allow-rebuild: True
