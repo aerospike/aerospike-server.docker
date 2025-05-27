@@ -165,7 +165,7 @@ The Aerospike Docker image comes with a default configuration file, which sets u
 
 You can inject parameters into the default configuration template using container-side environment variables with the `-e` flag.
 
-For example, to set the default [namespace](https://docs.aerospike.com/server/architecture/data-model) name to *demo*:
+For example, to set the default [namespace](https://aerospike.com/docs/database/learn/architecture/data-storage/data-model) name to *demo*:
 
 ```sh
 docker run -d --name aerospike -e "NAMESPACE=demo" -p 3000-3002:3000-3002 -v /my/dir:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" container.aerospike.com/aerospike/aerospike-server-enterprise
@@ -177,19 +177,19 @@ Injecting configuration parameters into the configuration template isn't compati
 
 #### `FEATURE_KEY_FILE`
 
-The [`feature_key_file`](https://docs.aerospike.com/server/operations/configure/feature-key) of the `service` context which is only applicable and to Enterprise editions and must be set to the empty string when running the Community edition. Default: */etc/aerospike/features.conf*.
+The [`feature_key_file`](https://aerospike.com/docs/database/manage/planning/feature-key) of the `service` context which is only applicable and to Enterprise editions and must be set to the empty string when running the Community edition. Default: */etc/aerospike/features.conf*.
 
 #### `LOGFILE`
 
-The [`file`](https://docs.aerospike.com/reference/configuration#file) param of the `logging` context. Default: *""*, do not log to file. The container will also log to `stdout`` regardless of what is configured here.
+The [`file`](https://aerospike.com/docs/database/reference/config#logging__file) param of the `logging` context. Default: *""*, do not log to file. The container will also log to `stdout`` regardless of what is configured here.
 
 #### `SERVICE_ADDRESS`
 
-The bind [`address`](https://docs.aerospike.com/reference/configuration#address) of the `networking.service` subcontext. Default: *any*
+The bind [`address`](https://aerospike.com/docs/database/reference/config#network__address) of the `networking.service` subcontext. Default: *any*
 
 #### `SERVICE_PORT`
 
-The [`port`](https://docs.aerospike.com/reference/configuration#port) of the `networking.service` subcontext. Default: *3000*
+The [`port`](https://aerospike.com/docs/database/reference/config#network__port) of the `networking.service` subcontext. Default: *3000*
 
 ### Preconfigured namespace
 
@@ -201,19 +201,19 @@ The name of the namespace. Default: *test*
 
 #### `DATA_IN_MEMORY`
 
-The storage-engine [`data-in-memory`](https://docs.aerospike.com/reference/configuration#data-in-memory) setting. If *false* (default), the namespace only stores the index in memory, and all reads and writes are served [from the filesystem](https://docs.aerospike.com/server/operations/configure/namespace/storage#recipe-for-a-persistent-memory-storage-engine). If *true* the namespace storage is [in-memory with filesystem persistence](https://docs.aerospike.com/server/operations/configure/namespace/storage#recipe-for-an-hdd-storage-engine-with-data-in-memory), meaning that reads and writes happen from a full in-memory copy, and a synchronous write persists to disk.
+The storage-engine [`data-in-memory`](https://aerospike.com/docs/database/reference/config#namespace__data-in-memory) setting. If *false* (default), the namespace only stores the index in memory, and all reads and writes are served [from the filesystem](https://aerospike.com/docs/database/manage/namespace/storage/config#recipe-for-a-persistent-memory-storage-engine). If *true* the namespace storage is [in-memory with filesystem persistence](https://aerospike.com/docs/database/manage/namespace/storage/config#recipe-for-an-hdd-storage-engine-with-data-in-memory), meaning that reads and writes happen from a full in-memory copy, and a synchronous write persists to disk.
 
 #### `DEFAULT_TTL`
 
-The namespace [`default-ttl`](https://docs.aerospike.com/reference/configuration#default-ttl). Default: *0*
+The namespace [`default-ttl`](https://aerospike.com/docs/database/reference/config#namespace__default-ttl). Default: *0*
 
 #### `MEM_GB`
 
-The namespace [`memory-size`](https://docs.aerospike.com/reference/configuration#memory-size). Default: *1*, the unit is always `G` (GB)
+The namespace [`memory-size`](https://aerospike.com/docs/database/reference/config#namespace__memory-size). Default: *1*, the unit is always `G` (GB)
 
 #### `NSUP_PERIOD`
 
-The namespace [`nsup-period`](https://docs.aerospike.com/reference/configuration#nsup-period). Default: *120* , nsup-period in seconds - also disabled when `default-ttl` is `0`.
+The namespace [`nsup-period`](https://aerospike.com/docs/database/reference/config#namespace__nsup-period). Default: *120* , nsup-period in seconds - also disabled when `default-ttl` is `0`.
 
 #### `STORAGE_GB`
 
@@ -221,7 +221,7 @@ The namespace persistence `file` size. Default: *4*, the unit is always `G` (GB)
 
 ## Advanced Configuration
 
-You can override the default configuration file by providing your own aerospike.conf, as described in [Configuring Aerospike Database](https://docs.aerospike.com/server/operations/configure).
+You can override the default configuration file by providing your own aerospike.conf, as described in [Configuring Aerospike Database](https://aerospike.com/docs/database/manage/database/as-config).
 
 You should first `-v` map a local directory, which Docker will bind mount. Next, drop your aerospike.conf file into this directory. Finally, use the `--config-file` option to tell Aerospike where in the container the configuration file is (the default path is */etc/aerospike/aerospike.conf*). Remember that the feature key file is required, so use `feature-key-file` in your config file to point to a mounted path (such as */opt/aerospike/etc/feature.conf*).
 
@@ -306,7 +306,7 @@ Developers using the Aerospike Enterprise Edition single-node evaluation, and mo
 
 #### Configuring the node's access address
 
-In order for the Aerospike node to properly broadcast its address to the cluster and applications, the [`access-address`](https://docs.aerospike.com/reference/configuration#access-address) configuration parameter needs to be set in the configuration file. If it is not set, then the IP address within the container will be used, which is not accessible to other nodes.
+In order for the Aerospike node to properly broadcast its address to the cluster and applications, the [`access-address`](https://aerospike.com/docs/database/reference/config#network__access-address) configuration parameter needs to be set in the configuration file. If it is not set, then the IP address within the container will be used, which is not accessible to other nodes.
 
 ```plaintext
     network {
@@ -325,7 +325,7 @@ See [How do I get a 2 nodes Aerospike cluster running quickly in Docker without 
 
 ## Sending telemetry data to Aerospike
 
-Aerospike Telemetry is a feature that allows us to collect certain anonymized usage data – not the database data – on your Aerospike Community Edition server use. [More Info](http://www.aerospike.com/aerospike-telemetry/)
+Aerospike Telemetry is a feature that allows us to collect certain anonymized usage data – not the database data – on your Aerospike Community Edition server use. [More Info](https://aerospike.com/aerospike-telemetry-2/)
 
 > [!TIP] Telemetry can be disabled by passing the environment variable `AEROSPIKE_TELEMETRY` to `FALSE` within the container's environment.
 
@@ -335,7 +335,7 @@ These images are based on [ubuntu:*](https://hub.docker.com/_/ubuntu).
 
 ## Reporting Issues
 
-Aerospike Enterprise evaluation users, if you have any problems with or questions about this image, please post on the [Aerospike discussion forum](https://discuss.aerospike.com) or open an issue in [aerospike/aerospike-server-enterprise.docker](https://github.com/aerospike/aerospike-server-enterprise.docker/issues).
+Aerospike Enterprise evaluation users, if you have any problems with or questions about this image, please post on the [Aerospike discussion forum](https://discuss.aerospike.com) or open an issue in [aerospike/aerospike-server.docker](https://github.com/aerospike/aerospike-server.docker/issues).
 
 Enterprise customers are welcome to participate in the community forum, but can also report issues through the [enterprise support system](https://support.aerospike.com/).
 
