@@ -12,6 +12,6 @@ build:
 qe-registry:
   - dockerfile: enterprise/ubuntu24.04/nightly.Dockerfile
     tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:x86-preview
-  - dockerfile: community/ubuntu24.04/nightly.Dockerfile
-    tag: docker.qe.aerospike.com/aerospike/aerospike-server:x86-preview
+  #- dockerfile: community/ubuntu24.04/nightly.Dockerfile
+  #  tag: docker.qe.aerospike.com/aerospike/aerospike-server:x86-preview
 allow-rebuild: True
