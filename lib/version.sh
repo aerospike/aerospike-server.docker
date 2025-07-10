@@ -101,8 +101,8 @@ function get_package_link() {
         fi
 
         # Package names 6.2 and later.
-        if version_compare_gt "${server_version}" "9.0"; then
-           # 9.0 and later
+        if version_compare_gt "${server_version}" "8.2"; then
+           # 8.2 and later
            if [[ $distro =~ "el" ]]; then
               link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}-${rpm_version}-1.${distro}.${arch}.rpm"
            else
@@ -114,7 +114,7 @@ function get_package_link() {
               link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}-1${distro}_${arch}.deb"
            fi
         else
-           # 6.2 or later but prior to 9.0              
+           # 6.2 or later but prior to 8.2              
            link="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}/${server_version}/aerospike-server-${edition}_${server_version}_tools-${tools_version}_${distro}_${arch}.tgz"
         fi
     fi

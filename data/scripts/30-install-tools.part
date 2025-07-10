@@ -1,5 +1,5 @@
   { \
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "8.1" | sort -V | head -1)" != "${VERSION}" ]; then \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "8.2" | sort -V | head -1)" != "${VERSION}" ]; then \
        # 30-install-tools.part - install asinfo and asadm.
        find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} + || true; \
        mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \

@@ -38,7 +38,7 @@
       echo "Unsuported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "8.1" | sort -V | head -1)" != "${VERSION}" ]; then \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "8.2" | sort -V | head -1)" != "${VERSION}" ]; then \
       if [ "$(curl -fsSL "${pkg_link}" --output aerospike-server.tgz --write-out "%{response_code}")" != "200" ]; then \
         echo "Could not fetch pkg - ${pkg_link}" >&2; \
         cat aerospike-server.tgz; \
