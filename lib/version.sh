@@ -6,7 +6,7 @@ source lib/fetch.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://artifacts.aerospike.com"}
 RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-[a-z0-9]+)?([-][0-9]*[-]g[0-9a-z]*)?'
-GA_RE_VERSION='[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)*$'
+GA_RE_VERSION='^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'
 
 function version_compare_gt() {
     v1=$1
