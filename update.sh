@@ -264,7 +264,9 @@ function do_bake_push_target() {
     local edition=$2
     local distroTmp
     local platform_list
+    local maj_min
 
+    maj_min=$(echo "${g_server_version}" | cut -d. -f1-2)
     distroTmp="${distro//\./-}"
     IFS=' ' read -r -a platform_list <<<"$(support_platforms_for_asd "${g_server_version}" "${edition}")"
 
@@ -286,8 +288,13 @@ function do_bake_push_target() {
         output+=", \"${product}:${g_server_version}_${g_container_release}\""
     fi
 
-    if [ "${g_latest_version}" = "${g_server_version}" ]; then
-        output+=", \"${product}:latest\""
+    output+=", \"${product}:${maj_min}\""
+
+    if [[ "${g_server_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                
+        if [ "${g_latest_ga_version}" = "${g_server_version}" ]; then
+            output+=", \"${product}:latest\""
+        fi
     fi
 
     output+="]\n"
@@ -344,9 +351,11 @@ function main() {
     if [ -z "${g_server_version}" ]; then
         g_server_version=$(find_latest_server_version)
         g_latest_version=g_server_version
+	g_latest_ga_version=g_server_version
     else
         g_server_version=$(find_latest_server_version_for_lineage "${g_server_version}")
         g_latest_version=$(find_latest_server_version)
+	g_latest_ga_version=$(find_latest_ga_server_version)
     fi
 
     g_distros=
