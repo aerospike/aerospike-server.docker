@@ -349,7 +349,7 @@ function main() {
     g_latest_version=
 
     if [ -z "${g_server_version}" ]; then
-        g_server_version=$(find_latest_server_version)
+        g_server_version=$(find_latest_ga_server_version)
         g_latest_version=g_server_version
 	g_latest_ga_version=g_server_version
     else
