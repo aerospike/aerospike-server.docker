@@ -10,8 +10,12 @@ build:
       BUILD_TRIGGER: 2
 
 qe-registry:
-  - dockerfile: enterprise/ubuntu24.04/nightly.Dockerfile
+  - dockerfile: enterprise/ubuntu24.04/master.Dockerfile
     tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:x86-master
-  - dockerfile: community/ubuntu24.04/nightly.Dockerfile
+  - dockerfile: community/ubuntu24.04/master.Dockerfile
     tag: docker.qe.aerospike.com/aerospike/aerospike-server:x86-master
+  - dockerfile: enterprise/ubuntu24.04/preview.Dockerfile
+    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:x86-preview
+  - dockerfile: community/ubuntu24.04/preview.Dockerfile
+    tag: docker.qe.aerospike.com/aerospike/aerospike-server:x86-preview
 allow-rebuild: True
