@@ -7,7 +7,7 @@ container:
 build:
   - name: default
     environment:
-      BUILD_TRIGGER: 5
+      BUILD_TRIGGER: 6
 
 qe-registry:
   - dockerfile: enterprise/ubuntu24.04/nightly.Dockerfile
