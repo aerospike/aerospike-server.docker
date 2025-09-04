@@ -24,10 +24,10 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 ARG AEROSPIKE_EDITION="community"
 
 ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/8.1.0.0/aerospike-server-community_8.1.0.0_tools-12.0.0_ubuntu24.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="74a469cecd5ac0c69ae85ca99e0c78337cf2b279af8b7154620da774a9f208b5"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/8.1.0.0/aerospike-server-community_8.1.0.0_tools-12.0.0_ubuntu24.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="39805f5fd6d832d63b4aa9161adaee40a2db55438ca6d11c1c5554474b38bad8"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-community/8.1.0.0/aerospike-server-community_8.1.0.0_tools-12.0.1_ubuntu24.04_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="32e63cf0e83a0ee559984505b6cb069c2218da97b621ff63dd58e55993392c2b"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-community/8.1.0.0/aerospike-server-community_8.1.0.0_tools-12.0.1_ubuntu24.04_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="fc29743dd6a098eb5bd11b55bf76491cc5a2252792fdf366224fdcd755cc079b"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
