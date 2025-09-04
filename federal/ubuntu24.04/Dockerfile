@@ -24,8 +24,8 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 ARG AEROSPIKE_EDITION="federal"
 
 ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/8.1.0.0/aerospike-server-federal_8.1.0.0_tools-12.0.0_ubuntu24.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="15668cc6f1cd83d16e23fbe0dfa0983179b3318ce4fe40b9a8f8b8f799938755"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-federal/8.1.0.0/aerospike-server-federal_8.1.0.0_tools-12.0.1_ubuntu24.04_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="6cc114cf0cb19f42142c8b8b6679c392eb3240f2890a6e13ca9c7ba78635a335"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
