@@ -79,7 +79,7 @@ RUN \
     mv artifacts/aerospike*.deb aerospike-server.deb; \
 
     # get latest nightly tools deb
-    /tmp/get-artifacts.sh git@github.com:citrusleaf/aerospike-tools ubuntu-24.04 master default; \
+    /tmp/get-artifacts.sh git@github.com:citrusleaf/aerospike-tools arm-ubuntu-24.04 master default; \
     mv artifacts/aerospike-tools*.deb aerospike-tools.deb; \
 
     # These directories are required for backward compatibility.
