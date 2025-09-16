@@ -2,7 +2,7 @@ name: aerospike-server.docker
 
 container:
   - base:
-      - docker.qe.aerospike.com/build/aerospike-tools-alt:ubuntu-20.04
+      - docker.qe.aerospike.com/build/aerospike-tools-alt:arm-ubuntu-20.04
 
 build:
   - name: default
@@ -11,7 +11,7 @@ build:
 
 qe-registry:
   - dockerfile: enterprise/ubuntu24.04/master.Dockerfile
-    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:x86-master
+    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:arm-master
   - dockerfile: enterprise/ubuntu24.04/preview.Dockerfile
-    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:x86-preview
+    tag: docker.qe.aerospike.com/aerospike/aerospike-server-enterprise:arm-preview
 allow-rebuild: True
