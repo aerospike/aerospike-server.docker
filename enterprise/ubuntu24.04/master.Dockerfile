@@ -70,7 +70,7 @@ RUN \
   }; \
   { \
     # 10-download.part - Download/install latest server and tools from QE
-    ARCH="$(dpkg --print-architecture)"; \dd
+    ARCH="$(dpkg --print-architecture)"; \
     mkdir -p aerospike/pkg; \
 
     # get latest nightly server deb and install
