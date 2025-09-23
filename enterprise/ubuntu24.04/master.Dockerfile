@@ -31,6 +31,9 @@ ARG AEROSPIKE_SHA_AARCH64="01abeedb92895a55ef12ae5275c7370e6d1b6bdb6d1ee53e3e631
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
+# add get artifacts script
+COPY get-artifacts.sh /tmp/get-artifacts.sh
+
 # Install Aerospike Server and Tools
 RUN \
   { \
