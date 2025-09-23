@@ -75,7 +75,7 @@ RUN \
 
     # get latest nightly server deb and install
     ls -lat /tmp; \
-    ./tmp/get-artifacts.sh git@github.com:citrusleaf/aerospike-server arm-ubuntu-24.04 master enterprise; \
+    /tmp/get-artifacts.sh git@github.com:citrusleaf/aerospike-server arm-ubuntu-24.04 master enterprise; \
     mv artifacts/aerospike*.deb aerospike-server.deb; \
 
     # get latest nightly tools deb
