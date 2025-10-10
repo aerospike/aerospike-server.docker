@@ -1,6 +1,6 @@
   { \
     # 10-download.part - Vars used for tini and tools.
-    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+([-_A-Za-z0-9]+)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
+    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+[.][0-9]*([-_A-Za-z0-9]+)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
   }; \
   { \
     # 10-common.part - Install tini.
