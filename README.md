@@ -16,7 +16,7 @@
 -	[Connecting to your Aerospike Container](#connecting-to-your-aerospike-container)
 	-	[Using aql](#using-aql)
 	-	[Using asadm](#using-asadm)
--	[Customizing the Default Developer nvironment](#customizing-the-default-developer-template)
+-	[Customizing the Default Developer Environment](#customizing-the-default-developer-template)
 	-	[List of template variables](#list-of-template-variables)
 	-	[Preconfigured namespace](#preconfigured-namespace)
 -	[Advanced Configuration](#advanced-configuration)
@@ -29,6 +29,12 @@
 	-	[Mesh clustering](#mesh-clustering)
 -	[Sending telemetry data to Aerospike](#sending-telemetry-data-to-aerospike)
 -	[Image Versions](#image-versions)
+-	[Building Images](#building-images)
+	-	[Prerequisites](#prerequisites)
+	-	[Quick Start](#quick-start)
+	-	[Build Options](#build-options)
+	-	[Testing Images](#testing-images)
+	-	[Release Workflow](#release-workflow)
 -	[Reporting Issues](#reporting-issues)
 -	[License](#license)
 
@@ -88,7 +94,7 @@ docker run -d -e "FEATURES=$FEATKEY" -e "FEATURE_KEY_FILE=env-b64:FEATURES" --na
 
 #### Community Edition
 
-By using Aerospike Community Edition you agree to the [COMMUNITY_LICENSE](community/COMMUNITY_LICENSE).
+By using Aerospike Community Edition you agree to the [Community License](licenses/COMMUNITY_LICENSE).
 
 Running Aerospike Community Edition:
 
@@ -331,7 +337,109 @@ Aerospike Telemetry is a feature that allows us to collect certain anonymized us
 
 ## Image Versions
 
-These images are based on [ubuntu:*](https://hub.docker.com/_/ubuntu).
+These images are based on Ubuntu or Red Hat UBI depending on the variant:
+
+| Distro | Base Image |
+|--------|------------|
+| ubuntu22.04 | ubuntu:22.04 |
+| ubuntu24.04 | ubuntu:24.04 |
+| ubi9 | registry.access.redhat.com/ubi9/ubi-minimal:9.4 |
+| ubi10 | registry.access.redhat.com/ubi10/ubi-minimal:10.0 |
+
+### Supported Releases and Distros
+
+| Lineage | Supported Distros |
+|---------|-------------------|
+| 7.1 | ubuntu22.04, ubi9 |
+| 7.2 | ubuntu24.04, ubi9 |
+| 8.0 | ubuntu24.04, ubi9 |
+| 8.1+ | ubuntu24.04, ubi9, ubi10 |
+
+## Building Images
+
+### Prerequisites
+
+Set up Docker Buildx for multi-architecture builds:
+
+```bash
+# Check if builder supports ARM
+docker buildx inspect | grep -q "linux/arm" && echo "OK" || echo "Setup needed"
+
+# If needed, create a multi-arch builder
+docker run --privileged --rm tonistiigi/binfmt --install all
+docker buildx create --name mybuilder --driver docker-container --bootstrap --use
+```
+
+### Quick Start
+
+```bash
+# Generate and build images for local testing
+./docker-build.sh -t 8.1
+
+# Build specific edition and distro
+./docker-build.sh -t 8.1 -e enterprise -d ubuntu24.04
+
+# Build and push to registry (multi-arch)
+./docker-build.sh -p 8.1 -e enterprise
+
+# Generate Dockerfiles only (no build)
+./docker-build.sh -g 8.1
+```
+
+### Build Options
+
+```
+Usage: ./docker-build.sh -t|-p|-g [OPTIONS] [version|lineage]
+
+MODE (one required):
+    -t               Test mode - build and load locally
+    -p               Push mode - build and push to registry (multi-arch)
+    -g, --generate   Generate Dockerfiles only
+
+OPTIONS:
+    -u, --url URL       Custom artifacts URL
+    -e, --edition ED    Filter editions: community, enterprise, federal
+    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10
+
+VERSION FORMATS:
+    8.1                       Lineage (auto-detects latest version)
+    8.1.1.0                   Specific release
+    8.1.1.0-rc2               Release candidate
+    8.1.1.0-start-16          Development build
+```
+
+### Testing Images
+
+```bash
+# Test images built from releases/ directory
+./test.sh 8.1 -e enterprise -d ubuntu24.04
+
+# Test a specific image
+./test.sh -i aerospike/aerospike-server-enterprise:8.1.1.0
+
+# Test with specific platform
+./test.sh -i aerospike/aerospike-server:8.1.1.0 -p linux/arm64
+```
+
+### Release Workflow
+
+```bash
+# 1. Checkout and update
+git checkout master && git pull
+
+# 2. Generate and build test images
+./docker-build.sh -t 8.1.1.0
+
+# 3. Run tests
+./test.sh 8.1
+
+# 4. Build and push to registry
+./docker-build.sh -p 8.1.1.0
+
+# 5. Commit and tag
+git add releases/ && git commit -m "8.1.1.0" && git tag -a "8.1.1.0" -m "8.1.1.0"
+git push origin master --tags
+```
 
 ## Reporting Issues
 

@@ -1,1 +1,5 @@
 .DS_Store
+
+# Generated files
+releases/
+bake-multi.hcl
