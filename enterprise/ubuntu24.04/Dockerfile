@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.2.0.15" \
+      org.opencontainers.image.version="8.0.0.13" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -24,10 +24,10 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 ARG AEROSPIKE_EDITION="enterprise"
 
 ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
-ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.2.0.15/aerospike-server-enterprise_7.2.0.15_tools-12.1.1_ubuntu24.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="17c9338e23502bae70ef59e5904e8162e3cadf28f51d3220b0ddece6db9252f0"
-ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/7.2.0.15/aerospike-server-enterprise_7.2.0.15_tools-12.1.1_ubuntu24.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="fe03f5d8c7543aa3c33794387b76320ca00431c97f79c4fdeac04f1211db7a1d"
+ARG AEROSPIKE_X86_64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/8.0.0.13/aerospike-server-enterprise_8.0.0.13_tools-12.1.1_ubuntu24.04_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="70f4b27b3d54f301af0d42e43d557fc988653c3ddaa5883e3a691805a8d472d7"
+ARG AEROSPIKE_AARCH64_LINK="https://artifacts.aerospike.com/aerospike-server-enterprise/8.0.0.13/aerospike-server-enterprise_8.0.0.13_tools-12.1.1_ubuntu24.04_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="5265003d8c553267f3cb840af246e8be88a4f28fde1b344c7535b52b2f1d4568"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
