@@ -81,6 +81,9 @@ function get_package_link() {
 function fetch_package_sha() {
     local link
     link="$(get_package_link "$@")"
-    [ -z "${link}" ] && { echo ""; return; }
+    [ -z "${link}" ] && {
+        echo ""
+        return
+    }
     fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' '
 }

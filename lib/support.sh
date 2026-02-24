@@ -25,46 +25,55 @@ function support_distros() {
     local lineage=${1:-}
 
     case "${lineage}" in
-        7.1)
-            # 7.1 uses ubuntu22.04 (no ubuntu24.04 packages available)
-            echo "ubuntu22.04 ubi9"
-            ;;
-        7.2|8.0)
-            # 7.2 and 8.0 use ubuntu24.04, ubi9
-            echo "ubuntu24.04 ubi9"
-            ;;
-        8.1|*)
-            # 8.1+ adds ubi10 support
-            echo "ubuntu24.04 ubi9 ubi10"
-            ;;
+    7.1)
+        # 7.1 uses ubuntu22.04 (no ubuntu24.04 packages available)
+        echo "ubuntu22.04 ubi9"
+        ;;
+    7.2 | 8.0)
+        # 7.2 and 8.0 use ubuntu24.04, ubi9
+        echo "ubuntu24.04 ubi9"
+        ;;
+    8.1 | *)
+        # 8.1+ adds ubi10 support
+        echo "ubuntu24.04 ubi9 ubi10"
+        ;;
     esac
 }
 
 function support_distro_to_base() {
     case "$1" in
-        ubuntu22.04) echo "ubuntu:22.04" ;;
-        ubuntu24.04) echo "ubuntu:24.04" ;;
-        ubi9)        echo "registry.access.redhat.com/ubi9/ubi-minimal:9.4" ;;
-        ubi10)       echo "registry.access.redhat.com/ubi10/ubi-minimal:10.0" ;;
-        *)           log_warn "unsupported distro '$1'"; exit 1 ;;
+    ubuntu22.04) echo "ubuntu:22.04" ;;
+    ubuntu24.04) echo "ubuntu:24.04" ;;
+    ubi9) echo "registry.access.redhat.com/ubi9/ubi-minimal:9.4" ;;
+    ubi10) echo "registry.access.redhat.com/ubi10/ubi-minimal:10.0" ;;
+    *)
+        log_warn "unsupported distro '$1'"
+        exit 1
+        ;;
     esac
 }
 
 function support_distro_to_pkg_type() {
     case "$1" in
-        ubuntu*) echo "deb" ;;
-        ubi*)    echo "rpm" ;;
-        *)       log_warn "unsupported distro '$1'"; exit 1 ;;
+    ubuntu*) echo "deb" ;;
+    ubi*) echo "rpm" ;;
+    *)
+        log_warn "unsupported distro '$1'"
+        exit 1
+        ;;
     esac
 }
 
 function support_distro_to_artifact_name() {
     case "$1" in
-        ubuntu22.04) echo "ubuntu22.04" ;;
-        ubuntu24.04) echo "ubuntu24.04" ;;
-        ubi9)        echo "el9" ;;
-        ubi10)       echo "el10" ;;
-        *)           log_warn "unsupported distro '$1'"; exit 1 ;;
+    ubuntu22.04) echo "ubuntu22.04" ;;
+    ubuntu24.04) echo "ubuntu24.04" ;;
+    ubi9) echo "el9" ;;
+    ubi10) echo "el10" ;;
+    *)
+        log_warn "unsupported distro '$1'"
+        exit 1
+        ;;
     esac
 }
 
@@ -80,8 +89,11 @@ function support_platforms() {
 
 function support_platform_to_arch() {
     case "$1" in
-        "linux/amd64") echo "x86_64" ;;
-        "linux/arm64") echo "aarch64" ;;
-        *)             log_warn "unexpected platform '$1'"; exit 1 ;;
+    "linux/amd64") echo "x86_64" ;;
+    "linux/arm64") echo "aarch64" ;;
+    *)
+        log_warn "unexpected platform '$1'"
+        exit 1
+        ;;
     esac
 }

@@ -13,7 +13,7 @@ source lib/version.sh
 BAKE_FILE="bake-multi.hcl"
 
 function usage() {
-    cat << EOF
+    cat <<EOF
 Usage: $0 -t|-p|-g [OPTIONS] [version|lineage]
 
 Generate Dockerfiles and build Docker images for Aerospike server releases.
@@ -109,7 +109,7 @@ function generate_dockerfile() {
     cp template/0/entrypoint.sh "${target}/"
     cp template/7/aerospike.template.conf "${target}/"
 
-    cat > "${target}/Dockerfile" << DOCKERFILE
+    cat >"${target}/Dockerfile" <<DOCKERFILE
 #
 # Aerospike Server Dockerfile
 # Version: ${version} | Edition: ${edition} | Base: ${distro}
@@ -160,7 +160,10 @@ function generate_dockerfiles() {
         local version="${version_or_lineage}"
         local lineage=$(get_lineage_from_version "${version}")
         local tools_version=$(find_tools_version "${version}")
-        [ -z "${tools_version}" ] && { log_warn "${version} -> tools NOT FOUND"; exit 1; }
+        [ -z "${tools_version}" ] && {
+            log_warn "${version} -> tools NOT FOUND"
+            exit 1
+        }
         VERSION_MAP["${lineage}"]="${version}"
         TOOLS_MAP["${lineage}"]="${tools_version}"
         LINEAGES_TO_BUILD=("${lineage}")
@@ -168,9 +171,15 @@ function generate_dockerfiles() {
     elif [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+$ ]]; then
         local lineage="${version_or_lineage}"
         local version=$(find_latest_version_for_lineage "${lineage}")
-        [ -z "${version}" ] && { log_warn "${lineage} -> NOT FOUND"; exit 1; }
+        [ -z "${version}" ] && {
+            log_warn "${lineage} -> NOT FOUND"
+            exit 1
+        }
         local tools_version=$(find_tools_version "${version}")
-        [ -z "${tools_version}" ] && { log_warn "${lineage} -> ${version} (tools NOT FOUND)"; exit 1; }
+        [ -z "${tools_version}" ] && {
+            log_warn "${lineage} -> ${version} (tools NOT FOUND)"
+            exit 1
+        }
         VERSION_MAP["${lineage}"]="${version}"
         TOOLS_MAP["${lineage}"]="${tools_version}"
         LINEAGES_TO_BUILD=("${lineage}")
@@ -178,9 +187,15 @@ function generate_dockerfiles() {
     else
         for lineage in $(support_releases); do
             local version=$(find_latest_version_for_lineage "${lineage}")
-            [ -z "${version}" ] && { log_warn "${lineage} -> NOT FOUND"; continue; }
+            [ -z "${version}" ] && {
+                log_warn "${lineage} -> NOT FOUND"
+                continue
+            }
             local tools_version=$(find_tools_version "${version}")
-            [ -z "${tools_version}" ] && { log_warn "${lineage} -> ${version} (tools NOT FOUND)"; continue; }
+            [ -z "${tools_version}" ] && {
+                log_warn "${lineage} -> ${version} (tools NOT FOUND)"
+                continue
+            }
             VERSION_MAP["${lineage}"]="${version}"
             TOOLS_MAP["${lineage}"]="${tools_version}"
             LINEAGES_TO_BUILD+=("${lineage}")
@@ -292,7 +307,7 @@ function generate_bake() {
         done
     done
 
-    cat > "${BAKE_FILE}" << EOF
+    cat >"${BAKE_FILE}" <<EOF
 # Auto-generated bake file
 group "test" { targets=[${test_group%,*}] }
 group "push" { targets=[${push_group%,*}] }
@@ -315,27 +330,49 @@ function main() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -t)            mode="test"; shift ;;
-            -p)            mode="push"; shift ;;
-            -g|--generate) generate_only=true; shift ;;
-            -u|--url)      custom_url="$2"; shift 2 ;;
-            -e|--edition)
+        -t)
+            mode="test"
+            shift
+            ;;
+        -p)
+            mode="push"
+            shift
+            ;;
+        -g | --generate)
+            generate_only=true
+            shift
+            ;;
+        -u | --url)
+            custom_url="$2"
+            shift 2
+            ;;
+        -e | --edition)
+            shift
+            while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
+                EDITION_FILTERS+=("$1")
                 shift
-                while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
-                    EDITION_FILTERS+=("$1")
-                    shift
-                done
-                ;;
-            -d|--distro)
+            done
+            ;;
+        -d | --distro)
+            shift
+            while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
+                DISTRO_FILTERS+=("$1")
                 shift
-                while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
-                    DISTRO_FILTERS+=("$1")
-                    shift
-                done
-                ;;
-            -h|--help)     usage; exit 0 ;;
-            -*)            log_warn "Unknown option: $1"; usage; exit 1 ;;
-            *)             version_or_lineage="$1"; shift ;;
+            done
+            ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        -*)
+            log_warn "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+        *)
+            version_or_lineage="$1"
+            shift
+            ;;
         esac
     done
 
@@ -364,14 +401,14 @@ function main() {
     generate_bake
 
     case "${mode}" in
-        test)
-            log_info "Building for local testing..."
-            docker buildx bake -f "${BAKE_FILE}" test --progress plain --load
-            ;;
-        push)
-            log_info "Building and pushing to registry..."
-            docker buildx bake -f "${BAKE_FILE}" push --progress plain --push
-            ;;
+    test)
+        log_info "Building for local testing..."
+        docker buildx bake -f "${BAKE_FILE}" test --progress plain --load
+        ;;
+    push)
+        log_info "Building and pushing to registry..."
+        docker buildx bake -f "${BAKE_FILE}" push --progress plain --push
+        ;;
     esac
 
     echo ""
