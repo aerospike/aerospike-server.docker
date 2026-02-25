@@ -5,6 +5,9 @@
 
 set -Eeuo pipefail
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)
+cd "${SCRIPT_DIR}"
+
 source lib/fetch.sh
 source lib/log.sh
 source lib/support.sh
@@ -107,34 +110,61 @@ function generate_dockerfile() {
     local pkg_type=$(support_distro_to_pkg_type "${distro}")
     local base_image=$(support_distro_to_base "${distro}")
 
-    local x86_link x86_sha arm_link arm_sha
+    local x86_link="" x86_sha="" arm_link="" arm_sha=""
     local tools_x86_link="" tools_x86_sha="" tools_arm_link="" tools_arm_sha=""
     local pkg_format="tgz"
 
-    x86_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
-    x86_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
-    arm_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
-    arm_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
+    # When no tools version: skip tgz, go straight to native .rpm/.deb (server only)
+    if [ -n "${tools_version}" ]; then
+        x86_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
+        x86_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
+        arm_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
+        arm_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
+    fi
 
-    # If tgz not available (e.g. custom -u server), fall back to native rpm/deb for that distro (server only, no tools)
-    if [ -z "${x86_sha}" ]; then
-        x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
-        x86_sha=$(fetch_sha_for_link "${x86_link}")
-        # Use native format if we have a link (sha optional, e.g. JFrog may not expose .sha256)
-        if [ -n "${x86_link}" ]; then
+    # When -u is a local dir: always try local .rpm/.deb first (tgz/sha may exist and would skip local otherwise)
+    local use_local_pkg=""
+    if is_local_artifacts_dir; then
+        local local_base="${ARTIFACTS_DOMAIN}"
+        # Resolve relative -u to script dir so ./artifacts always means repo/artifacts
+        [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
+        [ -d "${local_base}" ] && local_base=$(cd "${local_base}" && pwd)
+        local local_x86 local_arm
+        local_x86=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "x86_64" "${pkg_type}")
+        local_arm=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "aarch64" "${pkg_type}")
+        if [ -n "${local_x86}" ] || [ -n "${local_arm}" ]; then
             pkg_format="${pkg_type}"
-            arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
-            arm_sha=$(fetch_sha_for_link "${arm_link}")
+            [ -n "${local_x86}" ] && x86_link="${local_x86}"
+            [ -n "${local_arm}" ] && arm_link="${local_arm}"
+            use_local_pkg="1"
         fi
     fi
 
-    # Skip only when we have no package (no tgz sha and no native link)
-    if [ -z "${x86_sha}" ] && { [ "${pkg_format}" = "tgz" ] || [ -z "${x86_link}" ]; }; then
+    # If no local packages (or not local dir), use tgz or remote native rpm/deb
+    if [ -z "${use_local_pkg}" ] && [ -z "${x86_sha}" ]; then
+        if ! is_local_artifacts_dir; then
+            x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
+            x86_sha=$(fetch_sha_for_link "${x86_link}")
+            if [ -n "${x86_link}" ]; then
+                pkg_format="${pkg_type}"
+                arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
+                arm_sha=$(fetch_sha_for_link "${arm_link}")
+            fi
+        fi
+    fi
+
+    # Skip only when we have no package (no tgz sha, no native link, and no local package)
+    if [ -z "${x86_sha}" ] && [ -z "${use_local_pkg}" ] && { [ "${pkg_format}" = "tgz" ] || [ -z "${x86_link}" ]; }; then
         log_warn "    Skipping - package not available (tried tgz and ${pkg_type})"
+        return 1
+    fi
+    if [ -z "${x86_sha}" ] && [ -n "${use_local_pkg}" ] && [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
+        log_warn "    Skipping - no local package found"
         return 1
     fi
 
     [ "${pkg_format}" != "tgz" ] && log_info "    Using native ${pkg_format} (tgz not found)"
+    [ -n "${use_local_pkg}" ] && log_info "    Using local packages from ${ARTIFACTS_DOMAIN}"
 
     mkdir -p "${target}"
     cp template/0/entrypoint.sh "${target}/"
@@ -142,8 +172,24 @@ function generate_dockerfile() {
     # Install script matches OS: scripts/rpm/install.sh for UBI, scripts/deb/install.sh for Ubuntu
     cp "scripts/${pkg_type}/install.sh" "${target}/install.sh"
 
+    # When -u is a local dir: copy package files into build context with fixed names
+    local dockerfile_copy_local=""
+    local copy_files=()
+    if [ -n "${use_local_pkg}" ] && [ "${pkg_format}" != "tgz" ]; then
+        if [ "${pkg_type}" = "rpm" ]; then
+            [ -n "${x86_link}" ] && cp "${x86_link}" "${target}/server_x86_64.rpm" && copy_files+=(server_x86_64.rpm)
+            [ -n "${arm_link}" ] && cp "${arm_link}" "${target}/server_aarch64.rpm" && copy_files+=(server_aarch64.rpm)
+        else
+            [ -n "${x86_link}" ] && cp "${x86_link}" "${target}/server_amd64.deb" && copy_files+=(server_amd64.deb)
+            [ -n "${arm_link}" ] && cp "${arm_link}" "${target}/server_arm64.deb" && copy_files+=(server_arm64.deb)
+        fi
+        [ ${#copy_files[@]} -gt 0 ] && dockerfile_copy_local="COPY ${copy_files[*]} /tmp/"
+    fi
+
     # Native rpm/deb: no tools ARGs (server package only)
     local dockerfile_extra_args=""
+    [ -n "${use_local_pkg}" ] && dockerfile_extra_args="ARG AEROSPIKE_LOCAL_PKG=\"1\"
+"
     # (tools are skipped for native format; no AEROSPIKE_TOOLS_* ARGs)
 
     cat >"${target}/Dockerfile" <<DOCKERFILE
@@ -169,10 +215,13 @@ ${dockerfile_extra_args}
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 COPY install.sh /tmp/install.sh
+${dockerfile_copy_local}
+
 RUN /bin/bash /tmp/install.sh && rm /tmp/install.sh
 
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 3000 3001 3002
 
@@ -199,12 +248,12 @@ function generate_dockerfiles() {
         local version="${version_or_lineage}"
         local lineage=$(get_lineage_from_version "${version}")
         local tools_version=$(find_tools_version "${version}")
+        VERSION_MAP["${lineage}"]="${version}"
+        TOOLS_MAP["${lineage}"]="${tools_version:-}"
+        LINEAGES_TO_BUILD=("${lineage}")
         if [ -z "${tools_version}" ]; then
-            log_warn "${version} -> tools NOT FOUND (skipping; use -u for native rpm/deb only)"
+            log_warn "${version} -> tools NOT FOUND (will try native .rpm/.deb only, no tools)"
         else
-            VERSION_MAP["${lineage}"]="${version}"
-            TOOLS_MAP["${lineage}"]="${tools_version}"
-            LINEAGES_TO_BUILD=("${lineage}")
             log_info "  ${version} (lineage: ${lineage}, tools: ${tools_version})"
         fi
     elif [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+$ ]]; then
@@ -215,12 +264,12 @@ function generate_dockerfiles() {
             exit 1
         }
         local tools_version=$(find_tools_version "${version}")
+        VERSION_MAP["${lineage}"]="${version}"
+        TOOLS_MAP["${lineage}"]="${tools_version:-}"
+        LINEAGES_TO_BUILD=("${lineage}")
         if [ -z "${tools_version}" ]; then
-            log_warn "${lineage} -> ${version} (tools NOT FOUND; skipping; use -u for native rpm/deb only)"
+            log_warn "${lineage} -> ${version} (tools NOT FOUND; will try native .rpm/.deb only, no tools)"
         else
-            VERSION_MAP["${lineage}"]="${version}"
-            TOOLS_MAP["${lineage}"]="${tools_version}"
-            LINEAGES_TO_BUILD=("${lineage}")
             log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
         fi
     else
@@ -231,15 +280,20 @@ function generate_dockerfiles() {
                 continue
             }
             local tools_version=$(find_tools_version "${version}")
-            if [ -z "${tools_version}" ]; then
-                log_warn "${lineage} -> ${version} (tools NOT FOUND; skipping)"
-                continue
-            fi
             VERSION_MAP["${lineage}"]="${version}"
-            TOOLS_MAP["${lineage}"]="${tools_version}"
+            TOOLS_MAP["${lineage}"]="${tools_version:-}"
             LINEAGES_TO_BUILD+=("${lineage}")
-            log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
+            if [ -z "${tools_version}" ]; then
+                log_warn "${lineage} -> ${version} (tools NOT FOUND; will try native .rpm/.deb only)"
+            else
+                log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
+            fi
         done
+    fi
+
+    if [ ${#LINEAGES_TO_BUILD[@]} -eq 0 ]; then
+        log_warn "Nothing to build (no version/lineage had packages available). Use -u for a custom server with native rpm/deb."
+        exit 1
     fi
 
     echo ""

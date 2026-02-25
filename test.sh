@@ -119,7 +119,16 @@ function parse_args() {
 function get_version_from_dockerfile() {
     local dockerfile="releases/$1/$2/$3/Dockerfile"
     [ -f "${dockerfile}" ] || return 1
-    grep "org.opencontainers.image.version=" "${dockerfile}" | grep -oE '"[^"]+' | tr -d '"'
+    sed -n 's/.*org.opencontainers.image.version="\([^"]*\)".*/\1/p' "${dockerfile}" | head -1 | tr -d '\r\n'
+}
+
+# Get image tag from bake-multi.hcl if present (matches what docker-build.sh -t produced, including -r registry)
+function get_image_tag_from_bake() {
+    local lineage=$1 edition=$2 distro=$3 arch=$4
+    local bake_file="bake-multi.hcl"
+    [ -f "${bake_file}" ] || return 1
+    local tag_base="${lineage//./-}_${edition}_${distro//./-}_${arch}"
+    sed -n "/target \"${tag_base}\"/,/^}/p" "${bake_file}" | sed -n 's/.*tags=\["\([^"]*\)".*/\1/p' | head -1
 }
 
 function run_docker() {
@@ -248,16 +257,27 @@ function test_from_releases() {
             local dir="releases/${lineage}/${edition}/${distro}"
             [ -d "${dir}" ] || continue
 
-            local version=$(get_version_from_dockerfile "${lineage}" "${edition}" "${distro}") || continue
+            local version
+            version=$(get_version_from_dockerfile "${lineage}" "${edition}" "${distro}") || continue
+            version=$(printf '%s' "${version}" | tr -d '\r\n\t ')
+            [ -z "${version}" ] && continue
             local arch=${PLATFORM#*/}
             
-            IMAGE_TAG="aerospike/aerospike-server"
-            [ "${edition}" != "community" ] && IMAGE_TAG+="-${edition}"
-            IMAGE_TAG+=":${version}-${distro//./-}-${arch}"
+            IMAGE_TAG=$(get_image_tag_from_bake "${lineage}" "${edition}" "${distro}" "${arch}") || true
+            if [ -z "${IMAGE_TAG}" ]; then
+                IMAGE_TAG="aerospike/aerospike-server"
+                [ "${edition}" != "community" ] && IMAGE_TAG+="-${edition}"
+                IMAGE_TAG+=":${version}-${distro//./-}-${arch}"
+            fi
             
             CONTAINER="aerospike-test-${edition}-${distro//./}-$$"
 
             log_info "====== Testing: ${IMAGE_TAG} ======"
+            
+            if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
+                log_warn "Image not found locally. Build it first: ./docker-build.sh -t ${lineage} -e ${edition} -d ${distro}"
+                continue
+            fi
             
             trap cleanup EXIT
             cleanup

@@ -30,7 +30,7 @@ fi
 
 if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
     curl -fsSL "${pkg_link}" -o aerospike.tgz
-    echo "${sha256} aerospike.tgz" | sha256sum -c -
+    [ -n "${sha256}" ] && echo "${sha256} aerospike.tgz" | sha256sum -c -
     mkdir aerospike && tar xzf aerospike.tgz --strip-components=1 -C aerospike
     rpm -i aerospike/aerospike-server-*.rpm
     mkdir -p /var/{log,run}/aerospike /licenses
@@ -39,9 +39,13 @@ if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
     mkdir -p aerospike/pkg
     cd aerospike/pkg && rpm2cpio ../aerospike-tools*.rpm | cpio -idmv && cd ../..
 else
-    # Native rpm: download server and tools packages (SHA optional, e.g. JFrog)
-    curl -fsSL "${pkg_link}" -o server.rpm
-    [ -n "${sha256}" ] && echo "${sha256} server.rpm" | sha256sum -c -
+    # Native rpm: from local /tmp (when -u local dir) or download (SHA optional, e.g. JFrog)
+    if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
+        [ "${ARCH}" = "x86_64" ] && cp /tmp/server_x86_64.rpm server.rpm || cp /tmp/server_aarch64.rpm server.rpm
+    else
+        curl -fsSL "${pkg_link}" -o server.rpm
+        [ -n "${sha256}" ] && echo "${sha256} server.rpm" | sha256sum -c -
+    fi
     rpm -i server.rpm
     mkdir -p /var/{log,run}/aerospike /licenses
     [ -n "${tools_link}" ] && {

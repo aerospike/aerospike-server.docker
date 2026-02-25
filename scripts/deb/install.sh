@@ -32,7 +32,7 @@ fi
 
 if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
     curl -fsSL "${pkg_link}" -o aerospike.tgz
-    echo "${sha256} aerospike.tgz" | sha256sum -c -
+    [ -n "${sha256}" ] && echo "${sha256} aerospike.tgz" | sha256sum -c -
     mkdir aerospike && tar xzf aerospike.tgz --strip-components=1 -C aerospike
     dpkg -i aerospike/aerospike-server-*.deb
     mkdir -p /var/{log,run}/aerospike /licenses
@@ -42,9 +42,13 @@ if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
     ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg
     tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/
 else
-    # Native deb: download server and tools packages (SHA optional, e.g. JFrog)
-    curl -fsSL "${pkg_link}" -o server.deb
-    [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -
+    # Native deb: from local /tmp (when -u local dir) or download (SHA optional, e.g. JFrog)
+    if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
+        [ "${ARCH}" = "amd64" ] && cp /tmp/server_amd64.deb server.deb || cp /tmp/server_arm64.deb server.deb
+    else
+        curl -fsSL "${pkg_link}" -o server.deb
+        [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -
+    fi
     dpkg -i server.deb
     mkdir -p /var/{log,run}/aerospike /licenses
     [ -n "${tools_link}" ] && {
