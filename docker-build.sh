@@ -115,25 +115,20 @@ function generate_dockerfile() {
     arm_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
     arm_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
 
-    # If tgz not available (e.g. custom -u server), fall back to native rpm/deb for that distro
+    # If tgz not available (e.g. custom -u server), fall back to native rpm/deb for that distro (server only, no tools)
     if [ -z "${x86_sha}" ]; then
         x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
         x86_sha=$(fetch_sha_for_link "${x86_link}")
         # Use native format if we have a link (sha optional, e.g. JFrog may not expose .sha256)
         if [ -n "${x86_link}" ]; then
             pkg_format="${pkg_type}"
-            tools_x86_link=$(get_tools_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
-            tools_x86_sha=$(fetch_sha_for_link "${tools_x86_link}")
             arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
             arm_sha=$(fetch_sha_for_link "${arm_link}")
-            if [ -n "${arm_sha}" ] || [ "${edition}" = "federal" ]; then
-                tools_arm_link=$(get_tools_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
-                tools_arm_sha=$(fetch_sha_for_link "${tools_arm_link}")
-            fi
         fi
     fi
 
-    if [ -z "${x86_sha}" ]; then
+    # Skip only when we have no package (no tgz sha and no native link)
+    if [ -z "${x86_sha}" ] && { [ "${pkg_format}" = "tgz" ] || [ -z "${x86_link}" ]; }; then
         log_warn "    Skipping - package not available (tried tgz and ${pkg_type})"
         return 1
     fi
@@ -145,15 +140,9 @@ function generate_dockerfile() {
     cp template/7/aerospike.template.conf "${target}/"
     cp "scripts/${pkg_type}/install.sh" "${target}/install.sh"
 
-    # Build optional ARGs for native format (tools links/shas)
+    # Native rpm/deb: no tools ARGs (server package only)
     local dockerfile_extra_args=""
-    if [ "${pkg_format}" = "rpm" ] || [ "${pkg_format}" = "deb" ]; then
-        dockerfile_extra_args="ARG AEROSPIKE_TOOLS_X86_64_LINK=\"${tools_x86_link}\"
-ARG AEROSPIKE_TOOLS_SHA_X86_64=\"${tools_x86_sha}\"
-ARG AEROSPIKE_TOOLS_AARCH64_LINK=\"${tools_arm_link}\"
-ARG AEROSPIKE_TOOLS_SHA_AARCH64=\"${tools_arm_sha}\"
-"
-    fi
+    # (tools are skipped for native format; no AEROSPIKE_TOOLS_* ARGs)
 
     cat >"${target}/Dockerfile" <<DOCKERFILE
 #
