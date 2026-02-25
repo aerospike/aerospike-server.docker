@@ -4,6 +4,15 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y --no-install-recommends ca-certificates curl procps binutils xz-utils
 
+# OpenSSL 1.1 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ only has OpenSSL 3)
+if ! apt-get install -y --no-install-recommends libssl1.1 2>/dev/null; then
+    echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-ssl.list
+    apt-get update -y
+    apt-get install -y --no-install-recommends libssl1.1
+    rm -f /etc/apt/sources.list.d/jammy-ssl.list
+    apt-get update -y
+fi
+
 # Download tini
 ARCH="$(dpkg --print-architecture)"
 if [ "${ARCH}" = "amd64" ]; then
