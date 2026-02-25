@@ -24,10 +24,17 @@ MODE (one required):
     -g, --generate   Generate Dockerfiles only (no build)
 
 OPTIONS:
+    -r, --registry REG  Container registry (and repo path) for push mode.
+                        Image names: <REG>/aerospike-server[-edition]:<tag>
+                        Multiple: repeat -r (e.g. -r reg1 -r reg2)
+                        Default: aerospike (docker.io/aerospike/...)
+                        Example: -r artifact.aerospike.io/database-docker-dev-local
     -u, --url URL       Custom artifacts URL
                         Default: https://download.aerospike.com/artifacts
-                        Can also use direct edition URL (auto-detected):
-                          https://stage.aerospike.com/artifacts/docker/aerospike-server-enterprise
+                        If *.tgz is not found, falls back to *.rpm (el9/el10) or *.deb (ubuntu).
+                        JFrog Artifactory RPM (el9/el10 layout):
+                          https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local
+                        DEB (flat layout): database-deb-prod-public-local or direct edition URL.
     -e, --edition ED    Filter edition(s): community, enterprise, federal
                         Can specify multiple: -e enterprise community
                         Default: all editions
@@ -66,6 +73,10 @@ EXAMPLES:
     # Build and push to registry
     $0 -p 8.1 -e enterprise federal
 
+    # Build and push to one or more registries
+    $0 -p 8.1 -e enterprise -r artifact.aerospike.io/database-docker-dev-local
+    $0 -p 8.1 -e enterprise -r reg1 -r reg2
+
     # Generate Dockerfiles only (no build)
     $0 -g 8.1
 
@@ -95,19 +106,54 @@ function generate_dockerfile() {
     local pkg_type=$(support_distro_to_pkg_type "${distro}")
     local base_image=$(support_distro_to_base "${distro}")
 
-    local x86_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
-    local x86_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
-    local arm_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
-    local arm_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
+    local x86_link x86_sha arm_link arm_sha
+    local tools_x86_link="" tools_x86_sha="" tools_arm_link="" tools_arm_sha=""
+    local pkg_format="tgz"
+
+    x86_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
+    x86_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
+    arm_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
+    arm_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
+
+    # If tgz not available (e.g. custom -u server), fall back to native rpm/deb for that distro
+    if [ -z "${x86_sha}" ]; then
+        x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
+        x86_sha=$(fetch_sha_for_link "${x86_link}")
+        # Use native format if we have a link (sha optional, e.g. JFrog may not expose .sha256)
+        if [ -n "${x86_link}" ]; then
+            pkg_format="${pkg_type}"
+            tools_x86_link=$(get_tools_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
+            tools_x86_sha=$(fetch_sha_for_link "${tools_x86_link}")
+            arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
+            arm_sha=$(fetch_sha_for_link "${arm_link}")
+            if [ -n "${arm_sha}" ] || [ "${edition}" = "federal" ]; then
+                tools_arm_link=$(get_tools_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
+                tools_arm_sha=$(fetch_sha_for_link "${tools_arm_link}")
+            fi
+        fi
+    fi
 
     if [ -z "${x86_sha}" ]; then
-        log_warn "    Skipping - package not available"
+        log_warn "    Skipping - package not available (tried tgz and ${pkg_type})"
         return 1
     fi
+
+    [ "${pkg_format}" != "tgz" ] && log_info "    Using native ${pkg_format} (tgz not found)"
 
     mkdir -p "${target}"
     cp template/0/entrypoint.sh "${target}/"
     cp template/7/aerospike.template.conf "${target}/"
+    cp "scripts/${pkg_type}/install.sh" "${target}/install.sh"
+
+    # Build optional ARGs for native format (tools links/shas)
+    local dockerfile_extra_args=""
+    if [ "${pkg_format}" = "rpm" ] || [ "${pkg_format}" = "deb" ]; then
+        dockerfile_extra_args="ARG AEROSPIKE_TOOLS_X86_64_LINK=\"${tools_x86_link}\"
+ARG AEROSPIKE_TOOLS_SHA_X86_64=\"${tools_x86_sha}\"
+ARG AEROSPIKE_TOOLS_AARCH64_LINK=\"${tools_arm_link}\"
+ARG AEROSPIKE_TOOLS_SHA_AARCH64=\"${tools_arm_sha}\"
+"
+    fi
 
     cat >"${target}/Dockerfile" <<DOCKERFILE
 #
@@ -122,15 +168,17 @@ LABEL org.opencontainers.image.title="Aerospike ${edition^} Server" \\
       org.opencontainers.image.vendor="Aerospike"
 
 ARG AEROSPIKE_EDITION="${edition}"
+ARG AEROSPIKE_PKG_FORMAT="${pkg_format}"
 ARG AEROSPIKE_X86_64_LINK="${x86_link}"
 ARG AEROSPIKE_SHA_X86_64="${x86_sha}"
 ARG AEROSPIKE_AARCH64_LINK="${arm_link}"
 ARG AEROSPIKE_SHA_AARCH64="${arm_sha}"
+${dockerfile_extra_args}
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
-RUN \\
-$(cat scripts/${pkg_type}/install.sh)
+COPY install.sh /tmp/install.sh
+RUN /bin/bash /tmp/install.sh && rm /tmp/install.sh
 
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 COPY entrypoint.sh /entrypoint.sh
@@ -282,23 +330,30 @@ function generate_bake() {
 
                 local tag_base="${lineage//./-}_${edition}_${distro//./-}"
                 local platforms=$(support_platforms "${edition}")
-                local product="aerospike/aerospike-server"
-                [ "${edition}" != "community" ] && product+="-${edition}"
+                local image_name="aerospike-server"
+                [ "${edition}" != "community" ] && image_name+="-${edition}"
+                local test_product="${REGISTRY_PREFIXES[0]}/${image_name}"
 
                 for plat in ${platforms}; do
                     local arch=${plat#*/}
                     test_group+="\"${tag_base}_${arch}\", "
                     test_targets+="target \"${tag_base}_${arch}\" {
-    tags=[\"${product}:${version}-${distro//./-}-${arch}\"]
+    tags=[\"${test_product}:${version}-${distro//./-}-${arch}\"]
     platforms=[\"${plat}\"]
     context=\"${ctx}\"
 }
 "
                 done
 
+                local push_tags=""
+                for reg in "${REGISTRY_PREFIXES[@]}"; do
+                    local product="${reg}/${image_name}"
+                    [ -n "${push_tags}" ] && push_tags+=", "
+                    push_tags+="\"${product}:${version}\", \"${product}:${version}-${distro//./-}\""
+                done
                 push_group+="\"${tag_base}\", "
                 push_targets+="target \"${tag_base}\" {
-    tags=[\"${product}:${version}\", \"${product}:${version}-${distro//./-}\"]
+    tags=[${push_tags}]
     platforms=[\"${platforms// /\", \"}\"]
     context=\"${ctx}\"
 }
@@ -323,6 +378,7 @@ EOF
 function main() {
     local mode="" custom_url="" version_or_lineage=""
     local generate_only=false
+    declare -ga REGISTRY_PREFIXES=()
 
     # Arrays for multiple values
     declare -ga EDITION_FILTERS=()
@@ -337,6 +393,10 @@ function main() {
         -p)
             mode="push"
             shift
+            ;;
+        -r | --registry)
+            REGISTRY_PREFIXES+=("$2")
+            shift 2
             ;;
         -g | --generate)
             generate_only=true
@@ -382,6 +442,7 @@ function main() {
         exit 1
     fi
 
+    [ ${#REGISTRY_PREFIXES[@]} -eq 0 ] && REGISTRY_PREFIXES=("aerospike")
     [ -n "${custom_url}" ] && export ARTIFACTS_DOMAIN="${custom_url}"
 
     # Step 1: Generate Dockerfiles
@@ -406,7 +467,7 @@ function main() {
         docker buildx bake -f "${BAKE_FILE}" test --progress plain --load
         ;;
     push)
-        log_info "Building and pushing to registry..."
+        log_info "Building and pushing to registry/registries (${REGISTRY_PREFIXES[*]})..."
         docker buildx bake -f "${BAKE_FILE}" push --progress plain --push
         ;;
     esac

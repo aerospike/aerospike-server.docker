@@ -382,6 +382,9 @@ docker buildx create --name mybuilder --driver docker-container --bootstrap --us
 # Build and push to registry (multi-arch)
 ./docker-build.sh -p 8.1 -e enterprise
 
+# Build and push to a specific container registry (e.g. Artifactory)
+./docker-build.sh -p 8.1 -e enterprise -r artifact.aerospike.io/database-docker-dev-local
+
 # Generate Dockerfiles only (no build)
 ./docker-build.sh -g 8.1
 ```
@@ -397,6 +400,8 @@ MODE (one required):
     -g, --generate   Generate Dockerfiles only
 
 OPTIONS:
+    -r, --registry REG  Container registry (and repo path) for push mode.
+                        Multiple: repeat -r (e.g. -r reg1 -r reg2). Default: aerospike.
     -u, --url URL       Custom artifacts URL
     -e, --edition ED    Filter editions: community, enterprise, federal
     -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10
