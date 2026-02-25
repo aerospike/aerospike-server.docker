@@ -45,6 +45,7 @@ OPTIONS:
                         Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
                         Can specify multiple: -d ubuntu24.04 ubi9
                         Default: all distros supported by lineage
+    --no-cache          Disable Docker build cache (force full rebuild)
     -h, --help          Show this help message
 
 VERSION/LINEAGE:
@@ -426,6 +427,7 @@ EOF
 function main() {
     local mode="" custom_url="" version_or_lineage=""
     local generate_only=false
+    local bake_opts=""
     declare -ga REGISTRY_PREFIXES=()
 
     # Arrays for multiple values
@@ -467,6 +469,10 @@ function main() {
                 DISTRO_FILTERS+=("$1")
                 shift
             done
+            ;;
+        --no-cache)
+            bake_opts="--no-cache"
+            shift
             ;;
         -h | --help)
             usage
@@ -512,11 +518,11 @@ function main() {
     case "${mode}" in
     test)
         log_info "Building for local testing..."
-        docker buildx bake -f "${BAKE_FILE}" test --progress plain --load
+        docker buildx bake -f "${BAKE_FILE}" test --progress plain --load ${bake_opts}
         ;;
     push)
         log_info "Building and pushing to registry/registries (${REGISTRY_PREFIXES[*]})..."
-        docker buildx bake -f "${BAKE_FILE}" push --progress plain --push
+        docker buildx bake -f "${BAKE_FILE}" push --progress plain --push ${bake_opts}
         ;;
     esac
 
