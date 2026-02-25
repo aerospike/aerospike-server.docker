@@ -2,7 +2,7 @@
 # Install dependencies
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y --no-install-recommends ca-certificates curl procps binutils xz-utils
+apt-get install -y --no-install-recommends ca-certificates curl procps binutils xz-utils libldap-dev libssl-dev openssl
 
 # OpenSSL 1.1 and OpenLDAP 2.4 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ has newer versions only)
 if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 2>/dev/null; then
