@@ -199,14 +199,14 @@ function generate_dockerfiles() {
         local version="${version_or_lineage}"
         local lineage=$(get_lineage_from_version "${version}")
         local tools_version=$(find_tools_version "${version}")
-        [ -z "${tools_version}" ] && {
-            log_warn "${version} -> tools NOT FOUND"
-            exit 1
-        }
-        VERSION_MAP["${lineage}"]="${version}"
-        TOOLS_MAP["${lineage}"]="${tools_version}"
-        LINEAGES_TO_BUILD=("${lineage}")
-        log_info "  ${version} (lineage: ${lineage}, tools: ${tools_version})"
+        if [ -z "${tools_version}" ]; then
+            log_warn "${version} -> tools NOT FOUND (skipping; use -u for native rpm/deb only)"
+        else
+            VERSION_MAP["${lineage}"]="${version}"
+            TOOLS_MAP["${lineage}"]="${tools_version}"
+            LINEAGES_TO_BUILD=("${lineage}")
+            log_info "  ${version} (lineage: ${lineage}, tools: ${tools_version})"
+        fi
     elif [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+$ ]]; then
         local lineage="${version_or_lineage}"
         local version=$(find_latest_version_for_lineage "${lineage}")
@@ -215,14 +215,14 @@ function generate_dockerfiles() {
             exit 1
         }
         local tools_version=$(find_tools_version "${version}")
-        [ -z "${tools_version}" ] && {
-            log_warn "${lineage} -> ${version} (tools NOT FOUND)"
-            exit 1
-        }
-        VERSION_MAP["${lineage}"]="${version}"
-        TOOLS_MAP["${lineage}"]="${tools_version}"
-        LINEAGES_TO_BUILD=("${lineage}")
-        log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
+        if [ -z "${tools_version}" ]; then
+            log_warn "${lineage} -> ${version} (tools NOT FOUND; skipping; use -u for native rpm/deb only)"
+        else
+            VERSION_MAP["${lineage}"]="${version}"
+            TOOLS_MAP["${lineage}"]="${tools_version}"
+            LINEAGES_TO_BUILD=("${lineage}")
+            log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
+        fi
     else
         for lineage in $(support_releases); do
             local version=$(find_latest_version_for_lineage "${lineage}")
@@ -231,10 +231,10 @@ function generate_dockerfiles() {
                 continue
             }
             local tools_version=$(find_tools_version "${version}")
-            [ -z "${tools_version}" ] && {
-                log_warn "${lineage} -> ${version} (tools NOT FOUND)"
+            if [ -z "${tools_version}" ]; then
+                log_warn "${lineage} -> ${version} (tools NOT FOUND; skipping)"
                 continue
-            }
+            fi
             VERSION_MAP["${lineage}"]="${version}"
             TOOLS_MAP["${lineage}"]="${tools_version}"
             LINEAGES_TO_BUILD+=("${lineage}")
