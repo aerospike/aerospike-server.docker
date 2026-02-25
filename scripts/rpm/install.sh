@@ -1,3 +1,4 @@
+# UBI/RHEL: install via rpm (tgz bundle or native .rpm). Do not use on Ubuntu.
 # Install dependencies (curl-minimal is pre-installed in ubi-minimal)
 microdnf install -y findutils tar gzip xz ca-certificates procps-ng cpio
 

@@ -53,6 +53,7 @@ function support_distro_to_base() {
     esac
 }
 
+# Package type by OS: rpm for UBI/RHEL (ubi9, ubi10), deb for Ubuntu
 function support_distro_to_pkg_type() {
     case "$1" in
     ubuntu*) echo "deb" ;;

@@ -1,3 +1,4 @@
+# Ubuntu/Debian: install via deb (tgz bundle or native .deb). Do not use on UBI/RHEL.
 # Install dependencies
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y

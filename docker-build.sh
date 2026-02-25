@@ -103,6 +103,7 @@ function generate_dockerfile() {
     log_info "  Generating ${edition}/${distro}"
 
     local artifact_distro=$(support_distro_to_artifact_name "${distro}")
+    # rpm for UBI (ubi9/ubi10), deb for Ubuntu; install script and native URLs match OS
     local pkg_type=$(support_distro_to_pkg_type "${distro}")
     local base_image=$(support_distro_to_base "${distro}")
 
@@ -138,6 +139,7 @@ function generate_dockerfile() {
     mkdir -p "${target}"
     cp template/0/entrypoint.sh "${target}/"
     cp template/7/aerospike.template.conf "${target}/"
+    # Install script matches OS: scripts/rpm/install.sh for UBI, scripts/deb/install.sh for Ubuntu
     cp "scripts/${pkg_type}/install.sh" "${target}/install.sh"
 
     # Native rpm/deb: no tools ARGs (server package only)
