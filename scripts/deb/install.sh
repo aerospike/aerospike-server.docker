@@ -6,13 +6,14 @@ apt-get install -y --no-install-recommends ca-certificates curl procps binutils 
 
 # OpenSSL 1.1 and OpenLDAP 2.4 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ has newer versions only)
 if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 2>/dev/null; then
-    echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-compat.list
+    # Jammy (22.04) dropped these; use Focal (20.04) repo which still has them
+    echo "deb [trusted=yes] https://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-compat.list
     apt-get update -y
     apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 || {
         echo "ERROR: failed to install libssl1.1 and/or libldap-2.4-2 (required for Aerospike server on this base image)"
         exit 1
     }
-    rm -f /etc/apt/sources.list.d/jammy-compat.list
+    rm -f /etc/apt/sources.list.d/focal-compat.list
     apt-get update -y
 fi
 apt-mark manual libssl1.1 libldap-2.4-2 2>/dev/null || true
