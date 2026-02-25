@@ -289,6 +289,8 @@ function generate_dockerfiles() {
 function generate_bake() {
     local test_targets="" push_targets=""
     local test_group="" push_group=""
+    local build_ts
+    build_ts=$(date -u +%Y%m%d%H%M%S 2>/dev/null || date +%Y%m%d%H%M%S)
 
     for lineage in "${LINEAGES_TO_BUILD[@]}"; do
         local version="${G_VERSION_MAP[${lineage}]}"
@@ -338,7 +340,7 @@ function generate_bake() {
                 for reg in "${REGISTRY_PREFIXES[@]}"; do
                     local product="${reg}/${image_name}"
                     [ -n "${push_tags}" ] && push_tags+=", "
-                    push_tags+="\"${product}:${version}\", \"${product}:${version}-${distro//./-}\""
+                    push_tags+="\"${product}:${lineage}\", \"${product}:${version}\", \"${product}:${version}-${build_ts}\", \"${product}:${version}-${distro//./-}\""
                 done
                 push_group+="\"${tag_base}\", "
                 push_targets+="target \"${tag_base}\" {
