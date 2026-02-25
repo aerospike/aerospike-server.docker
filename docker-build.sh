@@ -42,6 +42,7 @@ OPTIONS:
                         Can specify multiple: -e enterprise community
                         Default: all editions
     -d, --distro DIST   Filter distro(s): ubuntu22.04, ubuntu24.04, ubi9, ubi10
+                        Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
                         Can specify multiple: -d ubuntu24.04 ubi9
                         Default: all distros supported by lineage
     -h, --help          Show this help message
@@ -54,10 +55,10 @@ VERSION/LINEAGE:
     8.1.1.0-start-16               Development build
     8.1.1.0-start-16-gea126d3      Development build with git hash
 
-DISTRO SUPPORT BY LINEAGE:
+DISTRO SUPPORT BY LINEAGE (default -d; use -d ubi10 to add ubi10):
     7.1:       ubuntu22.04, ubi9
     7.2, 8.0:  ubuntu24.04, ubi9
-    8.1+:      ubuntu24.04, ubi9, ubi10
+    8.1+:      ubuntu24.04, ubi9
 
 OUTPUT:
     releases/<lineage>/<edition>/<distro>/    Generated Dockerfiles
@@ -322,7 +323,7 @@ function generate_dockerfiles() {
                 if [ ${#DISTRO_FILTERS[@]} -gt 0 ]; then
                     local match=false
                     for df in "${DISTRO_FILTERS[@]}"; do
-                        [ "${df}" = "${distro}" ] && match=true && break
+                        [ "${df}" = "${distro}" ] || [[ "${distro}" == "${df}"* ]] && match=true && break
                     done
                     [ "${match}" = false ] && continue
                 fi
@@ -367,7 +368,7 @@ function generate_bake() {
                 if [ ${#DISTRO_FILTERS[@]} -gt 0 ]; then
                     local match=false
                     for df in "${DISTRO_FILTERS[@]}"; do
-                        [ "${df}" = "${distro}" ] && match=true && break
+                        [ "${df}" = "${distro}" ] || [[ "${distro}" == "${df}"* ]] && match=true && break
                     done
                     [ "${match}" = false ] && continue
                 fi

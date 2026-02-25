@@ -34,8 +34,8 @@ function support_distros() {
         echo "ubuntu24.04 ubi9"
         ;;
     8.1 | *)
-        # 8.1+ adds ubi10 support
-        echo "ubuntu24.04 ubi9 ubi10"
+        # 8.1+ default distros (ubi10 available via -d ubi10 if needed)
+        echo "ubuntu24.04 ubi9"
         ;;
     esac
 }

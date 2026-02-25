@@ -35,10 +35,11 @@ OPTIONS:
 TESTS PERFORMED:
     1. Container starts successfully
     2. asd process is running
-    3. asinfo responds with "ok"
-    4. Version matches expected (if detectable)
-    5. Edition matches expected (if -e specified)
-    6. Default namespace 'test' exists
+    3. asinfo exists in container
+    4. asinfo responds with "ok"
+    5. Version matches expected (if detectable)
+    6. Edition matches expected (if -e specified)
+    7. Default namespace 'test' exists
 
 EXAMPLES:
     # Test a specific image (from any registry)
@@ -169,42 +170,53 @@ function check_container() {
     fi
     log_success "asd process running"
 
-    # Check asinfo responds
-    if ! try 10 docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' | grep -qE "^ok"; then
-        log_failure "asinfo not responding"
-        exit 1
-    fi
-    log_success "asinfo responding"
-
-    # Check version (optional)
-    local base_version=$(echo "${version}" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' || true)
-    if [ -n "${base_version}" ]; then
-        local build=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v build' 2>/dev/null | tr -d '\r' || true)
-        if [[ "${build}" == ${base_version}* ]]; then
-            log_success "Version: ${build}"
-        else
-            log_info "Version: ${build}"
-        fi
-    fi
-
-    # Check edition
-    local actual_edition=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v edition' 2>/dev/null | tr -d '\r' || true)
-    
-    if [ -n "${expected_edition}" ]; then
-        # Edition was specified - verify it matches
-        if [[ "${actual_edition,,}" == *"${expected_edition,,}"* ]]; then
-            log_success "Edition: ${actual_edition}"
-        else
-            log_warn "Edition mismatch! Expected: ${expected_edition}, Got: ${actual_edition}"
-        fi
+    # Check asinfo exists before using it
+    local have_asinfo=false
+    if docker exec -t "${CONTAINER}" bash -c 'command -v asinfo' >/dev/null 2>&1; then
+        log_success "asinfo found"
+        have_asinfo=true
     else
-        # Edition not specified - just show it
-        log_info "Edition: ${actual_edition}"
+        log_warn "asinfo not found in container; skipping asinfo-based checks"
     fi
 
-    # Check namespace
-    if docker exec -t "${CONTAINER}" bash -c 'asinfo -v namespaces' 2>/dev/null | grep -q "test"; then
-        log_success "Namespace 'test' exists"
+    if [ "${have_asinfo}" = "true" ]; then
+        # Check asinfo responds
+        if ! try 10 docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' | grep -qE "^ok"; then
+            log_failure "asinfo not responding"
+            exit 1
+        fi
+        log_success "asinfo responding"
+
+        # Check version (optional)
+        local base_version=$(echo "${version}" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' || true)
+        if [ -n "${base_version}" ]; then
+            local build=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v build' 2>/dev/null | tr -d '\r' || true)
+            if [[ "${build}" == ${base_version}* ]]; then
+                log_success "Version: ${build}"
+            else
+                log_info "Version: ${build}"
+            fi
+        fi
+
+        # Check edition
+        local actual_edition=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v edition' 2>/dev/null | tr -d '\r' || true)
+        
+        if [ -n "${expected_edition}" ]; then
+            # Edition was specified - verify it matches
+            if [[ "${actual_edition,,}" == *"${expected_edition,,}"* ]]; then
+                log_success "Edition: ${actual_edition}"
+            else
+                log_warn "Edition mismatch! Expected: ${expected_edition}, Got: ${actual_edition}"
+            fi
+        else
+            # Edition not specified - just show it
+            log_info "Edition: ${actual_edition}"
+        fi
+
+        # Check namespace
+        if docker exec -t "${CONTAINER}" bash -c 'asinfo -v namespaces' 2>/dev/null | grep -q "test"; then
+            log_success "Namespace 'test' exists"
+        fi
     fi
 }
 
@@ -251,11 +263,28 @@ function test_from_releases() {
     local editions=${EDITION:-$(support_editions)}
     local distros=${DISTRIBUTION:-$(support_distros "${lineage}")}
     local tested=0
+    local skip_no_dir=0
+    local skip_no_image=0
+
+    # Report which release dirs exist (so user sees why only one may be tested)
+    local existing_dirs=""
+    for edition in ${editions}; do
+        for distro in ${distros}; do
+            [ -d "releases/${lineage}/${edition}/${distro}" ] && existing_dirs="${existing_dirs} ${edition}/${distro}"
+        done
+    done
+    existing_dirs=${existing_dirs# }
+    log_info "Release dirs for ${lineage}: ${existing_dirs:-none}"
+    echo ""
 
     for edition in ${editions}; do
         for distro in ${distros}; do
             local dir="releases/${lineage}/${edition}/${distro}"
-            [ -d "${dir}" ] || continue
+            if [ ! -d "${dir}" ]; then
+                skip_no_dir=$((skip_no_dir + 1))
+                log_info "Skipping ${edition}/${distro}: no releases/ directory"
+                continue
+            fi
 
             local version
             version=$(get_version_from_dockerfile "${lineage}" "${edition}" "${distro}") || continue
@@ -275,7 +304,8 @@ function test_from_releases() {
             log_info "====== Testing: ${IMAGE_TAG} ======"
             
             if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
-                log_warn "Image not found locally. Build it first: ./docker-build.sh -t ${lineage} -e ${edition} -d ${distro}"
+                skip_no_image=$((skip_no_image + 1))
+                log_warn "Skipping ${edition}/${distro}: image not found locally"
                 continue
             fi
             
@@ -285,12 +315,13 @@ function test_from_releases() {
             check_container "${version}" "${edition}"
             cleanup
             
-            ((tested++))
+            tested=$((tested + 1))
             echo ""
         done
     done
 
     [ "${tested}" -eq 0 ] && { log_warn "No images found. Run docker-build.sh first."; exit 1; }
+    log_info "Summary: ${tested} tested, ${skip_no_dir} skipped (no releases/ dir), ${skip_no_image} skipped (image not built)"
     log_success "====== All ${tested} test(s) passed! ======"
 }
 

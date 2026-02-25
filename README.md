@@ -348,12 +348,12 @@ These images are based on Ubuntu or Red Hat UBI depending on the variant:
 
 ### Supported Releases and Distros
 
-| Lineage | Supported Distros |
-|---------|-------------------|
+| Lineage | Default Distros (use `-d ubi10` to add ubi10 for 8.1+) |
+|---------|--------------------------------------------------------|
 | 7.1 | ubuntu22.04, ubi9 |
 | 7.2 | ubuntu24.04, ubi9 |
 | 8.0 | ubuntu24.04, ubi9 |
-| 8.1+ | ubuntu24.04, ubi9, ubi10 |
+| 8.1+ | ubuntu24.04, ubi9 |
 
 ## Building Images
 
@@ -378,6 +378,9 @@ docker buildx create --name mybuilder --driver docker-container --bootstrap --us
 
 # Build specific edition and distro
 ./docker-build.sh -t 8.1 -e enterprise -d ubuntu24.04
+
+# Build only Ubuntu distros (exclude UBI)
+./docker-build.sh -t 8.1 -e enterprise -d ubuntu
 
 # Build and push to registry (multi-arch)
 ./docker-build.sh -p 8.1 -e enterprise
@@ -404,7 +407,8 @@ OPTIONS:
                         Multiple: repeat -r (e.g. -r reg1 -r reg2). Default: aerospike.
     -u, --url URL       Custom artifacts URL
     -e, --edition ED    Filter editions: community, enterprise, federal
-    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10
+    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10.
+                        Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI).
 
 VERSION FORMATS:
     8.1                       Lineage (auto-detects latest version)
