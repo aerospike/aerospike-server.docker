@@ -8,10 +8,25 @@ apt-get install -y --no-install-recommends ca-certificates curl procps binutils 
 if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 2>/dev/null; then
     echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-compat.list
     apt-get update -y
-    apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2
+    apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 || {
+        echo "ERROR: failed to install libssl1.1 and/or libldap-2.4-2 (required for Aerospike server on this base image)"
+        exit 1
+    }
     rm -f /etc/apt/sources.list.d/jammy-compat.list
     apt-get update -y
 fi
+apt-mark manual libssl1.1 libldap-2.4-2 2>/dev/null || true
+
+# Verify compatibility libs are present (fail build if missing so we don't ship broken images)
+ldconfig 2>/dev/null || true
+for lib in libcrypto.so.1.1 liblber-2.4.so.2; do
+    if ! ldconfig -p 2>/dev/null | grep -q "${lib}" && \
+       ! [ -f "/usr/lib/x86_64-linux-gnu/${lib}" ] && \
+       ! [ -f "/usr/lib/aarch64-linux-gnu/${lib}" ]; then
+        echo "ERROR: ${lib} not found (Aerospike server requires it on this base image)"
+        exit 1
+    fi
+done
 
 # Download tini
 ARCH="$(dpkg --print-architecture)"
