@@ -27,6 +27,7 @@ OPTIONS:
                          With -i: optional, used to verify edition matches
                          Without -i: filters which images to test
     -d, --distro DIST    Distro filter: ubuntu22.04, ubuntu24.04, ubi9, ubi10
+                         Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
     -p, --platform PLAT  Platform: linux/amd64, linux/arm64
                          Default: auto-detect from host architecture
     -c, --clean          Remove tested images after test completes
@@ -261,7 +262,17 @@ function test_from_releases() {
     echo ""
 
     local editions=${EDITION:-$(support_editions)}
-    local distros=${DISTRIBUTION:-$(support_distros "${lineage}")}
+    local all_distros
+    all_distros=$(support_distros "${lineage}")
+    local distros=""
+    if [ -z "${DISTRIBUTION}" ]; then
+        distros="${all_distros}"
+    else
+        for d in ${all_distros}; do
+            [ "${d}" = "${DISTRIBUTION}" ] || [ "${d#${DISTRIBUTION}}" != "${d}" ] && distros="${distros} ${d}"
+        done
+        distros=${distros# }
+    fi
     local tested=0
     local skip_no_dir=0
     local skip_no_image=0
