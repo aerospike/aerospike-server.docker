@@ -2,19 +2,48 @@
 # Install dependencies
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y --no-install-recommends ca-certificates curl procps binutils xz-utils libldap-dev libssl-dev openssl
+apt-get install -y --no-install-recommends ca-certificates curl procps binutils xz-utils
 
 # OpenSSL 1.1 and OpenLDAP 2.4 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ has newer versions only)
+# Direct .deb download from Ubuntu Focal pool (used when apt cannot reach extra repos, e.g. in CI)
+install_compat_libs() {
+    local arch="${1:-$(dpkg --print-architecture)}"
+    local base="https://archive.ubuntu.com/ubuntu/pool/main"
+    local base_ports="https://ports.ubuntu.com/ubuntu-ports/pool/main"
+    local tmpdir="/tmp/compat-debs"
+    mkdir -p "${tmpdir}"
+    local ssl_url="${base}/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_${arch}.deb"
+    [ "${arch}" = "arm64" ] && ssl_url="${base_ports}/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_${arch}.deb"
+    local ldap_common_url="${base}/o/openldap/libldap-common_2.4.49+dfsg-2ubuntu1.10_all.deb"
+    local ldap24_url="${base}/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_${arch}.deb"
+    [ "${arch}" = "arm64" ] && ldap24_url="${base_ports}/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_${arch}.deb"
+    if curl -fsSL "${ssl_url}" -o "${tmpdir}/libssl1.1.deb" && \
+       curl -fsSL "${ldap_common_url}" -o "${tmpdir}/libldap-common.deb" && \
+       curl -fsSL "${ldap24_url}" -o "${tmpdir}/libldap-2.4-2.deb"; then
+        dpkg -i "${tmpdir}/libldap-common.deb" "${tmpdir}/libldap-2.4-2.deb" "${tmpdir}/libssl1.1.deb" || apt-get install -f -y
+        rm -rf "${tmpdir}"
+        return 0
+    fi
+    rm -rf "${tmpdir}"
+    return 1
+}
+
 if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 2>/dev/null; then
-    # Jammy (22.04) dropped these; use Focal (20.04) repo which still has them
+    # Try Focal (20.04) repo in case apt can reach it
     echo "deb [trusted=yes] https://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-compat.list
-    apt-get update -y
-    apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 || {
-        echo "ERROR: failed to install libssl1.1 and/or libldap-2.4-2 (required for Aerospike server on this base image)"
-        exit 1
-    }
-    rm -f /etc/apt/sources.list.d/focal-compat.list
-    apt-get update -y
+    apt-get update -y 2>/dev/null
+    if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 2>/dev/null; then
+        rm -f /etc/apt/sources.list.d/focal-compat.list
+        apt-get update -y 2>/dev/null
+        # Repo not reachable (e.g. CI network); install via direct .deb download from Focal pool
+        if ! install_compat_libs; then
+            echo "ERROR: failed to install libssl1.1 and/or libldap-2.4-2 (required for Aerospike server on this base image)"
+            exit 1
+        fi
+    else
+        rm -f /etc/apt/sources.list.d/focal-compat.list
+        apt-get update -y 2>/dev/null
+    fi
 fi
 apt-mark manual libssl1.1 libldap-2.4-2 2>/dev/null || true
 
