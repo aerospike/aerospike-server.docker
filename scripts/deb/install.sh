@@ -4,23 +4,27 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y --no-install-recommends ca-certificates curl procps binutils xz-utils
 
-# OpenSSL 1.1 and OpenLDAP 2.4 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ has newer versions only)
-# Direct .deb download from Ubuntu Focal pool (used when apt cannot reach extra repos, e.g. in CI)
+# OpenSSL 1.1 and OpenLDAP 2.4/2.5 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ has newer only)
+# Direct .deb download when apt cannot reach extra repos (e.g. CI)
 install_compat_libs() {
     local arch="${1:-$(dpkg --print-architecture)}"
     local base="https://archive.ubuntu.com/ubuntu/pool/main"
     local base_ports="https://ports.ubuntu.com/ubuntu-ports/pool/main"
     local tmpdir="/tmp/compat-debs"
     mkdir -p "${tmpdir}"
+    # Focal: libssl1.1, libldap-2.4-2 + libldap-common (2.4). Jammy: libldap-2.5-0 + libldap-common (2.5, satisfies both)
     local ssl_url="${base}/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_${arch}.deb"
     [ "${arch}" = "arm64" ] && ssl_url="${base_ports}/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_${arch}.deb"
-    local ldap_common_url="${base}/o/openldap/libldap-common_2.4.49+dfsg-2ubuntu1.10_all.deb"
+    local ldap_common_jammy="${base}/o/openldap/libldap-common_2.5.16+dfsg-0ubuntu0.22.04.2_all.deb"
     local ldap24_url="${base}/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_${arch}.deb"
     [ "${arch}" = "arm64" ] && ldap24_url="${base_ports}/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_${arch}.deb"
+    local ldap25_url="${base}/o/openldap/libldap-2.5-0_2.5.16+dfsg-0ubuntu0.22.04.2_${arch}.deb"
+    [ "${arch}" = "arm64" ] && ldap25_url="${base_ports}/o/openldap/libldap-2.5-0_2.5.16+dfsg-0ubuntu0.22.04.2_${arch}.deb"
     if curl -fsSL "${ssl_url}" -o "${tmpdir}/libssl1.1.deb" && \
-       curl -fsSL "${ldap_common_url}" -o "${tmpdir}/libldap-common.deb" && \
-       curl -fsSL "${ldap24_url}" -o "${tmpdir}/libldap-2.4-2.deb"; then
-        dpkg -i "${tmpdir}/libldap-common.deb" "${tmpdir}/libldap-2.4-2.deb" "${tmpdir}/libssl1.1.deb" || apt-get install -f -y
+       curl -fsSL "${ldap_common_jammy}" -o "${tmpdir}/libldap-common.deb" && \
+       curl -fsSL "${ldap24_url}" -o "${tmpdir}/libldap-2.4-2.deb" && \
+       curl -fsSL "${ldap25_url}" -o "${tmpdir}/libldap-2.5-0.deb"; then
+        dpkg -i "${tmpdir}/libldap-common.deb" "${tmpdir}/libldap-2.4-2.deb" "${tmpdir}/libldap-2.5-0.deb" "${tmpdir}/libssl1.1.deb" || apt-get install -f -y
         rm -rf "${tmpdir}"
         return 0
     fi
@@ -28,28 +32,28 @@ install_compat_libs() {
     return 1
 }
 
-if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 2>/dev/null; then
-    # Try Focal (20.04) repo in case apt can reach it
+if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
+    # Try Focal (20.04) + Jammy (22.04) repos: Focal has libssl1.1 and libldap-2.4-2, Jammy has libldap-2.5-0
     echo "deb [trusted=yes] https://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-compat.list
+    echo "deb [trusted=yes] https://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-compat.list
     apt-get update -y 2>/dev/null
-    if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 2>/dev/null; then
-        rm -f /etc/apt/sources.list.d/focal-compat.list
+    if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
+        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
         apt-get update -y 2>/dev/null
-        # Repo not reachable (e.g. CI network); install via direct .deb download from Focal pool
         if ! install_compat_libs; then
-            echo "ERROR: failed to install libssl1.1 and/or libldap-2.4-2 (required for Aerospike server on this base image)"
+            echo "ERROR: failed to install libssl1.1 / libldap-2.4-2 / libldap-2.5-0 (required for Aerospike server on this base image)"
             exit 1
         fi
     else
-        rm -f /etc/apt/sources.list.d/focal-compat.list
+        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
         apt-get update -y 2>/dev/null
     fi
 fi
-apt-mark manual libssl1.1 libldap-2.4-2 2>/dev/null || true
+apt-mark manual libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null || true
 
 # Verify compatibility libs are present (fail build if missing so we don't ship broken images)
 ldconfig 2>/dev/null || true
-for lib in libcrypto.so.1.1 liblber-2.4.so.2; do
+for lib in libcrypto.so.1.1 liblber-2.4.so.2 liblber-2.5.so.0; do
     if ! ldconfig -p 2>/dev/null | grep -q "${lib}" && \
        ! [ -f "/usr/lib/x86_64-linux-gnu/${lib}" ] && \
        ! [ -f "/usr/lib/aarch64-linux-gnu/${lib}" ]; then
