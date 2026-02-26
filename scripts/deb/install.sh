@@ -1,4 +1,5 @@
 # Ubuntu/Debian: install via deb (tgz bundle or native .deb). Do not use on UBI/RHEL.
+# Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Install dependencies
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
@@ -102,7 +103,11 @@ if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
 else
     # Native deb: from local /tmp (when -u local dir) or download (SHA optional, e.g. JFrog)
     if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
-        [ "${ARCH}" = "amd64" ] && cp /tmp/server_amd64.deb server.deb || cp /tmp/server_arm64.deb server.deb
+        if [ "${ARCH}" = "amd64" ]; then
+            cp /tmp/server_amd64.deb server.deb
+        else
+            cp /tmp/server_arm64.deb server.deb
+        fi
     else
         curl -fsSL "${pkg_link}" -o server.deb
         [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -

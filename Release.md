@@ -115,6 +115,8 @@ aerospike-server.docker/
 │   └── FEDERAL_LICENSE          # Federal license info
 ├── releases/                    # Generated Dockerfiles (gitignore recommended)
 ├── bake-multi.hcl               # Generated bake file (gitignore recommended)
+├── LICENSE                      # Apache 2.0 — build scripts and tooling
+├── Release.md                   # Release notes and change summary
 ├── README.md                    # Main documentation
 ├── README-short.txt             # Docker Hub short description
 └── logo.png                     # Aerospike logo
@@ -190,3 +192,20 @@ Updated README.md with:
 
 - **CI workflows**  
   `.github/workflows/build.yml` still references `update.sh` and `build.sh`. These should be updated to use `docker-build.sh` (e.g. generate with `./docker-build.sh -g` for the "no diff" check, and `./docker-build.sh -t` for build/test) to align with the new build system.
+
+- **Code organization (PR-ready)**  
+  - **Linear release dependencies:** `lib/support.sh` documents canonical lineage order (7.1, 7.2, 8.0, 8.1); `support_distros()` is the single source of truth for lineage → distros.  
+  - **Shared helpers:** `get_lineage_from_version()` moved to `lib/version.sh` and used by both `docker-build.sh` and `test.sh`. New `support_distros_matching(lineage, filter)` in `lib/support.sh` centralizes distro filtering (exact/prefix); used by `docker-build.sh` (generate + bake) and `test.sh`.  
+  - **File headers:** Each script has a short header with dependencies and purpose (`lib/log.sh`, `lib/fetch.sh`, `lib/support.sh`, `lib/version.sh`, `docker-build.sh`, `test.sh`).  
+  - **Tag behaviour:** When only one distro is built, image tags omit the distro suffix (e.g. `7.1.0.21` instead of `7.1.0.21-ubuntu22.04`). When multiple distros: tags include distro (e.g. `7.1-ubuntu22.04`, `7.1.0.21-ubuntu22.04`, `7.1.0.21-ubuntu22.04-20260226123040`). Timestamp format `%Y%m%d%H%M%S` (no hyphen). Test fallback tries both `version-distro-arch` and `version-arch` when bake file is missing.
+
+- **ShellCheck**  
+  All bash scripts validated with ShellCheck (Docker image `koalaman/shellcheck:stable`). Fixes: SC2155 (declare then assign), SC2034 (unused variables), SC2086 (quoting), SC2231 (prefer builtin), SC2015 (if/else instead of `&&`/`||` for arch-based copy in install scripts). `bash -n` continues to pass.
+
+- **Ubuntu 24.04 compatibility (scripts/deb/install.sh)**  
+  Install libssl1.1 and libldap-2.4-2 (and libldap-2.5-0 where required for some images). Try apt, then Focal/Jammy repos, then direct .deb download from Ubuntu archive/ports. Use `apt-mark manual`; verify libs and fail build if missing. Removed spurious libldap-dev, libssl-dev, openssl. Same SC2015-style if/else fix in `scripts/rpm/install.sh`.
+
+- **Disclaimer and licensing**  
+  - **LICENSE** – New top-level Apache License, Version 2.0 for this repository (build scripts, templates, tooling); note that Aerospike Database in images is licensed separately (README and `licenses/`).  
+  - **README** – New "Disclaimer" section: images and software provided per applicable license terms; no warranty of fitness for a particular purpose; evaluation/commercial keys subject to their agreements. License section updated: this repo under [Apache 2.0](LICENSE); Aerospike Database in images (EE evaluation / commercial / CE) and pointer to `licenses/`.  
+  - **Script headers** – `docker-build.sh` and `test.sh` have a 3-line license header (Copyright, Apache 2.0, See LICENSE). `lib/*.sh`, `scripts/deb/install.sh`, and `scripts/rpm/install.sh` have a 1-line "Copyright … Licensed under Apache-2.0. See LICENSE." header.

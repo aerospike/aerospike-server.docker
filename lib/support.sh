@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Support functions for Aerospike Docker images
-# Supports: 7.1+
+# Support matrix and distro/edition helpers for Aerospike Docker images.
+# Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
+# Dependencies: lib/log.sh. Canonical lineage order (linear): 7.1, 7.2, 8.0, 8.1
 
 set -Eeuo pipefail
 
 source lib/log.sh
 
-# Supported releases
+# Supported release lineages (order preserved for build/test iteration)
 RELEASES="7.1 7.2 8.0 8.1"
 
 # Supported editions
@@ -20,24 +21,44 @@ function support_editions() {
     echo "${EDITIONS}"
 }
 
-# Get supported distros for a release lineage
+# Get supported distros for a release lineage (single source of truth per lineage).
 function support_distros() {
     local lineage=${1:-}
 
     case "${lineage}" in
     7.1)
-        # 7.1 uses ubuntu22.04 (no ubuntu24.04 packages available)
         echo "ubuntu22.04 ubi9"
         ;;
     7.2 | 8.0)
-        # 7.2 and 8.0 use ubuntu24.04, ubi9
         echo "ubuntu24.04 ubi9"
         ;;
     8.1 | *)
-        # 8.1+ default distros (ubi10 available via -d ubi10 if needed)
         echo "ubuntu24.04 ubi9"
         ;;
     esac
+}
+
+# Return distros for lineage that match any filter (exact or prefix). No filter = all.
+# Usage: support_distros_matching lineage ""  or  support_distros_matching lineage "ubuntu ubi9"
+function support_distros_matching() {
+    local lineage=$1
+    local filter_tokens=$2
+    local all_distros
+    all_distros=$(support_distros "${lineage}")
+    if [ -z "${filter_tokens}" ]; then
+        echo "${all_distros}"
+        return
+    fi
+    local out=""
+    for d in ${all_distros}; do
+        for f in ${filter_tokens}; do
+            if [ "${d}" = "${f}" ] || [[ "${d}" == "${f}"* ]]; then
+                out="${out} ${d}"
+                break
+            fi
+        done
+    done
+    echo "${out# }"
 }
 
 function support_distro_to_base() {

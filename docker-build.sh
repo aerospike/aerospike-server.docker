@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #
-# Generate and build Docker images for Aerospike server releases
+# Generate and build Docker images for Aerospike server releases.
+# Copyright 2014-2025 Aerospike, Inc. Licensed under the Apache License, Version 2.0.
+# See LICENSE in the project root.
+#
+# Dependencies: lib/fetch.sh, lib/log.sh, lib/support.sh, lib/version.sh
+# Flow: parse args -> generate_dockerfiles -> [generate_bake -> build]
 #
 
 set -Eeuo pipefail
@@ -94,26 +99,22 @@ EXAMPLES:
 EOF
 }
 
-function get_lineage_from_version() {
-    echo "$1" | grep -oE '^[0-9]+\.[0-9]+'
-}
-
 #------------------------------------------------------------------------------
 # Generate Dockerfiles
 #------------------------------------------------------------------------------
+# generate_dockerfile lineage distro edition version tools_version
 function generate_dockerfile() {
     local lineage=$1 distro=$2 edition=$3 version=$4 tools_version=$5
     local target="releases/${lineage}/${edition}/${distro}"
 
     log_info "  Generating ${edition}/${distro}"
 
-    local artifact_distro=$(support_distro_to_artifact_name "${distro}")
-    # rpm for UBI (ubi9/ubi10), deb for Ubuntu; install script and native URLs match OS
-    local pkg_type=$(support_distro_to_pkg_type "${distro}")
-    local base_image=$(support_distro_to_base "${distro}")
+    local artifact_distro pkg_type base_image
+    artifact_distro=$(support_distro_to_artifact_name "${distro}")
+    pkg_type=$(support_distro_to_pkg_type "${distro}")
+    base_image=$(support_distro_to_base "${distro}")
 
     local x86_link="" x86_sha="" arm_link="" arm_sha=""
-    local tools_x86_link="" tools_x86_sha="" tools_arm_link="" tools_arm_sha=""
     local pkg_format="tgz"
 
     # When no tools version: skip tgz, go straight to native .rpm/.deb (server only)
@@ -234,8 +235,6 @@ DOCKERFILE
 
 function generate_dockerfiles() {
     local version_or_lineage=$1
-    shift
-    local -a edition_filters=("$@")
 
     log_info "=== Generating Dockerfiles ==="
     log_info "Fetching versions from ${ARTIFACTS_DOMAIN}..."
@@ -248,8 +247,9 @@ function generate_dockerfiles() {
 
     if [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; then
         local version="${version_or_lineage}"
-        local lineage=$(get_lineage_from_version "${version}")
-        local tools_version=$(find_tools_version "${version}")
+        local lineage tools_version
+        lineage=$(get_lineage_from_version "${version}")
+        tools_version=$(find_tools_version "${version}")
         VERSION_MAP["${lineage}"]="${version}"
         TOOLS_MAP["${lineage}"]="${tools_version:-}"
         LINEAGES_TO_BUILD=("${lineage}")
@@ -260,12 +260,13 @@ function generate_dockerfiles() {
         fi
     elif [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+$ ]]; then
         local lineage="${version_or_lineage}"
-        local version=$(find_latest_version_for_lineage "${lineage}")
+        local version tools_version
+        version=$(find_latest_version_for_lineage "${lineage}")
         [ -z "${version}" ] && {
             log_warn "${lineage} -> NOT FOUND"
             exit 1
         }
-        local tools_version=$(find_tools_version "${version}")
+        tools_version=$(find_tools_version "${version}")
         VERSION_MAP["${lineage}"]="${version}"
         TOOLS_MAP["${lineage}"]="${tools_version:-}"
         LINEAGES_TO_BUILD=("${lineage}")
@@ -276,12 +277,13 @@ function generate_dockerfiles() {
         fi
     else
         for lineage in $(support_releases); do
-            local version=$(find_latest_version_for_lineage "${lineage}")
+            local version tools_version
+            version=$(find_latest_version_for_lineage "${lineage}")
             [ -z "${version}" ] && {
                 log_warn "${lineage} -> NOT FOUND"
                 continue
             }
-            local tools_version=$(find_tools_version "${version}")
+            tools_version=$(find_tools_version "${version}")
             VERSION_MAP["${lineage}"]="${version}"
             TOOLS_MAP["${lineage}"]="${tools_version:-}"
             LINEAGES_TO_BUILD+=("${lineage}")
@@ -306,29 +308,20 @@ function generate_dockerfiles() {
         local tools_version="${TOOLS_MAP[${lineage}]:-}"
         [ -z "${version}" ] && continue
 
-        local all_distros=$(support_distros "${lineage}")
+        local distros_lineage
+        distros_lineage=$(support_distros_matching "${lineage}" "${DISTRO_FILTERS[*]:-}")
         log_info "Processing ${lineage} (${version})"
 
         for edition in $(support_editions); do
-            # Check edition filter
             if [ ${#EDITION_FILTERS[@]} -gt 0 ]; then
                 local match=false
                 for ef in "${EDITION_FILTERS[@]}"; do
-                    [ "${ef}" = "${edition}" ] && match=true && break
+                    [ "${ef}" = "${edition}" ] && { match=true; break; }
                 done
                 [ "${match}" = false ] && continue
             fi
 
-            for distro in ${all_distros}; do
-                # Check distro filter
-                if [ ${#DISTRO_FILTERS[@]} -gt 0 ]; then
-                    local match=false
-                    for df in "${DISTRO_FILTERS[@]}"; do
-                        [ "${df}" = "${distro}" ] || [[ "${distro}" == "${df}"* ]] && match=true && break
-                    done
-                    [ "${match}" = false ] && continue
-                fi
-
+            for distro in ${distros_lineage}; do
                 generate_dockerfile "${lineage}" "${distro}" "${edition}" "${version}" "${tools_version}" || true
             done
         done
@@ -352,42 +345,41 @@ function generate_bake() {
 
     for lineage in "${LINEAGES_TO_BUILD[@]}"; do
         local version="${G_VERSION_MAP[${lineage}]}"
-        local all_distros=$(support_distros "${lineage}")
+        local distros_building
+        distros_building=$(support_distros_matching "${lineage}" "${DISTRO_FILTERS[*]:-}")
+        local omit_distro_in_tag=0
+        local num_distros
+        num_distros=$(echo "${distros_building}" | wc -w)
+        # Single distro -> tag without distro suffix (e.g. 7.1.0.21 instead of 7.1.0.21-ubuntu22.04)
+        [ "${num_distros}" -eq 1 ] && omit_distro_in_tag=1
 
         for edition in $(support_editions); do
-            # Check edition filter
             if [ ${#EDITION_FILTERS[@]} -gt 0 ]; then
                 local match=false
                 for ef in "${EDITION_FILTERS[@]}"; do
-                    [ "${ef}" = "${edition}" ] && match=true && break
+                    [ "${ef}" = "${edition}" ] && { match=true; break; }
                 done
                 [ "${match}" = false ] && continue
             fi
 
-            for distro in ${all_distros}; do
-                # Check distro filter
-                if [ ${#DISTRO_FILTERS[@]} -gt 0 ]; then
-                    local match=false
-                    for df in "${DISTRO_FILTERS[@]}"; do
-                        [ "${df}" = "${distro}" ] || [[ "${distro}" == "${df}"* ]] && match=true && break
-                    done
-                    [ "${match}" = false ] && continue
-                fi
-
+            for distro in ${distros_building}; do
                 local ctx="./releases/${lineage}/${edition}/${distro}"
                 [ ! -d "${ctx}" ] && continue
 
-                local tag_base="${lineage//./-}_${edition}_${distro//./-}"
-                local platforms=$(support_platforms "${edition}")
+                local tag_base platforms
+                tag_base="${lineage//./-}_${edition}_${distro//./-}"
+                platforms=$(support_platforms "${edition}")
                 local image_name="aerospike-server"
                 [ "${edition}" != "community" ] && image_name+="-${edition}"
                 local test_product="${REGISTRY_PREFIXES[0]}/${image_name}"
 
                 for plat in ${platforms}; do
                     local arch=${plat#*/}
+                    local test_tag
+                    [ "${omit_distro_in_tag}" -eq 1 ] && test_tag="${test_product}:${version}-${arch}" || test_tag="${test_product}:${version}-${distro}-${arch}"
                     test_group+="\"${tag_base}_${arch}\", "
                     test_targets+="target \"${tag_base}_${arch}\" {
-    tags=[\"${test_product}:${version}-${distro//./-}-${arch}\"]
+    tags=[\"${test_tag}\"]
     platforms=[\"${plat}\"]
     context=\"${ctx}\"
 }
@@ -398,7 +390,11 @@ function generate_bake() {
                 for reg in "${REGISTRY_PREFIXES[@]}"; do
                     local product="${reg}/${image_name}"
                     [ -n "${push_tags}" ] && push_tags+=", "
-                    push_tags+="\"${product}:${lineage}\", \"${product}:${version}\", \"${product}:${version}-${build_ts}\", \"${product}:${version}-${distro//./-}\""
+                    if [ "${omit_distro_in_tag}" -eq 1 ]; then
+                        push_tags+="\"${product}:${lineage}\", \"${product}:${version}\", \"${product}:${version}-${build_ts}\""
+                    else
+                        push_tags+="\"${product}:${lineage}-${distro}\", \"${product}:${version}-${distro}\", \"${product}:${version}-${distro}-${build_ts}\""
+                    fi
                 done
                 push_group+="\"${tag_base}\", "
                 push_targets+="target \"${tag_base}\" {

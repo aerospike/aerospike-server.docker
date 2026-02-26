@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# HTTP fetch helper. Used by lib/version.sh; callers must source lib/log.sh for log_debug.
+# Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 
 set -Eeuo pipefail
 

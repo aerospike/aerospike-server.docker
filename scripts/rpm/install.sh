@@ -1,4 +1,5 @@
 # UBI/RHEL: install via rpm (tgz bundle or native .rpm). Do not use on Ubuntu.
+# Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Install dependencies (curl-minimal is pre-installed in ubi-minimal)
 microdnf install -y findutils tar gzip xz ca-certificates procps-ng cpio
 
@@ -41,7 +42,11 @@ if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
 else
     # Native rpm: from local /tmp (when -u local dir) or download (SHA optional, e.g. JFrog)
     if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
-        [ "${ARCH}" = "x86_64" ] && cp /tmp/server_x86_64.rpm server.rpm || cp /tmp/server_aarch64.rpm server.rpm
+        if [ "${ARCH}" = "x86_64" ]; then
+            cp /tmp/server_x86_64.rpm server.rpm
+        else
+            cp /tmp/server_aarch64.rpm server.rpm
+        fi
     else
         curl -fsSL "${pkg_link}" -o server.rpm
         [ -n "${sha256}" ] && echo "${sha256} server.rpm" | sha256sum -c -

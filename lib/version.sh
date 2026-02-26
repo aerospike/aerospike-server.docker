@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Version utilities for Aerospike Docker images
+# Version utilities for Aerospike Docker images.
+# Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
+# Dependencies: lib/fetch.sh (callers must also source lib/log.sh if using fetch with DEBUG).
 #
 # Supported version formats:
 #   - 8.1.1.0                      (release)
@@ -12,6 +14,11 @@ set -Eeuo pipefail
 source lib/fetch.sh
 
 ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://download.aerospike.com/artifacts"}
+
+# Extract lineage (major.minor) from a full version string (e.g. 8.1.1.0 -> 8.1).
+function get_lineage_from_version() {
+    echo "$1" | grep -oE '^[0-9]+\.[0-9]+'
+}
 
 # Check if URL is a direct edition URL (contains aerospike-server-<edition>)
 function is_direct_url() {
@@ -76,7 +83,7 @@ function find_local_server_package() {
             [ -f "${exact}" ] && echo "${exact}" && return
             # Glob in base_dir only: *edition*_*_arch.deb (matches version+distro or version in middle)
             local f
-            for f in "${base_dir}"/*aerospike-server*${edition}*_${deb_arch}.deb; do
+            for f in "${base_dir}"/*aerospike-server*"${edition}"*_"${deb_arch}".deb; do
                 [ -f "${f}" ] && echo "${f}" && return
             done
         fi

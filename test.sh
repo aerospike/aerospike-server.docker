@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-
-#----------------------------------------------------------------------
-# Test built Docker images
-#----------------------------------------------------------------------
+#
+# Functional tests for Aerospike server Docker images.
+# Copyright 2014-2025 Aerospike, Inc. Licensed under the Apache License, Version 2.0.
+# See LICENSE in the project root.
+#
+# Dependencies: lib/log.sh, lib/support.sh, lib/version.sh
+# Tag format must match docker-build.sh (single-distro: version-arch; multi: version-distro-arch).
+#
 
 set -Eeuo pipefail
 
@@ -76,10 +80,6 @@ PREREQUISITES:
 EOF
 }
 
-function get_lineage_from_version() {
-    echo "$1" | grep -oE '^[0-9]+\.[0-9]+'
-}
-
 function parse_args() {
     VERSION_OR_LINEAGE=""
     SPECIFIC_IMAGE=""
@@ -103,7 +103,8 @@ function parse_args() {
 
     # Default platform to host architecture
     if [ -z "${PLATFORM}" ]; then
-        local arch=$(uname -m)
+        local arch
+        arch=$(uname -m)
         case "${arch}" in
             x86_64)          PLATFORM="linux/amd64" ;;
             arm64|aarch64)   PLATFORM="linux/arm64" ;;
@@ -135,9 +136,11 @@ function get_image_tag_from_bake() {
 
 function run_docker() {
     log_info "Starting container..."
-    local platform_arg=""
-    [ -n "${PLATFORM}" ] && platform_arg="--platform=${PLATFORM}"
-    docker run -td --name "${CONTAINER}" -e "DEFAULT_TTL=30d" ${platform_arg} "${IMAGE_TAG}"
+    if [ -n "${PLATFORM}" ]; then
+        docker run -td --name "${CONTAINER}" -e "DEFAULT_TTL=30d" --platform="${PLATFORM}" "${IMAGE_TAG}"
+    else
+        docker run -td --name "${CONTAINER}" -e "DEFAULT_TTL=30d" "${IMAGE_TAG}"
+    fi
 }
 
 function try() {
@@ -189,9 +192,11 @@ function check_container() {
         log_success "asinfo responding"
 
         # Check version (optional)
-        local base_version=$(echo "${version}" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' || true)
+        local base_version
+        base_version=$(echo "${version}" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' || true)
         if [ -n "${base_version}" ]; then
-            local build=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v build' 2>/dev/null | tr -d '\r' || true)
+            local build
+            build=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v build' 2>/dev/null | tr -d '\r' || true)
             if [[ "${build}" == ${base_version}* ]]; then
                 log_success "Version: ${build}"
             else
@@ -200,7 +205,8 @@ function check_container() {
         fi
 
         # Check edition
-        local actual_edition=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v edition' 2>/dev/null | tr -d '\r' || true)
+        local actual_edition
+        actual_edition=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v edition' 2>/dev/null | tr -d '\r' || true)
         
         if [ -n "${expected_edition}" ]; then
             # Edition was specified - verify it matches
@@ -236,7 +242,8 @@ function test_specific_image() {
     [ -n "${EDITION}" ] && log_info "  Expected edition: ${EDITION}"
     echo ""
 
-    local version=$(echo "${IMAGE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9-]+)?' || echo "")
+    local version
+    version=$(echo "${IMAGE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9-]+)?' || echo "")
 
     trap cleanup EXIT
     cleanup  # Clean any previous
@@ -262,17 +269,8 @@ function test_from_releases() {
     echo ""
 
     local editions=${EDITION:-$(support_editions)}
-    local all_distros
-    all_distros=$(support_distros "${lineage}")
-    local distros=""
-    if [ -z "${DISTRIBUTION}" ]; then
-        distros="${all_distros}"
-    else
-        for d in ${all_distros}; do
-            [ "${d}" = "${DISTRIBUTION}" ] || [ "${d#${DISTRIBUTION}}" != "${d}" ] && distros="${distros} ${d}"
-        done
-        distros=${distros# }
-    fi
+    local distros
+    distros=$(support_distros_matching "${lineage}" "${DISTRIBUTION:-}")
     local tested=0
     local skip_no_dir=0
     local skip_no_image=0
@@ -305,9 +303,13 @@ function test_from_releases() {
             
             IMAGE_TAG=$(get_image_tag_from_bake "${lineage}" "${edition}" "${distro}" "${arch}") || true
             if [ -z "${IMAGE_TAG}" ]; then
-                IMAGE_TAG="aerospike/aerospike-server"
-                [ "${edition}" != "community" ] && IMAGE_TAG+="-${edition}"
-                IMAGE_TAG+=":${version}-${distro//./-}-${arch}"
+                local img_base="aerospike/aerospike-server"
+                [ "${edition}" != "community" ] && img_base+="-${edition}"
+                # Match docker-build.sh: single-distro build uses version-arch, multi uses version-distro-arch
+                IMAGE_TAG="${img_base}:${version}-${distro}-${arch}"
+                if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
+                    IMAGE_TAG="${img_base}:${version}-${arch}"
+                fi
             fi
             
             CONTAINER="aerospike-test-${edition}-${distro//./}-$$"

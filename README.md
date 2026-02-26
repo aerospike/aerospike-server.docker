@@ -450,6 +450,10 @@ git add releases/ && git commit -m "8.1.1.0" && git tag -a "8.1.1.0" -m "8.1.1.0
 git push origin master --tags
 ```
 
+## Disclaimer
+
+Docker images and Aerospike Database software are provided for use in accordance with the applicable license terms below. Aerospike, Inc. does not guarantee suitability for any particular purpose. Use of evaluation or commercial feature keys is subject to the agreements under which they were provided.
+
 ## Reporting Issues
 
 Aerospike Enterprise evaluation users, if you have any problems with or questions about this image, please post on the [Aerospike discussion forum](https://discuss.aerospike.com) or open an issue in [aerospike/aerospike-server.docker](https://github.com/aerospike/aerospike-server.docker/issues).
@@ -460,8 +464,12 @@ Community Edition users may report problems or ask questions about this image on
 
 ## License
 
-If you are using the Aerospike Database Enterprise Edition evaluation feature key file, you are operating under the [Aerospike Evaluation License Agreement](https://aerospike.com/legal/evaluation-license-agreement/).
+**This repository** (build scripts, templates, and tooling) is licensed under the [Apache License, Version 2.0](LICENSE).
 
-If you are using a feature key file you received as part of your commercial enterprise license, you are operating under the [Aerospike Master License Agreement](https://aerospike.com/legal/master-license-agreement/).
+**Aerospike Database in the Docker images** is licensed as follows:
 
-If you are using Aerospike Database CE refer to the license information in the [aerospike/aerospike-server](https://github.com/aerospike/aerospike-server) repository.
+- If you are using the Aerospike Database Enterprise Edition evaluation feature key file, you are operating under the [Aerospike Evaluation License Agreement](https://aerospike.com/legal/evaluation-license-agreement/).
+- If you are using a feature key file you received as part of your commercial enterprise license, you are operating under the [Aerospike Master License Agreement](https://aerospike.com/legal/master-license-agreement/).
+- If you are using Aerospike Database Community Edition, refer to the license information in the [aerospike/aerospike-server](https://github.com/aerospike/aerospike-server) repository.
+
+Product license texts are also provided in the [licenses/](licenses/) directory (Community, Enterprise, Federal).

@@ -2,3 +2,7 @@
 
 # Generated files
 bake-multi.hcl
+
+# Generated Dockerfiles and local build artifacts
+releases/
+artifacts/

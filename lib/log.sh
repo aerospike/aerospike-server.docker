@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Logging helpers (info, warn, success, failure, debug). No dependencies.
+# Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 
 set -Eeuo pipefail
 
