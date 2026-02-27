@@ -20,10 +20,13 @@ ARG AEROSPIKE_SHA_AARCH64=""
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 COPY install.sh /tmp/install.sh
+
+
 RUN /bin/bash /tmp/install.sh && rm /tmp/install.sh
 
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 3000 3001 3002
 
