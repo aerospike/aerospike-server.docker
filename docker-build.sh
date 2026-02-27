@@ -175,16 +175,40 @@ function generate_dockerfile() {
     # Install script matches OS: scripts/rpm/install.sh for UBI, scripts/deb/install.sh for Ubuntu
     cp "scripts/${pkg_type}/install.sh" "${target}/install.sh"
 
-    # When -u is a local dir: copy package files into build context with fixed names
+    # When -u is a local dir: ensure .sha256 exist (run shasum-artifacts.sh if any missing), then copy packages and .sha256
     local dockerfile_copy_local=""
     local copy_files=()
     if [ -n "${use_local_pkg}" ] && [ "${pkg_format}" != "tgz" ]; then
+        local need_sha=false
+        [ -n "${x86_link}" ] && [ ! -f "${x86_link}.sha256" ] && need_sha=true
+        [ -n "${arm_link}" ] && [ ! -f "${arm_link}.sha256" ] && need_sha=true
+        if [ "${need_sha}" = true ]; then
+            local local_base="${ARTIFACTS_DOMAIN}"
+            [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
+            [ -d "${local_base}" ] && local_base=$(cd "${local_base}" && pwd)
+            if [ -d "${local_base}" ]; then
+                log_info "    Creating missing .sha256 in ${local_base} (shasum-artifacts.sh)"
+                "${SCRIPT_DIR}/scripts/shasum-artifacts.sh" "${local_base}" >/dev/null 2>&1 || true
+            fi
+        fi
         if [ "${pkg_type}" = "rpm" ]; then
-            [ -n "${x86_link}" ] && cp "${x86_link}" "${target}/server_x86_64.rpm" && copy_files+=(server_x86_64.rpm)
-            [ -n "${arm_link}" ] && cp "${arm_link}" "${target}/server_aarch64.rpm" && copy_files+=(server_aarch64.rpm)
+            if [ -n "${x86_link}" ]; then
+                cp "${x86_link}" "${target}/server_x86_64.rpm" && copy_files+=(server_x86_64.rpm)
+                [ -f "${x86_link}.sha256" ] && cp "${x86_link}.sha256" "${target}/server_x86_64.rpm.sha256" && copy_files+=(server_x86_64.rpm.sha256) && x86_sha=$(awk '{print $1}' "${x86_link}.sha256")
+            fi
+            if [ -n "${arm_link}" ]; then
+                cp "${arm_link}" "${target}/server_aarch64.rpm" && copy_files+=(server_aarch64.rpm)
+                [ -f "${arm_link}.sha256" ] && cp "${arm_link}.sha256" "${target}/server_aarch64.rpm.sha256" && copy_files+=(server_aarch64.rpm.sha256) && arm_sha=$(awk '{print $1}' "${arm_link}.sha256")
+            fi
         else
-            [ -n "${x86_link}" ] && cp "${x86_link}" "${target}/server_amd64.deb" && copy_files+=(server_amd64.deb)
-            [ -n "${arm_link}" ] && cp "${arm_link}" "${target}/server_arm64.deb" && copy_files+=(server_arm64.deb)
+            if [ -n "${x86_link}" ]; then
+                cp "${x86_link}" "${target}/server_amd64.deb" && copy_files+=(server_amd64.deb)
+                [ -f "${x86_link}.sha256" ] && cp "${x86_link}.sha256" "${target}/server_amd64.deb.sha256" && copy_files+=(server_amd64.deb.sha256) && x86_sha=$(awk '{print $1}' "${x86_link}.sha256")
+            fi
+            if [ -n "${arm_link}" ]; then
+                cp "${arm_link}" "${target}/server_arm64.deb" && copy_files+=(server_arm64.deb)
+                [ -f "${arm_link}.sha256" ] && cp "${arm_link}.sha256" "${target}/server_arm64.deb.sha256" && copy_files+=(server_arm64.deb.sha256) && arm_sha=$(awk '{print $1}' "${arm_link}.sha256")
+            fi
         fi
         [ ${#copy_files[@]} -gt 0 ] && dockerfile_copy_local="COPY ${copy_files[*]} /tmp/"
     fi

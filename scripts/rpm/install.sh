@@ -41,11 +41,14 @@ if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
     cd aerospike/pkg && rpm2cpio ../aerospike-tools*.rpm | cpio -idmv && cd ../..
 else
     # Native rpm: from local /tmp (when -u local dir) or download (SHA optional, e.g. JFrog)
+    # If .sha256 is present we verify; if not we skip verification and do not exit.
     if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
         if [ "${ARCH}" = "x86_64" ]; then
             cp /tmp/server_x86_64.rpm server.rpm
+            [ -f /tmp/server_x86_64.rpm.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_x86_64.rpm.sha256); echo "${hash}  server.rpm" | sha256sum -c -; }
         else
             cp /tmp/server_aarch64.rpm server.rpm
+            [ -f /tmp/server_aarch64.rpm.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_aarch64.rpm.sha256); echo "${hash}  server.rpm" | sha256sum -c -; }
         fi
     else
         curl -fsSL "${pkg_link}" -o server.rpm

@@ -102,11 +102,14 @@ if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
     tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/
 else
     # Native deb: from local /tmp (when -u local dir) or download (SHA optional, e.g. JFrog)
+    # If .sha256 is present we verify; if not we skip verification and do not exit.
     if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
         if [ "${ARCH}" = "amd64" ]; then
             cp /tmp/server_amd64.deb server.deb
+            [ -f /tmp/server_amd64.deb.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256); echo "${hash}  server.deb" | sha256sum -c -; }
         else
             cp /tmp/server_arm64.deb server.deb
+            [ -f /tmp/server_arm64.deb.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256); echo "${hash}  server.deb" | sha256sum -c -; }
         fi
     else
         curl -fsSL "${pkg_link}" -o server.deb

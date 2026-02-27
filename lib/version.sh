@@ -156,10 +156,72 @@ function find_local_server_package() {
     echo ""
 }
 
+# Discover latest version for a lineage from a local artifacts directory (no HTTP).
+# Supports: version subdirs (8.1.1.0), edition/version (aerospike-server-enterprise/8.1.1.0), or package filenames.
+function find_latest_version_for_lineage_local() {
+    local lineage=$1
+    local base_dir="${ARTIFACTS_DOMAIN}"
+    # Resolve relative path (e.g. ../signed-artifacts) against current dir (script dir when run from docker-build.sh)
+    [[ "${base_dir}" != /* ]] && [[ "${base_dir}" != http* ]] && base_dir="$(pwd)/${base_dir}"
+    [ -d "${base_dir}" ] || return
+    base_dir=$(cd "${base_dir}" && pwd)
+
+    local versions=""
+    # Direct version subdirs (e.g. 8.1.1.0, 7.1.0.21)
+    local d
+    for d in "${base_dir}"/*/; do
+        [ -d "${d}" ] || continue
+        d=$(basename "${d}")
+        if [[ "${d}" =~ ^${lineage}\.[0-9]+\.[0-9]+ ]]; then
+            versions="${versions} ${d}"
+        fi
+    done
+    # Edition subdirs then version subdirs (e.g. aerospike-server-enterprise/8.1.1.0/)
+    local ed
+    for ed in aerospike-server-community aerospike-server-enterprise aerospike-server-federal; do
+        [ -d "${base_dir}/${ed}" ] || continue
+        for d in "${base_dir}/${ed}"/*/; do
+            [ -d "${d}" ] || continue
+            d=$(basename "${d}")
+            if [[ "${d}" =~ ^${lineage}\.[0-9]+\.[0-9]+ ]]; then
+                versions="${versions} ${d}"
+            fi
+        done
+    done
+    # Package filenames (e.g. aerospike-server-enterprise_8.1.1.0_... or ...-8.1.1.0-1.el9.x86_64.rpm)
+    if [ -z "${versions}" ] && compgen -G "${base_dir}/*.deb" >/dev/null 2>&1; then
+        versions=$(for f in "${base_dir}"/*.deb; do
+            [ -f "${f}" ] && basename "${f}" | grep -oE "${lineage}\.[0-9]+\.[0-9]+[^_]*" || true
+        done)
+    fi
+    if [ -z "${versions}" ] && compgen -G "${base_dir}/*.rpm" >/dev/null 2>&1; then
+        versions=$(for f in "${base_dir}"/*.rpm; do
+            [ -f "${f}" ] && basename "${f}" | grep -oE "${lineage}\.[0-9]+\.[0-9]+[^.]*" || true
+        done)
+    fi
+    # Recursive find for nested layout (e.g. lineage/version/pkgs)
+    if [ -z "${versions}" ] && [ -d "${base_dir}/${lineage}" ]; then
+        for d in "${base_dir}/${lineage}"/*/; do
+            [ -d "${d}" ] || continue
+            d=$(basename "${d}")
+            if [[ "${d}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+                versions="${versions} ${d}"
+            fi
+        done
+    fi
+
+    echo "${versions}" | tr ' ' '\n' | sort -V 2>/dev/null | tail -1
+}
+
 # Find the latest version for a release lineage (e.g., 7.1 -> 7.1.0.20)
 function find_latest_version_for_lineage() {
     local lineage=$1
     local url
+
+    if is_local_artifacts_dir; then
+        find_latest_version_for_lineage_local "${lineage}"
+        return
+    fi
 
     if is_direct_url; then
         url="${ARTIFACTS_DOMAIN}/"
@@ -176,6 +238,12 @@ function find_latest_version_for_lineage() {
 function find_tools_version() {
     local version=$1
     local url
+
+    # Local dir: no HTTP listing; skip so build uses native .rpm/.deb only (no tools)
+    if is_local_artifacts_dir; then
+        echo ""
+        return
+    fi
 
     if is_direct_url; then
         url="${ARTIFACTS_DOMAIN}/${version}/"
