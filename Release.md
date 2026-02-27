@@ -100,8 +100,9 @@ aerospike-server.docker/
 ├── scripts/
 │   ├── deb/
 │   │   └── install.sh           # Ubuntu/Debian install script
-│   └── rpm/
-│       └── install.sh           # RHEL/UBI install script
+│   ├── rpm/
+│   │   └── install.sh           # RHEL/UBI install script
+│   └── shasum-artifacts.sh      # Create .sha256 for all packages in artifacts dir
 ├── template/
 │   ├── 0/
 │   │   └── entrypoint.sh        # Container entrypoint script
@@ -209,3 +210,15 @@ Updated README.md with:
   - **LICENSE** – New top-level Apache License, Version 2.0 for this repository (build scripts, templates, tooling); note that Aerospike Database in images is licensed separately (README and `licenses/`).  
   - **README** – New "Disclaimer" section: images and software provided per applicable license terms; no warranty of fitness for a particular purpose; evaluation/commercial keys subject to their agreements. License section updated: this repo under [Apache 2.0](LICENSE); Aerospike Database in images (EE evaluation / commercial / CE) and pointer to `licenses/`.  
   - **Script headers** – `docker-build.sh` and `test.sh` have a 3-line license header (Copyright, Apache 2.0, See LICENSE). `lib/*.sh`, `scripts/deb/install.sh`, and `scripts/rpm/install.sh` have a 1-line "Copyright … Licensed under Apache-2.0. See LICENSE." header.
+
+- **Local dir version/tools discovery**  
+  When `-u` is a local path, version lookup no longer uses HTTP: `find_latest_version_for_lineage()` uses `find_latest_version_for_lineage_local()` to discover versions by scanning the dir (version subdirs, edition/version subdirs, lineage/version, or package filenames). `find_tools_version()` returns empty for local dir so the build continues with native `.rpm`/`.deb` only (no tools). Enables `./docker-build.sh -t 7.1.0.21 -u ./artifacts` without hanging or failing.
+
+- **Local `.sha256` and verification**  
+  When `-u` points at a local directory, if a package has a matching `.sha256` file (e.g. `foo.deb.sha256` next to `foo.deb`), that file is copied into the build context with the package, included in the Dockerfile `COPY`, and used in the install script to verify the package (`sha256sum -c`). `ARG AEROSPIKE_SHA_X86_64` and `ARG AEROSPIKE_SHA_AARCH64` are populated from the local `.sha256` content when present. If no `.sha256` exists, verification is skipped and the build does not exit.
+
+- **Auto-create `.sha256` when missing**  
+  When using local packages and any of them is missing its `.sha256`, the build runs `scripts/shasum-artifacts.sh` on the artifacts directory to create `.sha256` for all packages there. After that, packages are copied with their `.sha256` and verification runs as usual, so there is no need to run the script manually or skip verification.
+
+- **scripts/shasum-artifacts.sh**  
+  New script to create `.sha256` files for all packages in an artifacts directory. Recursively finds `*.deb`, `*.rpm`, `*.tgz`, `*.tar.gz` and writes `filename.sha256` with one line `hash  filename` (compatible with `sha256sum -c` and with the build’s `link.sha256` usage). Usage: `./scripts/shasum-artifacts.sh` (default dir `artifacts`) or `./scripts/shasum-artifacts.sh <dir>` (relative to repo root or absolute).
