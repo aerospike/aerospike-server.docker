@@ -3,7 +3,7 @@
 # Install dependencies
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y --no-install-recommends ca-certificates curl procps binutils xz-utils
+apt-get install -y --no-install-recommends ca-certificates curl binutils xz-utils
 
 # OpenSSL 1.1 and OpenLDAP 2.4/2.5 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ has newer only)
 # Direct .deb download when apt cannot reach extra repos (e.g. CI)
@@ -147,6 +147,7 @@ if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
 else
     rm -rf aerospike server.deb tools.deb /var/lib/apt/lists/*
 fi
-apt-get purge -y binutils xz-utils
+apt-get purge -y curl binutils xz-utils
 apt-get autoremove -y
+apt-get clean -y
 echo "done"

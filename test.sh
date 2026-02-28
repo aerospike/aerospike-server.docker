@@ -166,15 +166,7 @@ function check_container() {
     fi
     log_success "Container running"
 
-    # Check asd process
-    if ! try 15 docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd' >/dev/null; then
-        log_failure "asd not running"
-        docker logs "${CONTAINER}" 2>&1 | tail -30
-        exit 1
-    fi
-    log_success "asd process running"
-
-    # Check asinfo exists before using it
+    # Check asinfo exists before using it (used for "asd running" check when procps not in image)
     local have_asinfo=false
     if docker exec -t "${CONTAINER}" bash -c 'command -v asinfo' >/dev/null 2>&1; then
         log_success "asinfo found"
@@ -183,9 +175,28 @@ function check_container() {
         log_warn "asinfo not found in container; skipping asinfo-based checks"
     fi
 
+    # Verify asd is running: prefer asinfo -v status (works without procps); else pgrep; else TCP port 3000
+    local asd_ok=false
     if [ "${have_asinfo}" = "true" ]; then
-        # Check asinfo responds
-        if ! try 10 docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' | grep -qE "^ok"; then
+        if try 15 docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' 2>/dev/null | grep -qE "^ok"; then
+            asd_ok=true
+        fi
+    fi
+    if [ "${asd_ok}" = false ] && try 15 docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd' >/dev/null 2>&1; then
+        asd_ok=true
+    fi
+    if [ "${asd_ok}" = false ] && try 15 docker exec -t "${CONTAINER}" bash -c 'echo >/dev/tcp/127.0.0.1/3000' 2>/dev/null; then
+        asd_ok=true
+    fi
+    if [ "${asd_ok}" = false ]; then
+        log_failure "asd not running"
+        docker logs "${CONTAINER}" 2>&1 | tail -30
+        exit 1
+    fi
+    log_success "asd running"
+
+    if [ "${have_asinfo}" = "true" ]; then
+        if ! docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' 2>/dev/null | grep -qE "^ok"; then
             log_failure "asinfo not responding"
             exit 1
         fi
