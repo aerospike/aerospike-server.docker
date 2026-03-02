@@ -111,7 +111,10 @@ else
             [ -f /tmp/server_amd64.deb.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256); echo "${hash}  server.deb" | sha256sum -c -; }
         else
             cp /tmp/server_arm64.deb server.deb
-            [ -f /tmp/server_arm64.deb.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256); echo "${hash}  server.deb" | sha256sum -c -; }
+            [ -f /tmp/server_arm64.deb.sha256 ] && {
+                hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256)
+                echo "${hash}  server.deb" | sha256sum -c -
+            }
         fi
     else
         curl -fsSL "${pkg_link}" -o server.deb
