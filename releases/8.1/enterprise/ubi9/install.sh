@@ -1,6 +1,8 @@
+#!/usr/bin/env bash
 # UBI/RHEL: install via rpm (tgz bundle or native .rpm). Do not use on Ubuntu.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Install minimal deps for extract/install only (curl-minimal pre-installed in ubi-minimal)
+set -Eeuo pipefail
 microdnf install -y --setopt=install_weak_deps=0 findutils tar gzip xz ca-certificates cpio
 
 # Download tini

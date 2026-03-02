@@ -1,6 +1,8 @@
+#!/usr/bin/env bash
 # Ubuntu/Debian: install via deb (tgz bundle or native .deb). Do not use on UBI/RHEL.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Install dependencies
+set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y --no-install-recommends ca-certificates curl binutils xz-utils
