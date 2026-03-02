@@ -37,13 +37,16 @@ count=0
 while IFS= read -r -d '' f; do
     [ -f "${f}" ] || continue
     case "${f}" in
-        *.sha256) continue ;;
-        *) ;;
+    *.sha256) continue ;;
+    *) ;;
     esac
     out="${f}.sha256"
     # Write "hash  filename" (basename only so verification works from same dir)
     b=$(basename "${f}")
-    "${HASH_CMD}" "${f}" | (read -r hash rest; echo "${hash}  ${b}") > "${out}"
+    "${HASH_CMD}" "${f}" | (
+        read -r hash rest
+        echo "${hash}  ${b}"
+    ) >"${out}"
     echo "${out}"
     count=$((count + 1))
 done < <(find "${BASE}" -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.tgz' -o -name '*.tar.gz' \) -print0 2>/dev/null)

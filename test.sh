@@ -15,7 +15,7 @@ source lib/support.sh
 source lib/version.sh
 
 function usage() {
-    cat << EOF
+    cat <<EOF
 Usage: $0 [version|lineage] [OPTIONS]
        $0 -i IMAGE [OPTIONS]
 
@@ -92,14 +92,39 @@ function parse_args() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -i|--image)    SPECIFIC_IMAGE="$2"; shift 2 ;;
-            -e|--edition)  EDITION="$2"; shift 2 ;;
-            -d|--distro)   DISTRIBUTION="$2"; shift 2 ;;
-            -p|--platform) PLATFORM="$2"; shift 2 ;;
-            -c|--clean)    CLEAN="true"; shift ;;
-            -h|--help)     usage; exit 0 ;;
-            -*)            log_warn "Unknown option: $1"; usage; exit 1 ;;
-            *)             VERSION_OR_LINEAGE="$1"; shift ;;
+        -i | --image)
+            SPECIFIC_IMAGE="$2"
+            shift 2
+            ;;
+        -e | --edition)
+            EDITION="$2"
+            shift 2
+            ;;
+        -d | --distro)
+            DISTRIBUTION="$2"
+            shift 2
+            ;;
+        -p | --platform)
+            PLATFORM="$2"
+            shift 2
+            ;;
+        -c | --clean)
+            CLEAN="true"
+            shift
+            ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        -*)
+            log_warn "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+        *)
+            VERSION_OR_LINEAGE="$1"
+            shift
+            ;;
         esac
     done
 
@@ -108,9 +133,9 @@ function parse_args() {
         local arch
         arch=$(uname -m)
         case "${arch}" in
-            x86_64)          PLATFORM="linux/amd64" ;;
-            arm64|aarch64)   PLATFORM="linux/arm64" ;;
-            *)               PLATFORM="linux/amd64" ;;
+        x86_64) PLATFORM="linux/amd64" ;;
+        arm64 | aarch64) PLATFORM="linux/arm64" ;;
+        *) PLATFORM="linux/amd64" ;;
         esac
     fi
 
@@ -146,7 +171,8 @@ function run_docker() {
 }
 
 function try() {
-    local attempts=$1; shift
+    local attempts=$1
+    shift
     for ((i = 0; i < attempts; i++)); do
         if eval "${*@Q}" 2>/dev/null; then return 0; fi
         sleep 1
@@ -220,7 +246,7 @@ function check_container() {
         # Check edition
         local actual_edition
         actual_edition=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v edition' 2>/dev/null | tr -d '\r' || true)
-        
+
         if [ -n "${expected_edition}" ]; then
             # Edition was specified - verify it matches
             if [[ "${actual_edition,,}" == *"${expected_edition,,}"* ]]; then
@@ -253,7 +279,7 @@ function cleanup() {
 function test_specific_image() {
     IMAGE_TAG="${SPECIFIC_IMAGE}"
     CONTAINER="aerospike-test-$$"
-    
+
     log_info "====== Testing: ${IMAGE_TAG} ======"
     log_info "  Platform: ${PLATFORM}"
     [ -n "${EDITION}" ] && log_info "  Expected edition: ${EDITION}"
@@ -263,11 +289,11 @@ function test_specific_image() {
     version=$(echo "${IMAGE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9-]+)?' || echo "")
 
     trap 'cleanup full' EXIT
-    cleanup  # Remove any previous container only
+    cleanup # Remove any previous container only
     run_docker
     check_container "${version}" "${EDITION}"
     cleanup full
-    
+
     echo ""
     log_success "====== Test passed! ======"
 }
@@ -318,7 +344,7 @@ function test_from_releases() {
             version=$(printf '%s' "${version}" | tr -d '\r\n\t ')
             [ -z "${version}" ] && continue
             local arch=${PLATFORM#*/}
-            
+
             IMAGE_TAG=$(get_image_tag_from_bake "${lineage}" "${edition}" "${distro}" "${arch}") || true
             if [ -z "${IMAGE_TAG}" ]; then
                 local img_base="aerospike/aerospike-server"
@@ -329,29 +355,32 @@ function test_from_releases() {
                     IMAGE_TAG="${img_base}:${version}-${arch}"
                 fi
             fi
-            
+
             CONTAINER="aerospike-test-${edition}-${distro//./}-$$"
 
             log_info "====== Testing: ${IMAGE_TAG} ======"
-            
+
             if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
                 skip_no_image=$((skip_no_image + 1))
                 log_warn "Skipping ${edition}/${distro}: image not found locally"
                 continue
             fi
-            
+
             trap 'cleanup full' EXIT
-            cleanup  # Remove any previous container only
+            cleanup # Remove any previous container only
             run_docker
             check_container "${version}" "${edition}"
             cleanup full
-            
+
             tested=$((tested + 1))
             echo ""
         done
     done
 
-    [ "${tested}" -eq 0 ] && { log_warn "No images found. Run docker-build.sh first."; exit 1; }
+    [ "${tested}" -eq 0 ] && {
+        log_warn "No images found. Run docker-build.sh first."
+        exit 1
+    }
     log_info "Summary: ${tested} tested, ${skip_no_dir} skipped (no releases/ dir), ${skip_no_image} skipped (image not built)"
     log_success "====== All ${tested} test(s) passed! ======"
 }

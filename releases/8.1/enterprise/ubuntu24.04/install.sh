@@ -36,9 +36,13 @@ install_compat_libs() {
 }
 
 if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
-    # Try Focal (20.04) + Jammy (22.04) repos: Focal has libssl1.1 and libldap-2.4-2, Jammy has libldap-2.5-0
-    echo "deb [trusted=yes] https://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-compat.list
-    echo "deb [trusted=yes] https://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-compat.list
+    # Try Focal (20.04) + Jammy (22.04) repos: Focal has libssl1.1 and libldap-2.4-2, Jammy has libldap-2.5-0.
+    # arm64 packages are on ports.ubuntu.com; archive.ubuntu.com returns 404 for jammy/focal arm64.
+    compat_arch="$(dpkg --print-architecture)"
+    repo_base="https://archive.ubuntu.com/ubuntu"
+    [ "${compat_arch}" = "arm64" ] && repo_base="https://ports.ubuntu.com/ubuntu-ports"
+    echo "deb [trusted=yes] ${repo_base} focal main" > /etc/apt/sources.list.d/focal-compat.list
+    echo "deb [trusted=yes] ${repo_base} jammy main" > /etc/apt/sources.list.d/jammy-compat.list
     apt-get update -y 2>/dev/null
     if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
         rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list

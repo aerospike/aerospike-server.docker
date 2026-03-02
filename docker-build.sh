@@ -340,7 +340,10 @@ function generate_dockerfiles() {
             if [ ${#EDITION_FILTERS[@]} -gt 0 ]; then
                 local match=false
                 for ef in "${EDITION_FILTERS[@]}"; do
-                    [ "${ef}" = "${edition}" ] && { match=true; break; }
+                    [ "${ef}" = "${edition}" ] && {
+                        match=true
+                        break
+                    }
                 done
                 [ "${match}" = false ] && continue
             fi
@@ -381,7 +384,10 @@ function generate_bake() {
             if [ ${#EDITION_FILTERS[@]} -gt 0 ]; then
                 local match=false
                 for ef in "${EDITION_FILTERS[@]}"; do
-                    [ "${ef}" = "${edition}" ] && { match=true; break; }
+                    [ "${ef}" = "${edition}" ] && {
+                        match=true
+                        break
+                    }
                 done
                 [ "${match}" = false ] && continue
             fi

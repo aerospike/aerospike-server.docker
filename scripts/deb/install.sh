@@ -23,10 +23,10 @@ install_compat_libs() {
     [ "${arch}" = "arm64" ] && ldap24_url="${base_ports}/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_${arch}.deb"
     local ldap25_url="${base}/o/openldap/libldap-2.5-0_2.5.16+dfsg-0ubuntu0.22.04.2_${arch}.deb"
     [ "${arch}" = "arm64" ] && ldap25_url="${base_ports}/o/openldap/libldap-2.5-0_2.5.16+dfsg-0ubuntu0.22.04.2_${arch}.deb"
-    if curl -fsSL "${ssl_url}" -o "${tmpdir}/libssl1.1.deb" && \
-       curl -fsSL "${ldap_common_jammy}" -o "${tmpdir}/libldap-common.deb" && \
-       curl -fsSL "${ldap24_url}" -o "${tmpdir}/libldap-2.4-2.deb" && \
-       curl -fsSL "${ldap25_url}" -o "${tmpdir}/libldap-2.5-0.deb"; then
+    if curl -fsSL "${ssl_url}" -o "${tmpdir}/libssl1.1.deb" &&
+        curl -fsSL "${ldap_common_jammy}" -o "${tmpdir}/libldap-common.deb" &&
+        curl -fsSL "${ldap24_url}" -o "${tmpdir}/libldap-2.4-2.deb" &&
+        curl -fsSL "${ldap25_url}" -o "${tmpdir}/libldap-2.5-0.deb"; then
         dpkg -i "${tmpdir}/libldap-common.deb" "${tmpdir}/libldap-2.4-2.deb" "${tmpdir}/libldap-2.5-0.deb" "${tmpdir}/libssl1.1.deb" || apt-get install -f -y
         rm -rf "${tmpdir}"
         return 0
@@ -36,9 +36,13 @@ install_compat_libs() {
 }
 
 if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
-    # Try Focal (20.04) + Jammy (22.04) repos: Focal has libssl1.1 and libldap-2.4-2, Jammy has libldap-2.5-0
-    echo "deb [trusted=yes] https://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-compat.list
-    echo "deb [trusted=yes] https://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-compat.list
+    # Try Focal (20.04) + Jammy (22.04) repos: Focal has libssl1.1 and libldap-2.4-2, Jammy has libldap-2.5-0.
+    # arm64 packages are on ports.ubuntu.com; archive.ubuntu.com returns 404 for jammy/focal arm64.
+    compat_arch="$(dpkg --print-architecture)"
+    repo_base="https://archive.ubuntu.com/ubuntu"
+    [ "${compat_arch}" = "arm64" ] && repo_base="https://ports.ubuntu.com/ubuntu-ports"
+    echo "deb [trusted=yes] ${repo_base} focal main" >/etc/apt/sources.list.d/focal-compat.list
+    echo "deb [trusted=yes] ${repo_base} jammy main" >/etc/apt/sources.list.d/jammy-compat.list
     apt-get update -y 2>/dev/null
     if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
         rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
@@ -57,9 +61,9 @@ apt-mark manual libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null || true
 # Verify compatibility libs are present (fail build if missing so we don't ship broken images)
 ldconfig 2>/dev/null || true
 for lib in libcrypto.so.1.1 liblber-2.4.so.2 liblber-2.5.so.0; do
-    if ! ldconfig -p 2>/dev/null | grep -q "${lib}" && \
-       ! [ -f "/usr/lib/x86_64-linux-gnu/${lib}" ] && \
-       ! [ -f "/usr/lib/aarch64-linux-gnu/${lib}" ]; then
+    if ! ldconfig -p 2>/dev/null | grep -q "${lib}" &&
+        ! [ -f "/usr/lib/x86_64-linux-gnu/${lib}" ] &&
+        ! [ -f "/usr/lib/aarch64-linux-gnu/${lib}" ]; then
         echo "ERROR: ${lib} not found (Aerospike server requires it on this base image)"
         exit 1
     fi
@@ -108,10 +112,16 @@ else
     if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
         if [ "${ARCH}" = "amd64" ]; then
             cp /tmp/server_amd64.deb server.deb
-            [ -f /tmp/server_amd64.deb.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256); echo "${hash}  server.deb" | sha256sum -c -; }
+            [ -f /tmp/server_amd64.deb.sha256 ] && {
+                hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256)
+                echo "${hash}  server.deb" | sha256sum -c -
+            }
         else
             cp /tmp/server_arm64.deb server.deb
-            [ -f /tmp/server_arm64.deb.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256); echo "${hash}  server.deb" | sha256sum -c -; }
+            [ -f /tmp/server_arm64.deb.sha256 ] && {
+                hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256)
+                echo "${hash}  server.deb" | sha256sum -c -
+            }
         fi
     else
         curl -fsSL "${pkg_link}" -o server.deb

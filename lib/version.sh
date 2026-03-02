@@ -360,7 +360,10 @@ function get_tools_package_link_native() {
 # Fetch SHA256 for any package URL (link.sha256)
 function fetch_sha_for_link() {
     local link=$1
-    [ -z "${link}" ] && { echo ""; return; }
+    [ -z "${link}" ] && {
+        echo ""
+        return
+    }
     fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' '
 }
 
