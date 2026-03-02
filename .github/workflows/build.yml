@@ -1,4 +1,6 @@
 name: Docker Build
+permissions:
+  contents: read
 on:
   push:
     branches: [main, master]
