@@ -22,7 +22,9 @@ Usage: $0 [version|lineage] [OPTIONS]
 Functional tests for Aerospike server Docker images.
 
 MODES:
-    Test from releases/    Run docker-build.sh first, then test built images
+    Test from releases/    Run docker-build.sh first, then test built images.
+                           One version or lineage per run (e.g. 7.1 or 8.1).
+                           To test multiple lineages, run the script once per lineage.
     Test specific image    Use -i to test any image by tag (local or remote)
 
 OPTIONS:
@@ -34,7 +36,7 @@ OPTIONS:
                          Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
     -p, --platform PLAT  Platform: linux/amd64, linux/arm64
                          Default: auto-detect from host architecture
-    -c, --clean          Remove tested images after test completes
+    -c, --clean          Remove each image after its test passes (container + image)
     -h, --help           Show this help message
 
 TESTS PERFORMED:
@@ -238,10 +240,14 @@ function check_container() {
     fi
 }
 
+# Optional first arg: "full" = also remove image when CLEAN=true (use after test).
+# No arg = container only (use before run_docker so we don't remove the image we're about to run).
 function cleanup() {
     docker stop "${CONTAINER}" 2>/dev/null || true
     docker rm -f "${CONTAINER}" 2>/dev/null || true
-    [ "${CLEAN}" = "true" ] && docker rmi -f "${IMAGE_TAG}" 2>/dev/null || true
+    if [ "${1:-}" = "full" ] && [ "${CLEAN}" = "true" ]; then
+        docker rmi -f "${IMAGE_TAG}" 2>/dev/null || true
+    fi
 }
 
 function test_specific_image() {
@@ -256,10 +262,11 @@ function test_specific_image() {
     local version
     version=$(echo "${IMAGE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9-]+)?' || echo "")
 
-    trap cleanup EXIT
-    cleanup  # Clean any previous
+    trap 'cleanup full' EXIT
+    cleanup  # Remove any previous container only
     run_docker
     check_container "${version}" "${EDITION}"
+    cleanup full
     
     echo ""
     log_success "====== Test passed! ======"
@@ -333,11 +340,11 @@ function test_from_releases() {
                 continue
             fi
             
-            trap cleanup EXIT
-            cleanup
+            trap 'cleanup full' EXIT
+            cleanup  # Remove any previous container only
             run_docker
             check_container "${version}" "${edition}"
-            cleanup
+            cleanup full
             
             tested=$((tested + 1))
             echo ""
