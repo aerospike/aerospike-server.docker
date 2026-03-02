@@ -7,6 +7,13 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y --no-install-recommends ca-certificates curl binutils xz-utils
 
+# On arm64 cross-build (QEMU on amd64), libc-bin postinst can segfault (exit 139). Finish any pending configure early and retry once.
+dpkg --configure -a || true
+if [ "$(dpkg --print-architecture)" = "arm64" ]; then
+    sleep 2
+    dpkg --configure -a || true
+fi
+
 # OpenSSL 1.1 and OpenLDAP 2.4/2.5 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ has newer only)
 # Direct .deb download when apt cannot reach extra repos (e.g. CI)
 install_compat_libs() {
@@ -27,7 +34,15 @@ install_compat_libs() {
         curl -fsSL "${ldap_common_jammy}" -o "${tmpdir}/libldap-common.deb" &&
         curl -fsSL "${ldap24_url}" -o "${tmpdir}/libldap-2.4-2.deb" &&
         curl -fsSL "${ldap25_url}" -o "${tmpdir}/libldap-2.5-0.deb"; then
-        dpkg -i "${tmpdir}/libldap-common.deb" "${tmpdir}/libldap-2.4-2.deb" "${tmpdir}/libldap-2.5-0.deb" "${tmpdir}/libssl1.1.deb" || apt-get install -f -y
+        # On arm64 cross-build (QEMU), avoid apt-get install -f -y so we don't trigger libc-bin postinst segfault (exit 139).
+        if [ "${arch}" = "arm64" ]; then
+            dpkg -i "${tmpdir}/libldap-common.deb" "${tmpdir}/libldap-2.4-2.deb" "${tmpdir}/libldap-2.5-0.deb" "${tmpdir}/libssl1.1.deb" || true
+            dpkg --configure -a || true
+            sleep 2
+            dpkg --configure -a || true
+        else
+            dpkg -i "${tmpdir}/libldap-common.deb" "${tmpdir}/libldap-2.4-2.deb" "${tmpdir}/libldap-2.5-0.deb" "${tmpdir}/libssl1.1.deb" || apt-get install -f -y
+        fi
         rm -rf "${tmpdir}"
         return 0
     fi
@@ -35,24 +50,29 @@ install_compat_libs() {
     return 1
 }
 
-if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
-    # Try Focal (20.04) + Jammy (22.04) repos: Focal has libssl1.1 and libldap-2.4-2, Jammy has libldap-2.5-0.
-    # arm64 packages are on ports.ubuntu.com; archive.ubuntu.com returns 404 for jammy/focal arm64.
+# On arm64 cross-build (QEMU on amd64), apt-get install often triggers libc-bin postinst segfault (exit 139).
+# Use direct .deb download and dpkg -i only on arm64 to avoid apt's trigger handling.
+if [ "$(dpkg --print-architecture)" = "arm64" ]; then
+    if ! install_compat_libs; then
+        echo "ERROR: failed to install libssl1.1 / libldap-2.4-2 / libldap-2.5-0 (required for Aerospike server on this base image)"
+        exit 1
+    fi
+elif ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
+    # Add only Focal (20.04) for libssl1.1 and libldap-2.4-2. Do not add Jammy compat: on Ubuntu 22.04
+    # apt then treats libldap-2.4-2 as obsolete (replaced by libldap-common) and the install fails.
     compat_arch="$(dpkg --print-architecture)"
     repo_base="https://archive.ubuntu.com/ubuntu"
-    [ "${compat_arch}" = "arm64" ] && repo_base="https://ports.ubuntu.com/ubuntu-ports"
     echo "deb [trusted=yes] ${repo_base} focal main" >/etc/apt/sources.list.d/focal-compat.list
-    echo "deb [trusted=yes] ${repo_base} jammy main" >/etc/apt/sources.list.d/jammy-compat.list
     apt-get update -y 2>/dev/null
     if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
-        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
+        rm -f /etc/apt/sources.list.d/focal-compat.list
         apt-get update -y 2>/dev/null
         if ! install_compat_libs; then
             echo "ERROR: failed to install libssl1.1 / libldap-2.4-2 / libldap-2.5-0 (required for Aerospike server on this base image)"
             exit 1
         fi
     else
-        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
+        rm -f /etc/apt/sources.list.d/focal-compat.list
         apt-get update -y 2>/dev/null
     fi
 fi

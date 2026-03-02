@@ -339,21 +339,21 @@ Aerospike Telemetry is a feature that allows us to collect certain anonymized us
 
 These images are based on Ubuntu or Red Hat UBI depending on the variant:
 
-| Distro | Base Image |
-|--------|------------|
-| ubuntu22.04 | ubuntu:22.04 |
-| ubuntu24.04 | ubuntu:24.04 |
-| ubi9 | registry.access.redhat.com/ubi9/ubi-minimal:9.4 |
-| ubi10 | registry.access.redhat.com/ubi10/ubi-minimal:10.0 |
+| Distro      | Base Image                                        |
+|-------------|---------------------------------------------------|
+| ubuntu22.04 | ubuntu:22.04                                      |
+| ubuntu24.04 | ubuntu:24.04                                      |
+| ubi9        | registry.access.redhat.com/ubi9/ubi-minimal:9.4   |
+| ubi10       | registry.access.redhat.com/ubi10/ubi-minimal:10.0 |
 
 ### Supported Releases and Distros
 
 | Lineage | Default Distros (use `-d ubi10` to add ubi10 for 8.1+) |
 |---------|--------------------------------------------------------|
-| 7.1 | ubuntu22.04, ubi9 |
-| 7.2 | ubuntu24.04, ubi9 |
-| 8.0 | ubuntu24.04, ubi9 |
-| 8.1+ | ubuntu24.04, ubi9 |
+| 7.1     | ubuntu22.04, ubi9                                      |
+| 7.2     | ubuntu24.04, ubi9                                      |
+| 8.0     | ubuntu24.04, ubi9                                      |
+| 8.1+    | ubuntu24.04, ubi9                                      |
 
 ## Building Images
 
@@ -394,28 +394,26 @@ docker buildx create --name mybuilder --driver docker-container --bootstrap --us
 
 ### Build Options
 
-```
-Usage: ./docker-build.sh -t|-p|-g [OPTIONS] [version|lineage]
-
-MODE (one required):
-    -t               Test mode - build and load locally
-    -p               Push mode - build and push to registry (multi-arch)
-    -g, --generate   Generate Dockerfiles only
-
-OPTIONS:
-    -r, --registry REG  Container registry (and repo path) for push mode.
-                        Multiple: repeat -r (e.g. -r reg1 -r reg2). Default: aerospike.
-    -u, --url URL       Custom artifacts URL
-    -e, --edition ED    Filter editions: community, enterprise, federal
-    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10.
-                        Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI).
-
-VERSION FORMATS:
-    8.1                       Lineage (auto-detects latest version)
-    8.1.1.0                   Specific release
-    8.1.1.0-rc2               Release candidate
-    8.1.1.0-start-16          Development build
-```
+	Usage: ./docker-build.sh -t|-p|-g [OPTIONS] [version|lineage]
+	
+	MODE (one required):
+	    -t               Test mode - build and load locally
+	    -p               Push mode - build and push to registry (multi-arch)
+	    -g, --generate   Generate Dockerfiles only
+	
+	OPTIONS:
+	    -r, --registry REG  Container registry (and repo path) for push mode.
+	                        Multiple: repeat -r (e.g. -r reg1 -r reg2). Default: aerospike.
+	    -u, --url URL       Custom artifacts URL
+	    -e, --edition ED    Filter editions: community, enterprise, federal
+	    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10.
+	                        Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI).
+	
+	VERSION FORMATS:
+	    8.1                       Lineage (auto-detects latest version)
+	    8.1.1.0                   Specific release
+	    8.1.1.0-rc2               Release candidate
+	    8.1.1.0-start-16          Development build
 
 ### Testing Images
 
@@ -468,8 +466,8 @@ Community Edition users may report problems or ask questions about this image on
 
 **Aerospike Database in the Docker images** is licensed as follows:
 
-- If you are using the Aerospike Database Enterprise Edition evaluation feature key file, you are operating under the [Aerospike Evaluation License Agreement](https://aerospike.com/legal/evaluation-license-agreement/).
-- If you are using a feature key file you received as part of your commercial enterprise license, you are operating under the [Aerospike Master License Agreement](https://aerospike.com/legal/master-license-agreement/).
-- If you are using Aerospike Database Community Edition, refer to the license information in the [aerospike/aerospike-server](https://github.com/aerospike/aerospike-server) repository.
+-	If you are using the Aerospike Database Enterprise Edition evaluation feature key file, you are operating under the [Aerospike Evaluation License Agreement](https://aerospike.com/legal/evaluation-license-agreement/).
+-	If you are using a feature key file you received as part of your commercial enterprise license, you are operating under the [Aerospike Master License Agreement](https://aerospike.com/legal/master-license-agreement/).
+-	If you are using Aerospike Database Community Edition, refer to the license information in the [aerospike/aerospike-server](https://github.com/aerospike/aerospike-server) repository.
 
 Product license texts are also provided in the [licenses/](licenses/) directory (Community, Enterprise, Federal).

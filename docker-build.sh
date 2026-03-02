@@ -219,7 +219,8 @@ function generate_dockerfile() {
 "
     # (tools are skipped for native format; no AEROSPIKE_TOOLS_* ARGs)
 
-    cat >"${target}/Dockerfile" <<DOCKERFILE
+    cat <<DOCKERFILE | sed '/^[[:space:]]*$/d' >"${target}/Dockerfile"
+# syntax=docker/dockerfile:1
 #
 # Aerospike Server Dockerfile
 # Version: ${version} | Edition: ${edition} | Base: ${distro}
@@ -254,7 +255,10 @@ EXPOSE 3000 3001 3002
 
 ENTRYPOINT ["/usr/bin/as-tini-static", "-r", "SIGUSR1", "-t", "SIGTERM", "--", "/entrypoint.sh"]
 CMD ["asd"]
+
 DOCKERFILE
+    # Ensure file ends with newline (Docker Hub / validators expect it)
+    [ -n "$(tail -c1 "${target}/Dockerfile" 2>/dev/null)" ] && echo >>"${target}/Dockerfile"
 }
 
 function generate_dockerfiles() {
