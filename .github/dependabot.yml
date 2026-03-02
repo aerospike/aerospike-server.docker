@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /community/ubuntu24.04
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /enterprise/ubuntu24.04
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /federal/ubuntu24.04
+    schedule:
+      interval: daily
