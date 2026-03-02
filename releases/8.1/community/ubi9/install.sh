@@ -47,10 +47,16 @@ else
     if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
         if [ "${ARCH}" = "x86_64" ]; then
             cp /tmp/server_x86_64.rpm server.rpm
-            [ -f /tmp/server_x86_64.rpm.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_x86_64.rpm.sha256); echo "${hash}  server.rpm" | sha256sum -c -; }
+            [ -f /tmp/server_x86_64.rpm.sha256 ] && {
+                hash=$(awk '{print $1}' /tmp/server_x86_64.rpm.sha256)
+                echo "${hash}  server.rpm" | sha256sum -c -
+            }
         else
             cp /tmp/server_aarch64.rpm server.rpm
-            [ -f /tmp/server_aarch64.rpm.sha256 ] && { hash=$(awk '{print $1}' /tmp/server_aarch64.rpm.sha256); echo "${hash}  server.rpm" | sha256sum -c -; }
+            [ -f /tmp/server_aarch64.rpm.sha256 ] && {
+                hash=$(awk '{print $1}' /tmp/server_aarch64.rpm.sha256)
+                echo "${hash}  server.rpm" | sha256sum -c -
+            }
         fi
     else
         curl -fsSL "${pkg_link}" -o server.rpm
