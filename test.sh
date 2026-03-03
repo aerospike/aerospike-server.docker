@@ -347,7 +347,8 @@ function test_specific_image() {
     version=$(echo "${IMAGE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9-]+)?' || echo "")
 
     trap 'cleanup full' EXIT
-    cleanup # Remove any previous container only
+    # Remove any previous container only
+    cleanup
     run_docker
     check_container "${version}" "${EDITION}" "${arch_display}"
     cleanup full
@@ -436,7 +437,8 @@ function test_from_releases() {
 
                 PLATFORM="${plat}"
                 trap 'cleanup full' EXIT
-                cleanup # Remove any previous container only
+                # Remove any previous container only
+                cleanup
                 run_docker
                 check_container "${version}" "${edition}" "${arch}"
                 cleanup full
@@ -447,10 +449,10 @@ function test_from_releases() {
         done
     done
 
-    [ "${tested}" -eq 0 ] && {
+    if [ "${tested}" -eq 0 ]; then
         log_warn "No images found. Run docker-build.sh first."
         exit 1
-    }
+    fi
     log_info "Summary: ${tested} tested, ${skip_no_dir} skipped (no releases/ dir), ${skip_no_image} skipped (image not built)"
     log_success "====== All ${tested} test(s) passed! ======"
 }

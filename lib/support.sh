@@ -125,8 +125,18 @@ function support_platforms_matching() {
         local arch="${plat#*/}"
         for f in ${filter_tokens}; do
             case "${f}" in
-            amd64 | x86_64) [ "${arch}" = "amd64" ] && { out="${out} ${plat}"; break; } ;;
-            arm64 | aarch64) [ "${arch}" = "arm64" ] && { out="${out} ${plat}"; break; } ;;
+            amd64 | x86_64)
+                [ "${arch}" = "amd64" ] && {
+                    out="${out} ${plat}"
+                    break
+                }
+                ;;
+            arm64 | aarch64)
+                [ "${arch}" = "arm64" ] && {
+                    out="${out} ${plat}"
+                    break
+                }
+                ;;
             esac
         done
     done
