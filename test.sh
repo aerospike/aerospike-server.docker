@@ -34,8 +34,11 @@ OPTIONS:
                          Without -i: filters which images to test
     -d, --distro DIST    Distro filter: ubuntu22.04, ubuntu24.04, ubi9, ubi10
                          Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
-    -p, --platform PLAT  Platform: linux/amd64, linux/arm64
+    -p, --platform PLAT  Platform: linux/amd64, linux/arm64 (single; overrides -a)
                          Default: auto-detect from host architecture
+    -a, --arch ARCH      Architecture filter(s): amd64, arm64 (or x86_64, aarch64)
+                         Can specify multiple: -a amd64 arm64. Test each built image for these archs.
+                         Ignored when -i or -p is used.
     -c, --clean          Remove each image after its test passes (container + image)
     -h, --help           Show this help message
 
@@ -66,6 +69,10 @@ EXAMPLES:
     # Test all built images for a lineage
     $0 8.1
 
+    # Test only specific architecture(s) of built images
+    $0 8.1 -a amd64
+    $0 8.1 -a amd64 arm64
+
     # Test and cleanup images after
     $0 8.1 -e enterprise -c
 
@@ -88,6 +95,8 @@ function parse_args() {
     EDITION=""
     DISTRIBUTION=""
     PLATFORM=""
+    PLATFORM_EXPLICIT="false"
+    declare -ga ARCH_FILTERS=()
     CLEAN="false"
 
     while [[ $# -gt 0 ]]; do
@@ -106,7 +115,15 @@ function parse_args() {
             ;;
         -p | --platform)
             PLATFORM="$2"
+            PLATFORM_EXPLICIT="true"
             shift 2
+            ;;
+        -a | --arch)
+            shift
+            while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
+                ARCH_FILTERS+=("$1")
+                shift
+            done
             ;;
         -c | --clean)
             CLEAN="true"
@@ -137,6 +154,25 @@ function parse_args() {
         arm64 | aarch64) PLATFORM="linux/arm64" ;;
         *) PLATFORM="linux/amd64" ;;
         esac
+    fi
+
+    # Build PLATFORMS_LIST for test_from_releases: -p wins (single), else -a (multiple), else default (single)
+    declare -ga PLATFORMS_LIST=()
+    if [ "${PLATFORM_EXPLICIT}" = "true" ]; then
+        PLATFORMS_LIST=("${PLATFORM}")
+    elif [ ${#ARCH_FILTERS[@]} -gt 0 ]; then
+        for f in "${ARCH_FILTERS[@]}"; do
+            case "${f}" in
+            amd64 | x86_64) PLATFORMS_LIST+=("linux/amd64") ;;
+            arm64 | aarch64) PLATFORMS_LIST+=("linux/arm64") ;;
+            *) log_warn "Unknown arch filter: $f (use amd64 or arm64)" ;;
+            esac
+        done
+        if [ ${#PLATFORMS_LIST[@]} -eq 0 ]; then
+            PLATFORMS_LIST=("${PLATFORM}")
+        fi
+    else
+        PLATFORMS_LIST=("${PLATFORM}")
     fi
 
     if [ -z "${SPECIFIC_IMAGE}" ] && [ -z "${VERSION_OR_LINEAGE}" ]; then
@@ -183,6 +219,7 @@ function try() {
 function check_container() {
     local version=$1
     local expected_edition=$2
+    local expected_arch=${3:-}
 
     log_info "Verifying container..."
 
@@ -259,9 +296,27 @@ function check_container() {
             log_info "Edition: ${actual_edition}"
         fi
 
+        # Report architecture (expected arch or container uname -m) — after Edition
+        if [ -n "${expected_arch}" ] && [ "${expected_arch}" != "(host)" ]; then
+            log_success "Architecture: ${expected_arch}"
+        else
+            local container_arch
+            container_arch=$(docker exec -t "${CONTAINER}" uname -m 2>/dev/null | tr -d '\r\n' || echo "?")
+            log_success "Architecture: ${container_arch}"
+        fi
+
         # Check namespace
         if docker exec -t "${CONTAINER}" bash -c 'asinfo -v namespaces' 2>/dev/null | grep -q "test"; then
             log_success "Namespace 'test' exists"
+        fi
+    else
+        # No asinfo — still report architecture
+        if [ -n "${expected_arch}" ] && [ "${expected_arch}" != "(host)" ]; then
+            log_success "Architecture: ${expected_arch}"
+        else
+            local container_arch
+            container_arch=$(docker exec -t "${CONTAINER}" uname -m 2>/dev/null | tr -d '\r\n' || echo "?")
+            log_success "Architecture: ${container_arch}"
         fi
     fi
 }
@@ -280,8 +335,11 @@ function test_specific_image() {
     IMAGE_TAG="${SPECIFIC_IMAGE}"
     CONTAINER="aerospike-test-$$"
 
+    local arch_display="${PLATFORM#*/}"
+    [ -z "${arch_display}" ] && arch_display="(host)"
     log_info "====== Testing: ${IMAGE_TAG} ======"
     log_info "  Platform: ${PLATFORM}"
+    log_info "  Architecture: ${arch_display}"
     [ -n "${EDITION}" ] && log_info "  Expected edition: ${EDITION}"
     echo ""
 
@@ -291,7 +349,7 @@ function test_specific_image() {
     trap 'cleanup full' EXIT
     cleanup # Remove any previous container only
     run_docker
-    check_container "${version}" "${EDITION}"
+    check_container "${version}" "${EDITION}" "${arch_display}"
     cleanup full
 
     echo ""
@@ -306,10 +364,14 @@ function test_from_releases() {
         lineage="${VERSION_OR_LINEAGE}"
     fi
 
+    local arch_list=""
+    for p in "${PLATFORMS_LIST[@]}"; do arch_list="${arch_list} ${p#*/}"; done
+    arch_list=${arch_list# }
     log_info "Testing: ${lineage}"
     [ -n "${EDITION}" ] && log_info "  Edition: ${EDITION}"
     [ -n "${DISTRIBUTION}" ] && log_info "  Distro: ${DISTRIBUTION}"
-    log_info "  Platform: ${PLATFORM}"
+    log_info "  Platform(s): ${PLATFORMS_LIST[*]}"
+    log_info "  Architecture(s): ${arch_list}"
     echo ""
 
     local editions=${EDITION:-$(support_editions)}
@@ -343,37 +405,45 @@ function test_from_releases() {
             version=$(get_version_from_dockerfile "${lineage}" "${edition}" "${distro}") || continue
             version=$(printf '%s' "${version}" | tr -d '\r\n\t ')
             [ -z "${version}" ] && continue
-            local arch=${PLATFORM#*/}
 
-            IMAGE_TAG=$(get_image_tag_from_bake "${lineage}" "${edition}" "${distro}" "${arch}") || true
-            if [ -z "${IMAGE_TAG}" ]; then
-                local img_base="aerospike/aerospike-server"
-                [ "${edition}" != "community" ] && img_base+="-${edition}"
-                # Match docker-build.sh: single-distro build uses version-arch, multi uses version-distro-arch
-                IMAGE_TAG="${img_base}:${version}-${distro}-${arch}"
-                if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
-                    IMAGE_TAG="${img_base}:${version}-${arch}"
+            for plat in "${PLATFORMS_LIST[@]}"; do
+                local arch=${plat#*/}
+                # Federal only supports amd64
+                if [ "${edition}" = "federal" ] && [ "${arch}" = "arm64" ]; then
+                    continue
                 fi
-            fi
 
-            CONTAINER="aerospike-test-${edition}-${distro//./}-$$"
+                IMAGE_TAG=$(get_image_tag_from_bake "${lineage}" "${edition}" "${distro}" "${arch}") || true
+                if [ -z "${IMAGE_TAG}" ]; then
+                    local img_base="aerospike/aerospike-server"
+                    [ "${edition}" != "community" ] && img_base+="-${edition}"
+                    # Match docker-build.sh: single-distro build uses version-arch, multi uses version-distro-arch
+                    IMAGE_TAG="${img_base}:${version}-${distro}-${arch}"
+                    if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
+                        IMAGE_TAG="${img_base}:${version}-${arch}"
+                    fi
+                fi
 
-            log_info "====== Testing: ${IMAGE_TAG} ======"
+                CONTAINER="aerospike-test-${edition}-${distro//./}-${arch}-$$"
 
-            if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
-                skip_no_image=$((skip_no_image + 1))
-                log_warn "Skipping ${edition}/${distro}: image not found locally"
-                continue
-            fi
+                log_info "====== Testing: ${IMAGE_TAG} (${plat}) ======"
 
-            trap 'cleanup full' EXIT
-            cleanup # Remove any previous container only
-            run_docker
-            check_container "${version}" "${edition}"
-            cleanup full
+                if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
+                    skip_no_image=$((skip_no_image + 1))
+                    log_warn "Skipping ${edition}/${distro}/${arch}: image not found locally"
+                    continue
+                fi
 
-            tested=$((tested + 1))
-            echo ""
+                PLATFORM="${plat}"
+                trap 'cleanup full' EXIT
+                cleanup # Remove any previous container only
+                run_docker
+                check_container "${version}" "${edition}" "${arch}"
+                cleanup full
+
+                tested=$((tested + 1))
+                echo ""
+            done
         done
     done
 
