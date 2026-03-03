@@ -50,6 +50,9 @@ OPTIONS:
                         Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
                         Can specify multiple: -d ubuntu24.04 ubi9
                         Default: all distros supported by lineage
+    -a, --arch ARCH     Filter architecture(s): amd64, arm64 (or x86_64, aarch64)
+                        Can specify multiple: -a amd64 arm64
+                        Default: all platforms (linux/amd64, linux/arm64; federal is amd64 only)
     --no-cache          Disable Docker build cache (force full rebuild)
     -h, --help          Show this help message
 
@@ -79,6 +82,11 @@ EXAMPLES:
 
     # Build multiple editions and distros
     $0 -t 8.1 -e enterprise community -d ubuntu24.04 ubi9
+
+    # Build for specific architecture(s) only
+    $0 -t 8.1 -a amd64
+    $0 -t 8.1 -a arm64
+    $0 -p 8.1 -a amd64 arm64
 
     # Build and push to registry
     $0 -p 8.1 -e enterprise federal
@@ -402,7 +410,8 @@ function generate_bake() {
 
                 local tag_base platforms
                 tag_base="${lineage//./-}_${edition}_${distro//./-}"
-                platforms=$(support_platforms "${edition}")
+                platforms=$(support_platforms_matching "${edition}" "${ARCH_FILTERS[*]:-}")
+                [ -z "${platforms}" ] && continue
                 local image_name="aerospike-server"
                 [ "${edition}" != "community" ] && image_name+="-${edition}"
                 local test_product="${REGISTRY_PREFIXES[0]}/${image_name}"
@@ -463,6 +472,7 @@ function main() {
     # Arrays for multiple values
     declare -ga EDITION_FILTERS=()
     declare -ga DISTRO_FILTERS=()
+    declare -ga ARCH_FILTERS=()
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -497,6 +507,13 @@ function main() {
             shift
             while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
                 DISTRO_FILTERS+=("$1")
+                shift
+            done
+            ;;
+        -a | --arch)
+            shift
+            while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
+                ARCH_FILTERS+=("$1")
                 shift
             done
             ;;

@@ -7,11 +7,19 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y --no-install-recommends ca-certificates curl binutils xz-utils
 
-# On arm64 cross-build (QEMU on amd64), libc-bin postinst can segfault (exit 139). Finish any pending configure early and retry once.
+# On arm64 cross-build (QEMU on amd64), libc-bin postinst can segfault (exit 139). Finish any pending configure early.
 dpkg --configure -a || true
 if [ "$(dpkg --print-architecture)" = "arm64" ]; then
     sleep 2
     dpkg --configure -a || true
+fi
+
+# Detect Ubuntu version for compat-libs logic: 22.04 (Jammy) needs Focal-only and arm64 workarounds; 24.04 (Noble) keeps Focal+Jammy for 8.1.
+ubuntu_version=""
+if [ -f /etc/os-release ]; then
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    ubuntu_version="${VERSION_ID:-}"
 fi
 
 # OpenSSL 1.1 and OpenLDAP 2.4/2.5 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ has newer only)
@@ -50,31 +58,34 @@ install_compat_libs() {
     return 1
 }
 
-# On arm64 cross-build (QEMU on amd64), apt-get install often triggers libc-bin postinst segfault (exit 139).
-# Use direct .deb download and dpkg -i only on arm64 to avoid apt's trigger handling.
-if [ "$(dpkg --print-architecture)" = "arm64" ]; then
+compat_arch="$(dpkg --print-architecture)"
+
+# Ubuntu 22.04 (Jammy) arm64: use direct .deb only to avoid QEMU libc-bin segfault (exit 139). No apt path.
+if [ "${ubuntu_version}" = "22.04" ] && [ "${compat_arch}" = "arm64" ]; then
     if ! install_compat_libs; then
         echo "ERROR: failed to install libssl1.1 / libldap-2.4-2 / libldap-2.5-0 (required for Aerospike server on this base image)"
         exit 1
     fi
 elif ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
-    # Add only Focal (20.04) for libssl1.1 and libldap-2.4-2. Do not add Jammy compat: on Ubuntu 22.04
-    # apt then treats libldap-2.4-2 as obsolete (replaced by libldap-common) and the install fails.
-    compat_arch="$(dpkg --print-architecture)"
     repo_base="https://archive.ubuntu.com/ubuntu"
+    [ "${compat_arch}" = "arm64" ] && repo_base="https://ports.ubuntu.com/ubuntu-ports"
     echo "deb [trusted=yes] ${repo_base} focal main" >/etc/apt/sources.list.d/focal-compat.list
+    # On 22.04 (Jammy) do not add Jammy compat: apt then treats libldap-2.4-2 as obsolete and install fails.
+    # On 24.04 (Noble, 8.1) add Jammy so we can get all three packages; Noble default + Focal + Jammy works.
+    if [ "${ubuntu_version}" != "22.04" ]; then
+        echo "deb [trusted=yes] ${repo_base} jammy main" >/etc/apt/sources.list.d/jammy-compat.list
+    fi
     apt-get update -y 2>/dev/null
     if ! apt-get install -y --no-install-recommends libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null; then
-        rm -f /etc/apt/sources.list.d/focal-compat.list
+        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
         apt-get update -y 2>/dev/null
         if ! install_compat_libs; then
             echo "ERROR: failed to install libssl1.1 / libldap-2.4-2 / libldap-2.5-0 (required for Aerospike server on this base image)"
             exit 1
         fi
-    else
-        rm -f /etc/apt/sources.list.d/focal-compat.list
-        apt-get update -y 2>/dev/null
     fi
+    rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
+    apt-get update -y 2>/dev/null
 fi
 apt-mark manual libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null || true
 

@@ -36,6 +36,11 @@ function log_warn() {
     _log_level "warn" "${LOG_RED}${msg}${LOG_ENDCOLOR}"
 }
 
+# Workaround for typo g_warn (so "g_warn: command not found" does not occur)
+function g_warn() {
+    log_warn "$@"
+}
+
 function log_failure() {
     local msg=$1
 

@@ -109,6 +109,30 @@ function support_platforms() {
     fi
 }
 
+# Filter platforms by arch filter(s). arch_filter can be amd64, x86_64, arm64, aarch64 (multiple allowed).
+# Empty filter = all platforms for edition. Returns space-separated linux/amd64, linux/arm64.
+function support_platforms_matching() {
+    local edition=$1
+    local filter_tokens=$2
+    local all_platforms
+    all_platforms=$(support_platforms "${edition}")
+    if [ -z "${filter_tokens}" ]; then
+        echo "${all_platforms}"
+        return
+    fi
+    local out=""
+    for plat in ${all_platforms}; do
+        local arch="${plat#*/}"
+        for f in ${filter_tokens}; do
+            case "${f}" in
+            amd64 | x86_64) [ "${arch}" = "amd64" ] && { out="${out} ${plat}"; break; } ;;
+            arm64 | aarch64) [ "${arch}" = "arm64" ] && { out="${out} ${plat}"; break; } ;;
+            esac
+        done
+    done
+    echo "${out# }"
+}
+
 function support_platform_to_arch() {
     case "$1" in
     "linux/amd64") echo "x86_64" ;;
