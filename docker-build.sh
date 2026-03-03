@@ -53,6 +53,8 @@ OPTIONS:
     -a, --arch ARCH     Filter architecture(s): amd64, arm64 (or x86_64, aarch64)
                         Can specify multiple: -a amd64 arm64
                         Default: all platforms (linux/amd64, linux/arm64; federal is amd64 only)
+    -T, --timestamp TS  Use TS for push tags (e.g. version-TS). Format: YYYYMMDDHHMMSS
+                        Default: current UTC time
     --no-cache          Disable Docker build cache (force full rebuild)
     -h, --help          Show this help message
 
@@ -94,6 +96,9 @@ EXAMPLES:
     # Build and push to one or more registries
     $0 -p 8.1 -e enterprise -r artifact.aerospike.io/database-docker-dev-local
     $0 -p 8.1 -e enterprise -r reg1 -r reg2
+
+    # Push with custom timestamp for tags (e.g. product:8.1.1.1-20250225120000)
+    $0 -p 8.1 -T 20250225120000
 
     # Generate Dockerfiles only (no build)
     $0 -g 8.1
@@ -395,10 +400,10 @@ function generate_dockerfiles() {
 # Generate bake file and build
 #------------------------------------------------------------------------------
 function generate_bake() {
+    local build_ts="${1:-}"
+    [ -z "${build_ts}" ] && build_ts=$(date -u +%Y%m%d%H%M%S 2>/dev/null || date +%Y%m%d%H%M%S)
     local test_targets="" push_targets=""
     local test_group="" push_group=""
-    local build_ts
-    build_ts=$(date -u +%Y%m%d%H%M%S 2>/dev/null || date +%Y%m%d%H%M%S)
 
     for lineage in "${LINEAGES_TO_BUILD[@]}"; do
         local version="${G_VERSION_MAP[${lineage}]}"
@@ -485,6 +490,7 @@ function main() {
     local mode="" custom_url="" version_or_lineage=""
     local generate_only=false
     local bake_opts=""
+    local build_timestamp=""
     declare -ga REGISTRY_PREFIXES=()
 
     # Arrays for multiple values
@@ -535,6 +541,10 @@ function main() {
                 shift
             done
             ;;
+        -T | --timestamp)
+            build_timestamp="$2"
+            shift 2
+            ;;
         --no-cache)
             bake_opts="--no-cache"
             shift
@@ -578,7 +588,7 @@ function main() {
     echo ""
     log_info "=== Building Images ==="
 
-    generate_bake
+    generate_bake "${build_timestamp}"
 
     case "${mode}" in
     test)

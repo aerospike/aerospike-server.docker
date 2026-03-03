@@ -17,7 +17,8 @@ The previous build system had separate directories for each edition with duplica
 	-	Supports custom artifact URLs for staging/testing
 	-	Builds using Docker Buildx Bake for efficient multi-architecture builds
 	-	Three modes: `-t` (test/local), `-p` (push to registry), `-g` (generate only)
-	-	Filter support: `-e` for editions, `-d` for distros (supports multiple values)
+	-	Filter support: `-e` for editions, `-d` for distros, `-a` for architectures (supports multiple values)
+	-	Optional `-T, --timestamp TS` for push tags (format YYYYMMDDHHMMSS; default: current UTC)
 
 -	**test.sh** – Updated functional test script
 
@@ -148,6 +149,9 @@ Updated README.md with:
 # Generate Dockerfiles only
 ./docker-build.sh -g 8.1
 
+# Push with custom timestamp for tags (e.g. product:8.1.1.1-20250225120000)
+./docker-build.sh -p 8.1 -T 20250225120000
+
 # Test specific image
 ./test.sh -i aerospike/aerospike-server-enterprise:8.1.1.0
 
@@ -237,3 +241,7 @@ Updated README.md with:
 	-	**docker-build.sh:** New option `-a` / `--arch`. Accepts one or more of `amd64`, `arm64`, `x86_64`, `aarch64`. Restricts build to those architectures. Default (no `-a`): build all platforms (linux/amd64 and linux/arm64; federal remains amd64 only). Example: `./docker-build.sh -t 8.1 -a amd64`.  
 	-	**test.sh:** New option `-a` / `--arch`. When testing from `releases/`, only test images for the given arch(s). Default (no `-a`): test host architecture only. Use `-a amd64 arm64` to test both. `-p` overrides `-a` when both are set. Federal + arm64 is skipped.  
 	-	**lib/support.sh:** New `support_platforms_matching(edition, arch_filter_tokens)` to return filtered platforms (e.g. only linux/amd64 or only linux/arm64) for bake and test.
+
+-	**Custom timestamp for push tags (-T, --timestamp)**
+
+	-	**docker-build.sh:** New option `-T` / `--timestamp TS`. Use a fixed timestamp in push-mode image tags (e.g. `product:8.1.1.1-20250225120000` or `product:8.1.1.1-ubuntu24.04-20250225120000`). Format: `YYYYMMDDHHMMSS`. Default when omitted: current UTC time. Example: `./docker-build.sh -p 8.1 -T 20250225120000`.
