@@ -227,7 +227,14 @@ function generate_dockerfile() {
 "
     # (tools are skipped for native format; no AEROSPIKE_TOOLS_* ARGs)
 
-    cat <<DOCKERFILE | sed '/^[[:space:]]*$/d' >"${target}/Dockerfile"
+    local base_name_label="${base_image}"
+    [[ "${base_image}" == ubuntu:* ]] && base_name_label="docker.io/library/${base_image}"
+
+    local image_license="Apache-2.0"
+    [ "${edition}" = "enterprise" ] && image_license="Proprietary"
+    [ "${edition}" = "federal" ] && image_license="Proprietary"
+
+    cat <<DOCKERFILE | sed 's/[[:space:]]*$//' | cat -s >"${target}/Dockerfile"
 # syntax=docker/dockerfile:1
 #
 # Aerospike Server Dockerfile
@@ -238,7 +245,18 @@ FROM ${base_image}
 
 LABEL org.opencontainers.image.title="Aerospike ${edition^} Server" \\
       org.opencontainers.image.version="${version}" \\
-      org.opencontainers.image.vendor="Aerospike"
+      org.opencontainers.image.vendor="Aerospike" \\
+      org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \\
+      org.opencontainers.image.base.name="${base_name_label}" \\
+      org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \\
+      org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker" \\
+      org.opencontainers.image.documentation="https://github.com/aerospike/aerospike-server.docker" \\
+      org.opencontainers.image.licenses="${image_license}"
+
+# AEROSPIKE_EDITION - required - must be "community", "enterprise", or "federal".
+# By selecting "community" you agree to the "COMMUNITY_LICENSE".
+# By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
+# By selecting "federal" you agree to the "FEDERAL_LICENSE"
 
 ARG AEROSPIKE_EDITION="${edition}"
 ARG AEROSPIKE_PKG_FORMAT="${pkg_format}"
