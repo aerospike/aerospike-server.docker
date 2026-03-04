@@ -15,7 +15,10 @@ else
     apt-get install -y --no-install-recommends ca-certificates curl binutils xz-utils
 fi
 # Ensure required tools are present (arm64 may have had transient libc-bin failure)
-command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found after apt-get install"; exit 1; }
+command -v curl >/dev/null 2>&1 || {
+    echo "ERROR: curl not found after apt-get install"
+    exit 1
+}
 
 # Detect Ubuntu version for compat-libs logic: 22.04 (Jammy) needs Focal-only; 24.04 (Noble) keeps Focal+Jammy for 8.1.
 ubuntu_version=""

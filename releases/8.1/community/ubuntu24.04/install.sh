@@ -15,7 +15,10 @@ else
     apt-get install -y --no-install-recommends ca-certificates curl binutils xz-utils
 fi
 # Ensure required tools are present (arm64 may have had transient libc-bin failure)
-command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found after apt-get install"; exit 1; }
+command -v curl >/dev/null 2>&1 || {
+    echo "ERROR: curl not found after apt-get install"
+    exit 1
+}
 
 # Detect Ubuntu version for compat-libs logic: 22.04 (Jammy) needs Focal-only; 24.04 (Noble) keeps Focal+Jammy for 8.1.
 ubuntu_version=""
@@ -81,7 +84,7 @@ compat_arch="$(dpkg --print-architecture)"
 # On 22.04 arm64 do not install libgssapi3-heimdal via apt (Focal heimdal deps can be "not installable" on Jammy). Use install_compat_libs with Focal kept in sources so install -f can pull heimdal.
 COMPAT_PKGS="libssl1.1 libldap-2.4-2 libldap-2.5-0"
 
-if ! apt-get install -y --no-install-recommends ${COMPAT_PKGS} 2>/dev/null; then
+if ! apt-get install -y --no-install-recommends "${COMPAT_PKGS}" 2>/dev/null; then
     repo_base="https://archive.ubuntu.com/ubuntu"
     [ "${compat_arch}" = "arm64" ] && repo_base="https://ports.ubuntu.com/ubuntu-ports"
     echo "deb [trusted=yes] ${repo_base} focal main" >/etc/apt/sources.list.d/focal-compat.list
@@ -91,7 +94,7 @@ if ! apt-get install -y --no-install-recommends ${COMPAT_PKGS} 2>/dev/null; then
         echo "deb [trusted=yes] ${repo_base} jammy main" >/etc/apt/sources.list.d/jammy-compat.list
     fi
     apt-get update -y 2>/dev/null
-    if ! apt-get install -y --no-install-recommends ${COMPAT_PKGS} 2>/dev/null; then
+    if ! apt-get install -y --no-install-recommends "${COMPAT_PKGS}" 2>/dev/null; then
         rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
         apt-get update -y 2>/dev/null
         if ! install_compat_libs; then
