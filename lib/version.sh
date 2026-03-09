@@ -317,7 +317,9 @@ function get_server_package_link_native() {
     else
         local deb_arch="${arch}"
         [ "${arch}" = "x86_64" ] && deb_arch="amd64"
-        echo "${base_url}/${path_prefix}/aerospike-server-${edition}_${version}_${deb_arch}.deb"
+        # Include artifact_distro in filename so ubuntu24.04 image gets ubuntu24.04-built package (not ubuntu22.04).
+        # Matches find_local_server_package pattern: edition_version${artifact_distro}_arch.deb
+        echo "${base_url}/${path_prefix}/aerospike-server-${edition}_${version}${artifact_distro}_${deb_arch}.deb"
     fi
 }
 
