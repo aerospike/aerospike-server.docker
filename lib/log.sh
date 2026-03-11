@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Logging helpers (info, warn, success, failure, debug). No dependencies.
+# Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 
 set -Eeuo pipefail
 
@@ -32,6 +34,11 @@ function log_warn() {
     local msg=$1
 
     _log_level "warn" "${LOG_RED}${msg}${LOG_ENDCOLOR}"
+}
+
+# Workaround for typo g_warn (so "g_warn: command not found" does not occur)
+function g_warn() {
+    log_warn "$@"
 }
 
 function log_failure() {
