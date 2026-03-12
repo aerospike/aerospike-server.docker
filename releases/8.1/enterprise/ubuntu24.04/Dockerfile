@@ -4,7 +4,7 @@
 # Version: 8.1.1.1 | Edition: enterprise | Base: ubuntu24.04
 #
 
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:d1e2e92c075e5ca139d51a140fff46f84315c0fdce203eab2807c7e495eff4f9
 
 LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.version="8.1.1.1" \
