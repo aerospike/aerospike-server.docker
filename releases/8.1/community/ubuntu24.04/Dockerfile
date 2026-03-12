@@ -88,17 +88,30 @@ RUN \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
     rm aerospike-server.tgz; \
     mkdir -p /var/{log,run}/aerospike; \
+    mkdir -p /etc/aerospike; \
     mkdir -p /licenses; \
     cp aerospike/LICENSE /licenses; \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      if [ -f aerospike/features.conf ]; then \
+        cp aerospike/features.conf /etc/aerospike/features.conf; \
+      elif [ -f aerospike/etc/aerospike/features.conf ]; then \
+        cp aerospike/etc/aerospike/features.conf /etc/aerospike/features.conf; \
+      else \
+        echo "ERROR: features.conf not found in package payload for ${AEROSPIKE_EDITION}" >&2; \
+        exit 1; \
+      fi; \
+    fi; \
   }; \
   { \
+    curl_pkg="libcurl4"; \
+    apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ]; then \
       apt-get install -y --no-install-recommends \
-        libcurl4 \
+        "${curl_pkg}" \
         libldap2; \
     elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.0" | sort -V | head -1)" != "${VERSION}" ]; then \
       apt-get install -y --no-install-recommends \
-        libcurl4; \
+        "${curl_pkg}"; \
     fi; \
     apt-get install -y --no-install-recommends ./aerospike/aerospike-server-*.deb || true; \
     dpkg --configure -a || true; \

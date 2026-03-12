@@ -4,12 +4,12 @@
 # http://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:24.04
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.4
 
 LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
+      org.opencontainers.image.base.name="registry.access.redhat.com/ubi9/ubi-minimal:9.4" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
       org.opencontainers.image.version="8.1.1.1" \
@@ -22,9 +22,9 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="federal"
 
-ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
-ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-federal/8.1.1.1/aerospike-server-federal_8.1.1.1_tools-12.1.1_ubuntu24.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="d320fabbf5685825b03f9cf1efba6b32bf2641087dfe38b0b634e8756b1d0951"
+ENV AEROSPIKE_LINUX_BASE="registry.access.redhat.com/ubi9/ubi-minimal:9.4"
+ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-federal/8.1.1.1/aerospike-server-federal_8.1.1.1_tools-12.1.1_el9_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="2f9fd1729f51ad4847f5ea8373ed7fc465f47cfb7604562b94a7427ad684d8be"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 
@@ -33,47 +33,37 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 # Install Aerospike Server and Tools
 RUN \
   { \
-    export DEBIAN_FRONTEND=noninteractive; \
-    apt-get update -y; \
-    apt-get install -y --no-install-recommends apt-utils || true; \
-    apt-get install -y --no-install-recommends \
-      binutils \
-      xz-utils || true; \
-    dpkg --configure -a || true; \
+    microdnf install -y --setopt=install_weak_deps=0 \
+      findutils \
+      tar \
+      gzip \
+      xz \
+      ca-certificates \
+      cpio; \
   }; \
   { \
-    apt-get install -y --no-install-recommends ca-certificates curl procps || true; \
-    dpkg --configure -a || true; \
-    sleep 1; \
-    dpkg --configure -a || true; \
-    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
-  }; \
-  { \
-    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-[a-z0-9]+)?([-][0-9]+[-]g[0-9a-z]*)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
-  }; \
-  { \
-    ARCH="$(dpkg --print-architecture)"; \
-    if [ "${ARCH}" = "amd64" ]; then \
+    ARCH="$(uname -m)"; \
+    if [ "${ARCH}" = "x86_64" ]; then \
       sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940; \
       suffix=""; \
-    elif [ "${ARCH}" = "arm64" ]; then \
+    elif [ "${ARCH}" = "aarch64" ]; then \
       sha256=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b; \
       suffix="-arm64"; \
     else \
       echo "Unsupported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static; \
+    curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" -o /usr/bin/as-tini-static; \
     echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -; \
     chmod +x /usr/bin/as-tini-static; \
   }; \
   { \
-    ARCH="$(dpkg --print-architecture)"; \
+    ARCH="$(uname -m)"; \
     mkdir -p aerospike/pkg; \
-    if [ "${ARCH}" = "amd64" ]; then \
+    if [ "${ARCH}" = "x86_64" ]; then \
       pkg_link="${AEROSPIKE_X86_64_LINK}"; \
       sha256="${AEROSPIKE_SHA_X86_64}"; \
-    elif [ "${ARCH}" = "arm64" ]; then \
+    elif [ "${ARCH}" = "aarch64" ]; then \
       pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
       sha256="${AEROSPIKE_SHA_AARCH64}"; \
     else \
@@ -88,56 +78,19 @@ RUN \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
     rm aerospike-server.tgz; \
     mkdir -p /var/{log,run}/aerospike; \
-    mkdir -p /etc/aerospike; \
     mkdir -p /licenses; \
     cp aerospike/LICENSE /licenses; \
-    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      if [ -f aerospike/features.conf ]; then \
-        cp aerospike/features.conf /etc/aerospike/features.conf; \
-      elif [ -f aerospike/etc/aerospike/features.conf ]; then \
-        cp aerospike/etc/aerospike/features.conf /etc/aerospike/features.conf; \
-      else \
-        echo "ERROR: features.conf not found in package payload for ${AEROSPIKE_EDITION}" >&2; \
-        exit 1; \
-      fi; \
-    fi; \
   }; \
   { \
-    curl_pkg="libcurl4"; \
-    apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
-    if [ "${AEROSPIKE_EDITION}" = "enterprise" ]; then \
-      apt-get install -y --no-install-recommends \
-        "${curl_pkg}" \
-        libldap2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.0" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        "${curl_pkg}"; \
-    fi; \
-    apt-get install -y --no-install-recommends ./aerospike/aerospike-server-*.deb || true; \
-    dpkg --configure -a || true; \
-    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; dpkg -l 'aerospike*' 2>&1 || true; exit 1; }; \
+    rpm -i --excludedocs aerospike/aerospike-server-*.rpm; \
     rm -rf /opt/aerospike/bin; \
   }; \
   { \
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "5.1" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        python2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        python3 \
-        python3-distutils; \
-    fi; \
-  }; \
-  { \
-    ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg; \
-    tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/; \
+    cd aerospike/pkg && rpm2cpio ../aerospike-tools*.rpm | cpio -idmv && cd ../..; \
   }; \
   { \
     find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
     mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2" | sort -V | head -1)" != "${VERSION}" ]; then \
-      mv aerospike/pkg/opt/aerospike/bin/aql /usr/bin; \
-    fi; \
     if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
     else \
@@ -154,14 +107,9 @@ RUN \
     rm -rf aerospike; \
   }; \
   { \
-    rm -rf /var/lib/apt/lists/*; \
-    dpkg --purge \
-      apt-utils \
-      binutils \
-      xz-utils 2>&1 || true; \
-    apt-get purge -y || true; \
-    apt-get autoremove -y || true; \
-    unset DEBIAN_FRONTEND; \
+    microdnf remove -y findutils tar gzip xz cpio; \
+    microdnf clean all; \
+    rm -rf /var/cache/yum /var/cache/dnf; \
   }; \
   echo "done";
 

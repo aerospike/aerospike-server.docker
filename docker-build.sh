@@ -180,17 +180,30 @@ RUN \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
     rm aerospike-server.tgz; \
     mkdir -p /var/{log,run}/aerospike; \
+    mkdir -p /etc/aerospike; \
     mkdir -p /licenses; \
     cp aerospike/LICENSE /licenses; \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      if [ -f aerospike/features.conf ]; then \
+        cp aerospike/features.conf /etc/aerospike/features.conf; \
+      elif [ -f aerospike/etc/aerospike/features.conf ]; then \
+        cp aerospike/etc/aerospike/features.conf /etc/aerospike/features.conf; \
+      else \
+        echo "ERROR: features.conf not found in package payload for ${AEROSPIKE_EDITION}" >&2; \
+        exit 1; \
+      fi; \
+    fi; \
   }; \
   { \
+    curl_pkg="libcurl4"; \
+    apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ]; then \
       apt-get install -y --no-install-recommends \
-        libcurl4 \
+        "${curl_pkg}" \
         libldap2; \
     elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.0" | sort -V | head -1)" != "${VERSION}" ]; then \
       apt-get install -y --no-install-recommends \
-        libcurl4; \
+        "${curl_pkg}"; \
     fi; \
     apt-get install -y --no-install-recommends ./aerospike/aerospike-server-*.deb || true; \
     dpkg --configure -a || true; \
@@ -573,6 +586,12 @@ function generate_dockerfile() {
     cp template/0/entrypoint.sh "${target}/"
     chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
+    if [ "${edition}" = "enterprise" ] || [ "${edition}" = "federal" ]; then
+        cp config/eval_features.conf "${target}/features.conf" || {
+            log_error "    Missing required feature key source: config/eval_features.conf"
+            return 1
+        }
+    fi
 
     # When -u is a local dir: ensure .sha256 exist (run shasum-artifacts.sh if any missing), then copy packages and .sha256
     local dockerfile_copy_local=""
@@ -614,6 +633,10 @@ function generate_dockerfile() {
 
     local dockerfile_extra_args=""
     [ -n "${use_local_pkg}" ] && dockerfile_extra_args="ARG AEROSPIKE_LOCAL_PKG=\"1\""
+    local dockerfile_features_copy=""
+    if [ "${edition}" = "enterprise" ] || [ "${edition}" = "federal" ]; then
+        dockerfile_features_copy="COPY features.conf /etc/aerospike/features.conf"
+    fi
 
     local base_name_label="${base_image}"
     [[ "${base_image}" == ubuntu:* ]] && base_name_label="docker.io/library/${base_image}"
@@ -670,9 +693,10 @@ HEADER
         fi
 
         # Footer: COPY, EXPOSE, ENTRYPOINT, CMD (literal)
-        cat <<'FOOTER'
+        cat <<FOOTER
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
+${dockerfile_features_copy}
 
 # Mount the Aerospike data directory
 # VOLUME ["/opt/aerospike/data"]
