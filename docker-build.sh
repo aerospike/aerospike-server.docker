@@ -115,6 +115,393 @@ EOF
 #------------------------------------------------------------------------------
 # Generate Dockerfiles
 #------------------------------------------------------------------------------
+
+# Emit the inline RUN block for Debian/Ubuntu-based images.
+# Quoted heredocs prevent shell expansion; content is Docker build-time.
+function _append_run_deb() {
+    local pkg_format=$1
+    if [ "${pkg_format}" = "tgz" ]; then
+        cat <<'RUNBLOCK'
+# Install Aerospike Server and Tools
+RUN \
+  { \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update -y; \
+    apt-get install -y --no-install-recommends apt-utils || true; \
+    apt-get install -y --no-install-recommends \
+      binutils \
+      xz-utils || true; \
+    dpkg --configure -a || true; \
+  }; \
+  { \
+    apt-get install -y --no-install-recommends ca-certificates curl procps || true; \
+    dpkg --configure -a || true; \
+    sleep 1; \
+    dpkg --configure -a || true; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
+  }; \
+  { \
+    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-[a-z0-9]+)?([-][0-9]+[-]g[0-9a-z]*)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
+  }; \
+  { \
+    ARCH="$(dpkg --print-architecture)"; \
+    if [ "${ARCH}" = "amd64" ]; then \
+      sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940; \
+      suffix=""; \
+    elif [ "${ARCH}" = "arm64" ]; then \
+      sha256=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b; \
+      suffix="-arm64"; \
+    else \
+      echo "Unsupported architecture - ${ARCH}" >&2; \
+      exit 1; \
+    fi; \
+    curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static; \
+    echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -; \
+    chmod +x /usr/bin/as-tini-static; \
+  }; \
+  { \
+    ARCH="$(dpkg --print-architecture)"; \
+    mkdir -p aerospike/pkg; \
+    if [ "${ARCH}" = "amd64" ]; then \
+      pkg_link="${AEROSPIKE_X86_64_LINK}"; \
+      sha256="${AEROSPIKE_SHA_X86_64}"; \
+    elif [ "${ARCH}" = "arm64" ]; then \
+      pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
+      sha256="${AEROSPIKE_SHA_AARCH64}"; \
+    else \
+      echo "Unsupported architecture - ${ARCH}" >&2; \
+      exit 1; \
+    fi; \
+    if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+      echo "Could not fetch pkg - ${pkg_link}" >&2; \
+      exit 1; \
+    fi; \
+    echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
+    tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
+    rm aerospike-server.tgz; \
+    mkdir -p /var/{log,run}/aerospike; \
+    mkdir -p /licenses; \
+    cp aerospike/LICENSE /licenses; \
+  }; \
+  { \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ]; then \
+      apt-get install -y --no-install-recommends \
+        libcurl4 \
+        libldap2; \
+    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.0" | sort -V | head -1)" != "${VERSION}" ]; then \
+      apt-get install -y --no-install-recommends \
+        libcurl4; \
+    fi; \
+    apt-get install -y --no-install-recommends ./aerospike/aerospike-server-*.deb || true; \
+    dpkg --configure -a || true; \
+    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; dpkg -l 'aerospike*' 2>&1 || true; exit 1; }; \
+    rm -rf /opt/aerospike/bin; \
+  }; \
+  { \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "5.1" | sort -V | head -1)" != "${VERSION}" ]; then \
+      apt-get install -y --no-install-recommends \
+        python2; \
+    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
+      apt-get install -y --no-install-recommends \
+        python3 \
+        python3-distutils; \
+    fi; \
+  }; \
+  { \
+    ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg; \
+    tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/; \
+  }; \
+  { \
+    find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
+    mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
+    if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2" | sort -V | head -1)" != "${VERSION}" ]; then \
+      mv aerospike/pkg/opt/aerospike/bin/aql /usr/bin; \
+    fi; \
+    if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
+      mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
+    else \
+      mkdir /usr/lib/asadm; \
+      mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/; \
+    fi; \
+    ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+    if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then \
+      mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/; \
+    fi; \
+    ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+  }; \
+  { \
+    rm -rf aerospike; \
+  }; \
+  { \
+    rm -rf /var/lib/apt/lists/*; \
+    dpkg --purge \
+      apt-utils \
+      binutils \
+      xz-utils 2>&1 || true; \
+    apt-get purge -y || true; \
+    apt-get autoremove -y || true; \
+    unset DEBIAN_FRONTEND; \
+  }; \
+  echo "done";
+
+RUNBLOCK
+    else
+        cat <<'RUNBLOCK'
+# Install Aerospike Server
+RUN \
+  { \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update -y; \
+    apt-get install -y --no-install-recommends ca-certificates curl || true; \
+    dpkg --configure -a || true; \
+    sleep 1; \
+    dpkg --configure -a || true; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
+  }; \
+  { \
+    ARCH="$(dpkg --print-architecture)"; \
+    if [ "${ARCH}" = "amd64" ]; then \
+      sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940; \
+      suffix=""; \
+    elif [ "${ARCH}" = "arm64" ]; then \
+      sha256=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b; \
+      suffix="-arm64"; \
+    else \
+      echo "Unsupported architecture - ${ARCH}" >&2; \
+      exit 1; \
+    fi; \
+    curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static; \
+    echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -; \
+    chmod +x /usr/bin/as-tini-static; \
+  }; \
+  { \
+    ARCH="$(dpkg --print-architecture)"; \
+    if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then \
+      if [ "${ARCH}" = "amd64" ]; then \
+        cp /tmp/server_amd64.deb server.deb; \
+        [ -f /tmp/server_amd64.deb.sha256 ] && { \
+          hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256); \
+          echo "${hash}  server.deb" | sha256sum -c -; \
+        }; \
+      else \
+        cp /tmp/server_arm64.deb server.deb; \
+        [ -f /tmp/server_arm64.deb.sha256 ] && { \
+          hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256); \
+          echo "${hash}  server.deb" | sha256sum -c -; \
+        }; \
+      fi; \
+    else \
+      if [ "${ARCH}" = "amd64" ]; then \
+        pkg_link="${AEROSPIKE_X86_64_LINK}"; \
+        sha256="${AEROSPIKE_SHA_X86_64}"; \
+      else \
+        pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
+        sha256="${AEROSPIKE_SHA_AARCH64}"; \
+      fi; \
+      curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
+      [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -; \
+    fi; \
+    . /etc/os-release 2>/dev/null || true; \
+    if [ "${ID:-}" = "ubuntu" ]; then \
+      if [ "${ARCH}" = "amd64" ]; then \
+        repo_url="http://archive.ubuntu.com/ubuntu"; \
+      else \
+        repo_url="http://ports.ubuntu.com/ubuntu-ports"; \
+      fi; \
+      echo "deb [trusted=yes] ${repo_url} focal main" > /etc/apt/sources.list.d/focal-compat.list; \
+      [ "${VERSION_ID}" != "22.04" ] && \
+        echo "deb [trusted=yes] ${repo_url} jammy main" > /etc/apt/sources.list.d/jammy-compat.list; \
+      apt-get update -y || true; \
+      dpkg --configure -a || true; \
+      apt-get install -y --no-install-recommends \
+        libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0 || true; \
+      dpkg --configure -a || true; \
+      sleep 1; \
+      dpkg --configure -a || true; \
+      ldconfig 2>/dev/null || true; \
+      if ! ldconfig -p 2>/dev/null | grep -q libcrypto.so.1.1; then \
+        rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true; \
+        apt-get install -y --no-install-recommends --download-only \
+          libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0 2>/dev/null || true; \
+        dpkg -i /var/cache/apt/archives/*.deb 2>/dev/null || true; \
+        dpkg --configure -a || true; \
+        sleep 1; \
+        dpkg --configure -a || true; \
+      fi; \
+      rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list; \
+    fi; \
+    dpkg -i server.deb || true; \
+    dpkg --configure -a || true; \
+    sleep 1; \
+    dpkg --configure -a || true; \
+    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; dpkg -l 'aerospike*' 2>&1 || true; exit 1; }; \
+    mkdir -p /var/{log,run}/aerospike; \
+  }; \
+  { \
+    rm -rf server.deb /var/lib/apt/lists/*; \
+    apt-get purge -y curl || true; \
+    apt-get autoremove -y || true; \
+    unset DEBIAN_FRONTEND; \
+  }; \
+  echo "done";
+
+RUNBLOCK
+    fi
+}
+
+# Emit the inline RUN block for UBI/RHEL-based images.
+function _append_run_rpm() {
+    local pkg_format=$1
+    if [ "${pkg_format}" = "tgz" ]; then
+        cat <<'RUNBLOCK'
+# Install Aerospike Server and Tools
+RUN \
+  { \
+    microdnf install -y --setopt=install_weak_deps=0 \
+      findutils \
+      tar \
+      gzip \
+      xz \
+      ca-certificates \
+      cpio; \
+  }; \
+  { \
+    ARCH="$(uname -m)"; \
+    if [ "${ARCH}" = "x86_64" ]; then \
+      sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940; \
+      suffix=""; \
+    elif [ "${ARCH}" = "aarch64" ]; then \
+      sha256=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b; \
+      suffix="-arm64"; \
+    else \
+      echo "Unsupported architecture - ${ARCH}" >&2; \
+      exit 1; \
+    fi; \
+    curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" -o /usr/bin/as-tini-static; \
+    echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -; \
+    chmod +x /usr/bin/as-tini-static; \
+  }; \
+  { \
+    ARCH="$(uname -m)"; \
+    mkdir -p aerospike/pkg; \
+    if [ "${ARCH}" = "x86_64" ]; then \
+      pkg_link="${AEROSPIKE_X86_64_LINK}"; \
+      sha256="${AEROSPIKE_SHA_X86_64}"; \
+    elif [ "${ARCH}" = "aarch64" ]; then \
+      pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
+      sha256="${AEROSPIKE_SHA_AARCH64}"; \
+    else \
+      echo "Unsupported architecture - ${ARCH}" >&2; \
+      exit 1; \
+    fi; \
+    if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+      echo "Could not fetch pkg - ${pkg_link}" >&2; \
+      exit 1; \
+    fi; \
+    echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
+    tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
+    rm aerospike-server.tgz; \
+    mkdir -p /var/{log,run}/aerospike; \
+    mkdir -p /licenses; \
+    cp aerospike/LICENSE /licenses; \
+  }; \
+  { \
+    rpm -i --excludedocs aerospike/aerospike-server-*.rpm; \
+    rm -rf /opt/aerospike/bin; \
+  }; \
+  { \
+    cd aerospike/pkg && rpm2cpio ../aerospike-tools*.rpm | cpio -idmv && cd ../..; \
+  }; \
+  { \
+    find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
+    mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
+    if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
+      mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
+    else \
+      mkdir /usr/lib/asadm; \
+      mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/; \
+    fi; \
+    ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+    if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then \
+      mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/; \
+    fi; \
+    ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+  }; \
+  { \
+    rm -rf aerospike; \
+  }; \
+  { \
+    microdnf remove -y findutils tar gzip xz cpio; \
+    microdnf clean all; \
+    rm -rf /var/cache/yum /var/cache/dnf; \
+  }; \
+  echo "done";
+
+RUNBLOCK
+    else
+        cat <<'RUNBLOCK'
+# Install Aerospike Server
+RUN \
+  { \
+    microdnf install -y --setopt=install_weak_deps=0 ca-certificates; \
+  }; \
+  { \
+    ARCH="$(uname -m)"; \
+    if [ "${ARCH}" = "x86_64" ]; then \
+      sha256=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940; \
+      suffix=""; \
+    elif [ "${ARCH}" = "aarch64" ]; then \
+      sha256=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b; \
+      suffix="-arm64"; \
+    else \
+      echo "Unsupported architecture - ${ARCH}" >&2; \
+      exit 1; \
+    fi; \
+    curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" -o /usr/bin/as-tini-static; \
+    echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -; \
+    chmod +x /usr/bin/as-tini-static; \
+  }; \
+  { \
+    ARCH="$(uname -m)"; \
+    if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then \
+      if [ "${ARCH}" = "x86_64" ]; then \
+        cp /tmp/server_x86_64.rpm server.rpm; \
+        [ -f /tmp/server_x86_64.rpm.sha256 ] && { \
+          hash=$(awk '{print $1}' /tmp/server_x86_64.rpm.sha256); \
+          echo "${hash}  server.rpm" | sha256sum -c -; \
+        }; \
+      else \
+        cp /tmp/server_aarch64.rpm server.rpm; \
+        [ -f /tmp/server_aarch64.rpm.sha256 ] && { \
+          hash=$(awk '{print $1}' /tmp/server_aarch64.rpm.sha256); \
+          echo "${hash}  server.rpm" | sha256sum -c -; \
+        }; \
+      fi; \
+    else \
+      if [ "${ARCH}" = "x86_64" ]; then \
+        pkg_link="${AEROSPIKE_X86_64_LINK}"; \
+        sha256="${AEROSPIKE_SHA_X86_64}"; \
+      else \
+        pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
+        sha256="${AEROSPIKE_SHA_AARCH64}"; \
+      fi; \
+      curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; \
+      [ -n "${sha256}" ] && echo "${sha256} server.rpm" | sha256sum -c -; \
+    fi; \
+    rpm -i --excludedocs server.rpm; \
+    mkdir -p /var/{log,run}/aerospike; \
+  }; \
+  { \
+    rm -rf server.rpm; \
+    microdnf clean all; \
+    rm -rf /var/cache/yum /var/cache/dnf; \
+  }; \
+  echo "done";
+
+RUNBLOCK
+    fi
+}
+
 # generate_dockerfile lineage distro edition version tools_version
 function generate_dockerfile() {
     local lineage=$1 distro=$2 edition=$3 version=$4 tools_version=$5
@@ -184,9 +571,8 @@ function generate_dockerfile() {
 
     mkdir -p "${target}"
     cp template/0/entrypoint.sh "${target}/"
+    chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
-    # Install script matches OS: scripts/rpm/install.sh for UBI, scripts/deb/install.sh for Ubuntu
-    cp "scripts/${pkg_type}/install.sh" "${target}/install.sh"
 
     # When -u is a local dir: ensure .sha256 exist (run shasum-artifacts.sh if any missing), then copy packages and .sha256
     local dockerfile_copy_local=""
@@ -226,45 +612,40 @@ function generate_dockerfile() {
         [ ${#copy_files[@]} -gt 0 ] && dockerfile_copy_local="COPY ${copy_files[*]} /tmp/"
     fi
 
-    # Native rpm/deb: no tools ARGs (server package only)
     local dockerfile_extra_args=""
-    [ -n "${use_local_pkg}" ] && dockerfile_extra_args="ARG AEROSPIKE_LOCAL_PKG=\"1\"
-"
-    # (tools are skipped for native format; no AEROSPIKE_TOOLS_* ARGs)
+    [ -n "${use_local_pkg}" ] && dockerfile_extra_args="ARG AEROSPIKE_LOCAL_PKG=\"1\""
 
     local base_name_label="${base_image}"
     [[ "${base_image}" == ubuntu:* ]] && base_name_label="docker.io/library/${base_image}"
 
-    local image_license="Apache-2.0"
-    [ "${edition}" = "enterprise" ] && image_license="Proprietary"
-    [ "${edition}" = "federal" ] && image_license="Proprietary"
-
-    cat <<DOCKERFILE | sed 's/[[:space:]]*$//' | cat -s >"${target}/Dockerfile"
-# syntax=docker/dockerfile:1
+    {
+        # Header: FROM, LABEL, ARG (needs shell variable expansion)
+        cat <<HEADER
 #
 # Aerospike Server Dockerfile
-# Version: ${version} | Edition: ${edition} | Base: ${distro}
+#
+# http://github.com/aerospike/aerospike-server.docker
 #
 
 FROM ${base_image}
 
 LABEL org.opencontainers.image.title="Aerospike ${edition^} Server" \\
-      org.opencontainers.image.version="${version}" \\
-      org.opencontainers.image.vendor="Aerospike" \\
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \\
+      org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \\
       org.opencontainers.image.base.name="${base_name_label}" \\
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \\
-      org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker" \\
-      org.opencontainers.image.documentation="https://github.com/aerospike/aerospike-server.docker" \\
-      org.opencontainers.image.licenses="${image_license}"
+      org.opencontainers.image.vendor="Aerospike" \\
+      org.opencontainers.image.version="${version}" \\
+      org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
-# AEROSPIKE_EDITION - required - must be "community", "enterprise", or "federal".
+# AEROSPIKE_EDITION - required - must be "community", "enterprise", or
+# "federal".
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-
 ARG AEROSPIKE_EDITION="${edition}"
-ARG AEROSPIKE_PKG_FORMAT="${pkg_format}"
+
+ENV AEROSPIKE_LINUX_BASE="${base_image}"
 ARG AEROSPIKE_X86_64_LINK="${x86_link}"
 ARG AEROSPIKE_SHA_X86_64="${x86_sha}"
 ARG AEROSPIKE_AARCH64_LINK="${arm_link}"
@@ -273,21 +654,49 @@ ${dockerfile_extra_args}
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
-COPY install.sh /tmp/install.sh
-${dockerfile_copy_local}
+HEADER
 
-RUN /bin/bash /tmp/install.sh && rm /tmp/install.sh
+        # Optional COPY for local packages (before RUN)
+        if [ -n "${dockerfile_copy_local}" ]; then
+            echo "${dockerfile_copy_local}"
+            echo ""
+        fi
 
+        # Inline RUN block (literal, no shell expansion via quoted heredocs)
+        if [ "${pkg_type}" = "deb" ]; then
+            _append_run_deb "${pkg_format}"
+        else
+            _append_run_rpm "${pkg_format}"
+        fi
+
+        # Footer: COPY, EXPOSE, ENTRYPOINT, CMD (literal)
+        cat <<'FOOTER'
+# Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 
+# Mount the Aerospike data directory
+# VOLUME ["/opt/aerospike/data"]
+# Mount the Aerospike config directory
+# VOLUME ["/etc/aerospike/"]
+
+# Expose Aerospike ports
+#
+#   3000 – service port, for client connections
+#   3001 – fabric port, for cluster communication
+#   3002 – mesh port, for cluster heartbeat
+#
 EXPOSE 3000 3001 3002
 
-ENTRYPOINT ["/usr/bin/as-tini-static", "-r", "SIGUSR1", "-t", "SIGTERM", "--", "/entrypoint.sh"]
-CMD ["asd"]
+COPY entrypoint.sh /entrypoint.sh
 
-DOCKERFILE
+# Tini init set to restart ASD on SIGUSR1 and terminate ASD on SIGTERM
+ENTRYPOINT ["/usr/bin/as-tini-static", "-r", "SIGUSR1", "-t", "SIGTERM", "--", "/entrypoint.sh"]
+
+# Execute the run script in foreground mode
+CMD ["asd"]
+FOOTER
+    } | sed 's/[[:space:]]*$//' | cat -s >"${target}/Dockerfile"
+
     # Ensure file ends with newline (Docker Hub / validators expect it)
     [ -n "$(tail -c1 "${target}/Dockerfile" 2>/dev/null)" ] && echo >>"${target}/Dockerfile"
 }
