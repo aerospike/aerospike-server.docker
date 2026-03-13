@@ -30,8 +30,8 @@ ARG AEROSPIKE_SHA_AARCH64=""
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
-# hadolint ignore=DL3041
 # Install Aerospike Server and Tools
+# hadolint ignore=DL3041
 RUN \
   { \
     microdnf install -y --setopt=install_weak_deps=0 \

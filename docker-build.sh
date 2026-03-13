@@ -364,8 +364,8 @@ function _append_run_rpm() {
     local pkg_format=$1
     if [ "${pkg_format}" = "tgz" ]; then
         cat <<'RUNBLOCK'
-# hadolint ignore=DL3041
 # Install Aerospike Server and Tools
+# hadolint ignore=DL3041
 RUN \
   { \
     microdnf install -y --setopt=install_weak_deps=0 \
@@ -451,8 +451,8 @@ RUN \
 RUNBLOCK
     else
         cat <<'RUNBLOCK'
-# hadolint ignore=DL3041
 # Install Aerospike Server
+# hadolint ignore=DL3041
 RUN \
   { \
     microdnf install -y --setopt=install_weak_deps=0 ca-certificates; \
