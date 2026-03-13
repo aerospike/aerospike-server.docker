@@ -188,16 +188,13 @@ RUN \
         cp aerospike/features.conf /etc/aerospike/features.conf; \
       elif [ -f aerospike/etc/aerospike/features.conf ]; then \
         cp aerospike/etc/aerospike/features.conf /etc/aerospike/features.conf; \
-      else \
-        echo "ERROR: features.conf not found in package payload for ${AEROSPIKE_EDITION}" >&2; \
-        exit 1; \
       fi; \
     fi; \
   }; \
   { \
     curl_pkg="libcurl4"; \
     apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
-    if [ "${AEROSPIKE_EDITION}" = "enterprise" ]; then \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
       apt-get install -y --no-install-recommends \
         "${curl_pkg}" \
         libldap2; \
