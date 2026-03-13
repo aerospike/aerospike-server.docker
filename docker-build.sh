@@ -364,6 +364,7 @@ function _append_run_rpm() {
     local pkg_format=$1
     if [ "${pkg_format}" = "tgz" ]; then
         cat <<'RUNBLOCK'
+# hadolint ignore=DL3041
 # Install Aerospike Server and Tools
 RUN \
   { \
@@ -420,7 +421,7 @@ RUN \
     rm -rf /opt/aerospike/bin; \
   }; \
   { \
-    cd aerospike/pkg && rpm2cpio ../aerospike-tools*.rpm | cpio -idmv && cd ../..; \
+    rpm2cpio aerospike/aerospike-tools*.rpm | cpio -idmv -D aerospike/pkg; \
   }; \
   { \
     find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
@@ -450,6 +451,7 @@ RUN \
 RUNBLOCK
     else
         cat <<'RUNBLOCK'
+# hadolint ignore=DL3041
 # Install Aerospike Server
 RUN \
   { \

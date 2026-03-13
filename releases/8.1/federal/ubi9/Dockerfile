@@ -30,6 +30,7 @@ ARG AEROSPIKE_SHA_AARCH64=""
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
+# hadolint ignore=DL3041
 # Install Aerospike Server and Tools
 RUN \
   { \
@@ -86,7 +87,7 @@ RUN \
     rm -rf /opt/aerospike/bin; \
   }; \
   { \
-    cd aerospike/pkg && rpm2cpio ../aerospike-tools*.rpm | cpio -idmv && cd ../..; \
+    rpm2cpio aerospike/aerospike-tools*.rpm | cpio -idmv -D aerospike/pkg; \
   }; \
   { \
     find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
