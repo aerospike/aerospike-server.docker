@@ -4,7 +4,7 @@
 # Install dependencies
 set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
+apt-get update -y || true
 # On arm64 cross-build (QEMU), libc-bin postinst can segfault (exit 139). Allow install to complete and finish configure after.
 if [ "$(dpkg --print-architecture)" = "arm64" ]; then
     apt-get install -y --no-install-recommends ca-certificates curl binutils xz-utils || true

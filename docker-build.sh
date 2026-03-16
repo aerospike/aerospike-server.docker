@@ -126,7 +126,7 @@ function _append_run_deb() {
 RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
-    apt-get update -y; \
+    apt-get update -y || true; \
     apt-get install -y --no-install-recommends apt-utils || true; \
     apt-get install -y --no-install-recommends \
       binutils \
@@ -261,7 +261,7 @@ RUNBLOCK
 RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
-    apt-get update -y; \
+    apt-get update -y || true; \
     apt-get install -y --no-install-recommends ca-certificates curl || true; \
     dpkg --configure -a || true; \
     sleep 1; \
