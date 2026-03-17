@@ -127,21 +127,18 @@ RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
     apt-get update -y || true; \
-    apt-get install -y --no-install-recommends apt-utils || true; \
-    apt-get install -y --no-install-recommends \
-      binutils \
-      xz-utils || true; \
-    dpkg --configure -a || true; \
-  }; \
-  { \
-    apt-get install -y --no-install-recommends ca-certificates curl procps || true; \
-    dpkg --configure -a || true; \
-    sleep 1; \
-    dpkg --configure -a || true; \
+    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+      apt-get install -y --no-install-recommends \
+        apt-utils binutils xz-utils ca-certificates curl procps || true; \
+      dpkg --configure -a || true; \
+      sleep 2; \
+      dpkg --configure -a || true; \
+    else \
+      apt-get install -y --no-install-recommends apt-utils || true; \
+      apt-get install -y --no-install-recommends \
+        binutils xz-utils ca-certificates curl procps; \
+    fi; \
     command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
-  }; \
-  { \
-    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-[a-z0-9]+)?([-][0-9]+[-]g[0-9a-z]*)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
   }; \
   { \
     ARCH="$(dpkg --print-architecture)"; \
@@ -192,30 +189,25 @@ RUN \
     fi; \
   }; \
   { \
-    curl_pkg="libcurl4"; \
-    apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
-    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      apt-get install -y --no-install-recommends \
-        "${curl_pkg}" \
-        libldap2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.0" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        "${curl_pkg}"; \
+    if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
+      curl_pkg="libcurl4"; \
+      apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
+      if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+        apt-get install -y --no-install-recommends \
+          "${curl_pkg}" \
+          libldap-2.4-2 libldap-2.5-0 || true; \
+      fi; \
     fi; \
-    apt-get install -y --no-install-recommends ./aerospike/aerospike-server-*.deb || true; \
-    dpkg --configure -a || true; \
+    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+      dpkg -i aerospike/aerospike-server-*.deb || true; \
+      dpkg --configure -a || true; \
+      sleep 2; \
+      dpkg --configure -a || true; \
+    else \
+      dpkg -i aerospike/aerospike-server-*.deb; \
+    fi; \
     command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; dpkg -l 'aerospike*' 2>&1 || true; exit 1; }; \
     rm -rf /opt/aerospike/bin; \
-  }; \
-  { \
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "5.1" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        python2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        python3 \
-        python3-distutils; \
-    fi; \
   }; \
   { \
     ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg; \
@@ -224,9 +216,6 @@ RUN \
   { \
     find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
     mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2" | sort -V | head -1)" != "${VERSION}" ]; then \
-      mv aerospike/pkg/opt/aerospike/bin/aql /usr/bin; \
-    fi; \
     if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
     else \
@@ -243,6 +232,8 @@ RUN \
     rm -rf aerospike; \
   }; \
   { \
+    apt-get install -f -y || true; \
+    dpkg --configure -a || true; \
     rm -rf /var/lib/apt/lists/*; \
     dpkg --purge \
       apt-utils \
@@ -311,34 +302,36 @@ RUN \
       curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
       [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -; \
     fi; \
-    . /etc/os-release 2>/dev/null || true; \
-    if [ "${ID:-}" = "ubuntu" ]; then \
-      if [ "${ARCH}" = "amd64" ]; then \
-        repo_url="http://archive.ubuntu.com/ubuntu"; \
-      else \
-        repo_url="http://ports.ubuntu.com/ubuntu-ports"; \
-      fi; \
-      echo "deb [trusted=yes] ${repo_url} focal main" > /etc/apt/sources.list.d/focal-compat.list; \
-      [ "${VERSION_ID}" != "22.04" ] && \
-        echo "deb [trusted=yes] ${repo_url} jammy main" > /etc/apt/sources.list.d/jammy-compat.list; \
-      apt-get update -y || true; \
-      dpkg --configure -a || true; \
-      apt-get install -y --no-install-recommends \
-        libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0 || true; \
-      dpkg --configure -a || true; \
-      sleep 1; \
-      dpkg --configure -a || true; \
-      ldconfig 2>/dev/null || true; \
-      if ! ldconfig -p 2>/dev/null | grep -q libcrypto.so.1.1; then \
-        rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true; \
-        apt-get install -y --no-install-recommends --download-only \
-          libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0 2>/dev/null || true; \
-        dpkg -i /var/cache/apt/archives/*.deb 2>/dev/null || true; \
+    if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
+      . /etc/os-release 2>/dev/null || true; \
+      if [ "${ID:-}" = "ubuntu" ]; then \
+        if [ "${ARCH}" = "amd64" ]; then \
+          repo_url="http://archive.ubuntu.com/ubuntu"; \
+        else \
+          repo_url="http://ports.ubuntu.com/ubuntu-ports"; \
+        fi; \
+        echo "deb [trusted=yes] ${repo_url} focal main" > /etc/apt/sources.list.d/focal-compat.list; \
+        [ "${VERSION_ID}" != "22.04" ] && \
+          echo "deb [trusted=yes] ${repo_url} jammy main" > /etc/apt/sources.list.d/jammy-compat.list; \
+        apt-get update -y || true; \
+        dpkg --configure -a || true; \
+        apt-get install -y --no-install-recommends \
+          libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0 || true; \
         dpkg --configure -a || true; \
         sleep 1; \
         dpkg --configure -a || true; \
+        ldconfig 2>/dev/null || true; \
+        if ! ldconfig -p 2>/dev/null | grep -q libcrypto.so.1.1; then \
+          rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true; \
+          apt-get install -y --no-install-recommends --download-only \
+            libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0 2>/dev/null || true; \
+          dpkg -i /var/cache/apt/archives/*.deb 2>/dev/null || true; \
+          dpkg --configure -a || true; \
+          sleep 1; \
+          dpkg --configure -a || true; \
+        fi; \
+        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list; \
       fi; \
-      rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list; \
     fi; \
     dpkg -i server.deb || true; \
     dpkg --configure -a || true; \
@@ -630,6 +623,9 @@ function generate_dockerfile() {
         [ ${#copy_files[@]} -gt 0 ] && dockerfile_copy_local="COPY ${copy_files[*]} /tmp/"
     fi
 
+    local needs_compat_libs="0"
+    [[ "${lineage}" == 8.* ]] && needs_compat_libs="1"
+
     local dockerfile_extra_args=""
     [ -n "${use_local_pkg}" ] && dockerfile_extra_args="ARG AEROSPIKE_LOCAL_PKG=\"1\""
     local dockerfile_features_copy=""
@@ -672,6 +668,7 @@ ARG AEROSPIKE_X86_64_LINK="${x86_link}"
 ARG AEROSPIKE_SHA_X86_64="${x86_sha}"
 ARG AEROSPIKE_AARCH64_LINK="${arm_link}"
 ARG AEROSPIKE_SHA_AARCH64="${arm_sha}"
+ARG AEROSPIKE_COMPAT_LIBS="${needs_compat_libs}"
 ${dockerfile_extra_args}
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]

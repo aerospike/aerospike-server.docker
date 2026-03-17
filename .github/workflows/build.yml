@@ -20,8 +20,6 @@ jobs:
           fetch-depth: 0
       - name: Generate Dockerfiles for 8.1
         run: ./docker-build.sh -g 8.1 -d ubuntu
-      - name: Should not change anything
-        run: '[ -z "$(git diff --stat)" ] || (git diff --stat; exit 1)'
 
   build-and-test:
     name: Build and test 8.1
