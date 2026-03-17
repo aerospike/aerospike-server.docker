@@ -40,6 +40,8 @@ OPTIONS:
                          Can specify multiple: -a amd64 arm64. Test each built image for these archs.
                          Ignored when -i or -p is used.
     -c, --clean          Remove each image after its test passes (container + image)
+    -s, --snyk           Run Snyk container scan on each image after tests pass
+                         Requires snyk CLI in PATH. Results saved to snyk-*.log
     -h, --help           Show this help message
 
 TESTS PERFORMED:
@@ -50,6 +52,7 @@ TESTS PERFORMED:
     5. Version matches expected (if detectable)
     6. Edition matches expected (if -e specified)
     7. Default namespace 'test' exists
+    8. Snyk container scan (optional, with -s/--snyk)
 
 EXAMPLES:
     # Test a specific image (from any registry)
@@ -76,6 +79,9 @@ EXAMPLES:
     # Test and cleanup images after
     $0 8.1 -e enterprise -c
 
+    # Test with Snyk container security scan
+    $0 8.1 -e enterprise --snyk
+
     # Test specific version (uses releases/ directory)
     $0 8.1.1.0-start-108 -e enterprise -d ubuntu24.04
 
@@ -98,6 +104,7 @@ function parse_args() {
     PLATFORM_EXPLICIT="false"
     declare -ga ARCH_FILTERS=()
     CLEAN="false"
+    SNYK_SCAN="false"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -127,6 +134,10 @@ function parse_args() {
             ;;
         -c | --clean)
             CLEAN="true"
+            shift
+            ;;
+        -s | --snyk)
+            SNYK_SCAN="true"
             shift
             ;;
         -h | --help)
@@ -331,6 +342,49 @@ function cleanup() {
     fi
 }
 
+function run_snyk_scan() {
+    local image=$1 arch=$2 dockerfile=${3:-}
+    local edition=${4:-} version=${5:-}
+    if [ "${SNYK_SCAN}" != "true" ]; then
+        return 0
+    fi
+    if ! command -v snyk >/dev/null 2>&1; then
+        log_warn "Snyk not found in PATH, skipping container scan"
+        return 0
+    fi
+    local ts
+    ts=$(date -u +%Y%m%d%H%M%S 2>/dev/null || date +%Y%m%d%H%M%S)
+    local name="aerospike-server"
+    [ -n "${edition}" ] && [ "${edition}" != "community" ] && name+="-${edition}"
+    [ -n "${version}" ] && name+="-${version}"
+    local scan_log="${name}-${arch}-${ts}.snyk"
+    local snyk_cmd=(snyk container test "${image}" "--platform=linux/${arch}")
+    [ -n "${dockerfile}" ] && [ -f "${dockerfile}" ] && snyk_cmd+=("--file=${dockerfile}")
+    log_info "Running Snyk container scan..."
+    "${snyk_cmd[@]}" | tee "${scan_log}" || true
+    _snyk_summary "${scan_log}" "${image}"
+}
+
+function _snyk_summary() {
+    local scan_log=$1 image=$2
+    [ -f "${scan_log}" ] || return 0
+    local critical=0 high=0
+    critical=$(grep -c 'Critical severity vulnerability found in' "${scan_log}" || true)
+    high=$(grep -c 'High severity vulnerability found in' "${scan_log}" || true)
+    critical=${critical:-0}
+    high=${high:-0}
+    local CLR_CRITICAL="\e[91m" CLR_HIGH="\e[33m" CLR_RESET="\e[0m"
+    if [ "${LOG_COLOR:-true}" = "false" ]; then
+        CLR_CRITICAL="" CLR_HIGH="" CLR_RESET=""
+    fi
+    echo ""
+    echo -e "  Snyk scan results for ${image}:"
+    echo -e "    ${CLR_CRITICAL}Critical: ${critical}${CLR_RESET}"
+    echo -e "    ${CLR_HIGH}High:     ${high}${CLR_RESET}"
+    echo -e "    Log:      ${scan_log}"
+    echo ""
+}
+
 function test_specific_image() {
     IMAGE_TAG="${SPECIFIC_IMAGE}"
     CONTAINER="aerospike-test-$$"
@@ -351,6 +405,7 @@ function test_specific_image() {
     cleanup
     run_docker
     check_container "${version}" "${EDITION}" "${arch_display}"
+    run_snyk_scan "${IMAGE_TAG}" "${arch_display}" "" "${EDITION}" "${version}"
     cleanup full
 
     echo ""
@@ -441,6 +496,7 @@ function test_from_releases() {
                 cleanup
                 run_docker
                 check_container "${version}" "${edition}" "${arch}"
+                run_snyk_scan "${IMAGE_TAG}" "${arch}" "releases/${lineage}/${edition}/${distro}/Dockerfile" "${edition}" "${version}"
                 cleanup full
 
                 tested=$((tested + 1))
