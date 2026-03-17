@@ -189,15 +189,16 @@ RUN \
     fi; \
   }; \
   { \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      apt-get install -y --no-install-recommends \
+        libldap-2.5-0 || true; \
+      dpkg --configure -a || true; \
+    fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
       apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
       apt-get install -y --no-install-recommends \
         libssl1.1 "${curl_pkg}" || true; \
-      if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-        apt-get install -y --no-install-recommends \
-          libldap-2.4-2 libldap-2.5-0 || true; \
-      fi; \
       dpkg --configure -a || true; \
     fi; \
     if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
@@ -301,6 +302,11 @@ RUN \
       fi; \
       curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
       [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -; \
+    fi; \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      apt-get install -y --no-install-recommends \
+        libldap-2.5-0 || true; \
+      dpkg --configure -a || true; \
     fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       . /etc/os-release 2>/dev/null || true; \

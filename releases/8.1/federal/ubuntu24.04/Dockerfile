@@ -27,7 +27,7 @@ ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-se
 ARG AEROSPIKE_SHA_X86_64="7d7b03ffd8c1e013b77bfb562180d4ef8c24f0c98ad3d67a9f75f985a3639f0f"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
-ARG AEROSPIKE_COMPAT_LIBS="1"
+ARG AEROSPIKE_COMPAT_LIBS="0"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -98,15 +98,16 @@ RUN \
     fi; \
   }; \
   { \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      apt-get install -y --no-install-recommends \
+        libldap-2.5-0 || true; \
+      dpkg --configure -a || true; \
+    fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
       apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
       apt-get install -y --no-install-recommends \
         libssl1.1 "${curl_pkg}" || true; \
-      if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-        apt-get install -y --no-install-recommends \
-          libldap-2.4-2 libldap-2.5-0 || true; \
-      fi; \
       dpkg --configure -a || true; \
     fi; \
     if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
@@ -148,7 +149,7 @@ RUN \
       apt-utils \
       binutils \
       xz-utils 2>&1 || true; \
-    apt-get purge -y || true; \
+    apt-get purge -y curl procps || true; \
     apt-get autoremove -y || true; \
     unset DEBIAN_FRONTEND; \
   }; \
