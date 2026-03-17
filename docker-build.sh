@@ -192,11 +192,13 @@ RUN \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
       apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
+      apt-get install -y --no-install-recommends \
+        libssl1.1 "${curl_pkg}" || true; \
       if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
         apt-get install -y --no-install-recommends \
-          "${curl_pkg}" \
           libldap-2.4-2 libldap-2.5-0 || true; \
       fi; \
+      dpkg --configure -a || true; \
     fi; \
     if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
       dpkg -i aerospike/aerospike-server-*.deb || true; \
@@ -232,8 +234,6 @@ RUN \
     rm -rf aerospike; \
   }; \
   { \
-    apt-get install -f -y || true; \
-    dpkg --configure -a || true; \
     rm -rf /var/lib/apt/lists/*; \
     dpkg --purge \
       apt-utils \

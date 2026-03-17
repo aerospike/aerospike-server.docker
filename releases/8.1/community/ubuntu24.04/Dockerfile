@@ -12,7 +12,7 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.1.1.1" \
+      org.opencontainers.image.version="8.1.1.2" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,10 +23,11 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 ARG AEROSPIKE_EDITION="community"
 
 ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
-ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-community/8.1.1.1/aerospike-server-community_8.1.1.1_tools-12.1.1_ubuntu24.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="bbbbb10b08d67391058da8c88df06da027b25f7bd4bf44959a14a78c392d10a7"
-ARG AEROSPIKE_AARCH64_LINK="https://download.aerospike.com/artifacts/aerospike-server-community/8.1.1.1/aerospike-server-community_8.1.1.1_tools-12.1.1_ubuntu24.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="5129d72c4dceb753a95f49a2cfc29788dd55acfb140ff4cee7431824301b13c0"
+ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-community/8.1.1.2/aerospike-server-community_8.1.1.2_tools-12.1.1_ubuntu24.04_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="a1656cc78bb925169a2eb54e864e6319c0f12c073247248d1b8b9cde88879029"
+ARG AEROSPIKE_AARCH64_LINK="https://download.aerospike.com/artifacts/aerospike-server-community/8.1.1.2/aerospike-server-community_8.1.1.2_tools-12.1.1_ubuntu24.04_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="b8b065867de500702a01bbe769a3bef99c070baa1c5c41bcab32cffb971fb6b3"
+ARG AEROSPIKE_COMPAT_LIBS="1"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -34,22 +35,19 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
-    apt-get update -y; \
-    apt-get install -y --no-install-recommends apt-utils || true; \
-    apt-get install -y --no-install-recommends \
-      binutils \
-      xz-utils || true; \
-    dpkg --configure -a || true; \
-  }; \
-  { \
-    apt-get install -y --no-install-recommends ca-certificates curl procps || true; \
-    dpkg --configure -a || true; \
-    sleep 1; \
-    dpkg --configure -a || true; \
+    apt-get update -y || true; \
+    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+      apt-get install -y --no-install-recommends \
+        apt-utils binutils xz-utils ca-certificates curl procps || true; \
+      dpkg --configure -a || true; \
+      sleep 2; \
+      dpkg --configure -a || true; \
+    else \
+      apt-get install -y --no-install-recommends apt-utils || true; \
+      apt-get install -y --no-install-recommends \
+        binutils xz-utils ca-certificates curl procps; \
+    fi; \
     command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
-  }; \
-  { \
-    VERSION="$(grep -oE "/[0-9]+[.][0-9]+[.][0-9]+([.][0-9]+)+(-[a-z0-9]+)?([-][0-9]+[-]g[0-9a-z]*)?/" <<<"${AEROSPIKE_X86_64_LINK}" | tr -d '/' | tail -1)"; \
   }; \
   { \
     ARCH="$(dpkg --print-architecture)"; \
@@ -100,30 +98,27 @@ RUN \
     fi; \
   }; \
   { \
-    curl_pkg="libcurl4"; \
-    apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
-    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+    if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
+      curl_pkg="libcurl4"; \
+      apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
       apt-get install -y --no-install-recommends \
-        "${curl_pkg}" \
-        libldap2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.0" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        "${curl_pkg}"; \
+        libssl1.1 "${curl_pkg}" || true; \
+      if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+        apt-get install -y --no-install-recommends \
+          libldap-2.4-2 libldap-2.5-0 || true; \
+      fi; \
+      dpkg --configure -a || true; \
     fi; \
-    apt-get install -y --no-install-recommends ./aerospike/aerospike-server-*.deb || true; \
-    dpkg --configure -a || true; \
+    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+      dpkg -i aerospike/aerospike-server-*.deb || true; \
+      dpkg --configure -a || true; \
+      sleep 2; \
+      dpkg --configure -a || true; \
+    else \
+      dpkg -i aerospike/aerospike-server-*.deb; \
+    fi; \
     command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; dpkg -l 'aerospike*' 2>&1 || true; exit 1; }; \
     rm -rf /opt/aerospike/bin; \
-  }; \
-  { \
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "5.1" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        python2; \
-    elif ! [ "$(printf "%s\n%s" "${VERSION}" "6.2.0.3" | sort -V | head -1)" != "${VERSION}" ]; then \
-      apt-get install -y --no-install-recommends \
-        python3 \
-        python3-distutils; \
-    fi; \
   }; \
   { \
     ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg; \
@@ -132,9 +127,6 @@ RUN \
   { \
     find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
     mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
-    if ! [ "$(printf "%s\n%s" "${VERSION}" "6.2" | sort -V | head -1)" != "${VERSION}" ]; then \
-      mv aerospike/pkg/opt/aerospike/bin/aql /usr/bin; \
-    fi; \
     if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
     else \
