@@ -20,108 +20,6 @@ command -v curl >/dev/null 2>&1 || {
     exit 1
 }
 
-# Detect Ubuntu version for compat-libs logic: 22.04 (Jammy) needs Focal-only; 24.04 (Noble) keeps Focal+Jammy for 8.1.
-ubuntu_version=""
-if [ -f /etc/os-release ]; then
-    # shellcheck source=/dev/null
-    . /etc/os-release
-    ubuntu_version="${VERSION_ID:-}"
-fi
-
-# OpenSSL 1.1 and OpenLDAP 2.4/2.5 compatibility (required by some Aerospike server builds; Ubuntu 24.04+ has newer only)
-# Direct .deb download when apt cannot reach extra repos (e.g. CI)
-# On arm64: install full heimdal stack via dpkg (Focal .debs) so we never use apt-get install -f for heimdal (apt resolver fails with "not installable" on Jammy).
-install_compat_libs() {
-    local arch="${1:-$(dpkg --print-architecture)}"
-    local base="https://archive.ubuntu.com/ubuntu/pool/main"
-    local base_ports="https://ports.ubuntu.com/ubuntu-ports/pool/main"
-    local tmpdir="/tmp/compat-debs"
-    mkdir -p "${tmpdir}"
-    local h_base="${base}/h/heimdal"
-    [ "${arch}" = "arm64" ] && h_base="${base_ports}/h/heimdal"
-    local h_ver="7.7.0+dfsg-1ubuntu1"
-    # Focal heimdal stack (dependency order); libldap-2.4-2 Depends: libgssapi3-heimdal and its deps
-    local heimdal_debs="libroken18-heimdal libheimbase1-heimdal libasn1-8-heimdal libhcrypto4-heimdal libheimntlm0-heimdal libkrb5-26-heimdal libgssapi3-heimdal"
-    local ssl_url="${base}/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_${arch}.deb"
-    [ "${arch}" = "arm64" ] && ssl_url="${base_ports}/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_${arch}.deb"
-    local ldap_common_jammy="${base}/o/openldap/libldap-common_2.5.16+dfsg-0ubuntu0.22.04.2_all.deb"
-    local ldap24_url="${base}/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_${arch}.deb"
-    [ "${arch}" = "arm64" ] && ldap24_url="${base_ports}/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_${arch}.deb"
-    local ldap25_url="${base}/o/openldap/libldap-2.5-0_2.5.16+dfsg-0ubuntu0.22.04.2_${arch}.deb"
-    [ "${arch}" = "arm64" ] && ldap25_url="${base_ports}/o/openldap/libldap-2.5-0_2.5.16+dfsg-0ubuntu0.22.04.2_${arch}.deb"
-    if curl -fsSL "${ssl_url}" -o "${tmpdir}/libssl1.1.deb" &&
-        curl -fsSL "${ldap_common_jammy}" -o "${tmpdir}/libldap-common.deb" &&
-        curl -fsSL "${ldap24_url}" -o "${tmpdir}/libldap-2.4-2.deb" &&
-        curl -fsSL "${ldap25_url}" -o "${tmpdir}/libldap-2.5-0.deb"; then
-        # arm64: install Focal heimdal stack via dpkg so apt-get install -f never touches heimdal (avoids "not installable" on Jammy)
-        if [ "${arch}" = "arm64" ]; then
-            for pkg in ${heimdal_debs}; do
-                if curl -fsSL "${h_base}/${pkg}_${h_ver}_${arch}.deb" -o "${tmpdir}/${pkg}.deb" 2>/dev/null; then
-                    dpkg -i "${tmpdir}/${pkg}.deb" || true
-                fi
-            done
-            dpkg --configure -a || true
-            sleep 2
-            dpkg --configure -a || true
-        fi
-        # Allow install -f to fail on arm64 (libc-bin/postinst can segfault under QEMU, leaving packages unconfigured)
-        dpkg -i "${tmpdir}/libldap-common.deb" "${tmpdir}/libldap-2.4-2.deb" "${tmpdir}/libldap-2.5-0.deb" "${tmpdir}/libssl1.1.deb" || apt-get install -f -y || true
-        if [ "${arch}" = "arm64" ]; then
-            dpkg --configure -a || true
-            sleep 2
-            dpkg --configure -a || true
-        fi
-        rm -rf "${tmpdir}"
-        return 0
-    fi
-    rm -rf "${tmpdir}"
-    return 1
-}
-
-compat_arch="$(dpkg --print-architecture)"
-
-# Try apt-get first; add focal/jammy compat repos if needed; fall back to direct .deb download.
-# On 22.04 arm64 do not install libgssapi3-heimdal via apt (Focal heimdal deps can be "not installable" on Jammy). Use install_compat_libs with Focal kept in sources so install -f can pull heimdal.
-COMPAT_PKGS=(libssl1.1 libldap-2.4-2 libldap-2.5-0)
-
-if ! apt-get install -y --no-install-recommends "${COMPAT_PKGS[@]}" 2>/dev/null; then
-    repo_base="https://archive.ubuntu.com/ubuntu"
-    [ "${compat_arch}" = "arm64" ] && repo_base="https://ports.ubuntu.com/ubuntu-ports"
-    echo "deb [trusted=yes] ${repo_base} focal main" >/etc/apt/sources.list.d/focal-compat.list
-    # On 22.04 (Jammy) do not add Jammy compat: apt then treats libldap-2.4-2 as obsolete and install fails.
-    # On 24.04 (Noble, 8.1) add Jammy so we can get all three packages; Noble default + Focal + Jammy works.
-    if [ "${ubuntu_version}" != "22.04" ]; then
-        echo "deb [trusted=yes] ${repo_base} jammy main" >/etc/apt/sources.list.d/jammy-compat.list
-    fi
-    apt-get update -y 2>/dev/null
-    if ! apt-get install -y --no-install-recommends "${COMPAT_PKGS[@]}" 2>/dev/null; then
-        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
-        apt-get update -y 2>/dev/null
-        if ! install_compat_libs; then
-            echo "ERROR: failed to install libssl1.1 / libldap-2.4-2 / libldap-2.5-0 (required for Aerospike server on this base image)"
-            exit 1
-        fi
-        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
-        apt-get update -y 2>/dev/null
-    else
-        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
-        apt-get update -y 2>/dev/null
-    fi
-fi
-apt-mark manual libssl1.1 libldap-2.4-2 libldap-2.5-0 2>/dev/null || true
-
-# Verify compatibility libs are present (fail build if missing so we don't ship broken images)
-# ldconfig can segfault under QEMU arm64; ignore so we can still check by path
-ldconfig 2>/dev/null || true
-for lib in libcrypto.so.1.1 liblber-2.4.so.2 liblber-2.5.so.0; do
-    if ! ldconfig -p 2>/dev/null | grep -q "${lib}" &&
-        ! [ -f "/usr/lib/x86_64-linux-gnu/${lib}" ] &&
-        ! [ -f "/usr/lib/aarch64-linux-gnu/${lib}" ]; then
-        echo "ERROR: ${lib} not found (Aerospike server requires it on this base image)"
-        exit 1
-    fi
-done
-
 # Download tini
 ARCH="$(dpkg --print-architecture)"
 if [ "${ARCH}" = "amd64" ]; then
@@ -207,8 +105,6 @@ if [ -d aerospike/pkg/opt/aerospike/bin ]; then
 fi
 
 # Cleanup
-# Fix any remaining broken/unmet dependencies so purge/autoremove can run (22.04 arm64: already fixed in install_compat_libs with Focal).
-apt-get install -f -y || true
 dpkg --configure -a || true
 if [ "${AEROSPIKE_PKG_FORMAT:-tgz}" = "tgz" ]; then
     rm -rf aerospike aerospike.tgz /var/lib/apt/lists/*

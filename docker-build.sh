@@ -239,7 +239,7 @@ RUN \
       apt-utils \
       binutils \
       xz-utils 2>&1 || true; \
-    apt-get purge -y || true; \
+    apt-get purge -y curl procps || true; \
     apt-get autoremove -y || true; \
     unset DEBIAN_FRONTEND; \
   }; \
@@ -624,7 +624,6 @@ function generate_dockerfile() {
     fi
 
     local needs_compat_libs="0"
-    [[ "${lineage}" == 8.* ]] && needs_compat_libs="1"
 
     local dockerfile_extra_args=""
     [ -n "${use_local_pkg}" ] && dockerfile_extra_args="ARG AEROSPIKE_LOCAL_PKG=\"1\""
