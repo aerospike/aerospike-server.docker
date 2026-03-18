@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/community/ubi9
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/community/ubuntu24.04
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/enterprise/ubi9
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/enterprise/ubuntu24.04
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/federal/ubi9
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/federal/ubuntu24.04
+    schedule:
+      interval: daily
