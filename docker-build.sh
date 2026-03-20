@@ -658,7 +658,7 @@ function generate_dockerfile() {
     fi
 
     local needs_compat_libs="0"
-    if [[ "${distro}" == ubuntu24.04 ]] && [[ "${lineage}" == "7.2" || "${lineage}" == "8.0" ]]; then
+    if [[ "${distro}" == ubuntu24.04 ]] && [[ "${lineage}" == "7.2" ]]; then
         needs_compat_libs="1"
     fi
 
