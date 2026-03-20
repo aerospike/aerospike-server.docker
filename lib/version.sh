@@ -160,15 +160,18 @@ function find_latest_version_for_lineage_local() {
             fi
         done
     done
-    # Package filenames (e.g. aerospike-server-enterprise_8.1.1.0_... or ...-8.1.1.0-1.el9.x86_64.rpm)
+    # Package filenames (e.g. aerospike-server-enterprise_8.1.1.0-12ubuntu22.04_amd64.deb
+    #   or aerospike-server-enterprise-8.1.1.0-start-16-g216a75438-1.el9.x86_64.rpm)
+    # Extract version only (not the -<rev><distro> suffix).
+    local ver_re="${lineage}\.[0-9]+\.[0-9]+(-start-[0-9]+(-g[a-f0-9]+)?|-rc[0-9]+)?"
     if [ -z "${versions}" ] && compgen -G "${base_dir}/*.deb" >/dev/null 2>&1; then
         versions=$(for f in "${base_dir}"/*.deb; do
-            [ -f "${f}" ] && basename "${f}" | grep -oE "${lineage}\.[0-9]+\.[0-9]+[^_]*" || true
+            [ -f "${f}" ] && basename "${f}" | grep -oE "${ver_re}" || true
         done)
     fi
     if [ -z "${versions}" ] && compgen -G "${base_dir}/*.rpm" >/dev/null 2>&1; then
         versions=$(for f in "${base_dir}"/*.rpm; do
-            [ -f "${f}" ] && basename "${f}" | grep -oE "${lineage}\.[0-9]+\.[0-9]+[^.]*" || true
+            [ -f "${f}" ] && basename "${f}" | grep -oE "${ver_re}" || true
         done)
     fi
     # Recursive find for nested layout (e.g. lineage/version/pkgs)
