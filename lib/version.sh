@@ -45,7 +45,6 @@ function find_local_server_package() {
     local arch=$5
     local pkg_type=$6
 
-    # Resolve to absolute path so find works regardless of cwd
     if [ -d "${base_dir}" ]; then
         base_dir=$(cd "${base_dir}" && pwd)
     fi
@@ -62,96 +61,69 @@ function find_local_server_package() {
     local lineage
     lineage=$(echo "${version}" | cut -d. -f1-2)
 
-    # Exact filename patterns to try (deb: version_distro_arch and version_arch)
-    local fname
+    # Naming: aerospike-server-<edition>[-_]<version>-<rev>[._]<distro>[._]<arch>.<ext>
+    #   RPM: aerospike-server-<edition>-<version>-<rev>.<distro>.<arch>.rpm
+    #   DEB: aerospike-server-<edition>_<version>-<rev><distro>_<arch>.deb
+    # <version> can be 7.1.0.22 or 7.1.0.22-start-16-g216a75438
+    # <rev> is the package revision (e.g. 1, 12)
+
+    local search_dirs=("${base_dir}" "${base_dir}/${version}" "${base_dir}/${lineage}" "${base_dir}/${lineage}/${version}")
+    local dir f found
+
     if [ "${pkg_type}" = "rpm" ]; then
-        fname="aerospike-server-${edition}-${version}-1.${artifact_distro}.${arch}.rpm"
-        for dir in "${base_dir}" "${base_dir}/${version}" "${base_dir}/${lineage}" "${base_dir}/${lineage}/${version}"; do
+        # Exact: edition-version-rev.distro.arch.rpm (try common revisions)
+        for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
-            if [ -f "${dir}/${fname}" ]; then
-                echo "${dir}/${fname}"
-                return
-            fi
-        done
-    else
-        # deb: try version_distro_arch (e.g. 7.1.0.21-8ubuntu22.04_arm64) then version_arch
-        # Explicit check at base_dir root first (common when -u ./artifacts points at dir with .deb files)
-        if [ -d "${base_dir}" ]; then
-            local exact="${base_dir}/aerospike-server-${edition}_${version}${artifact_distro}_${deb_arch}.deb"
-            [ -f "${exact}" ] && echo "${exact}" && return
-            exact="${base_dir}/aerospike-server-${edition}_${version}_${deb_arch}.deb"
-            [ -f "${exact}" ] && echo "${exact}" && return
-            # Glob in base_dir only: *edition*_*_arch.deb (matches version+distro or version in middle)
-            local f
-            for f in "${base_dir}"/*aerospike-server*"${edition}"*_"${deb_arch}".deb; do
+            for f in "${dir}"/aerospike-server-"${edition}"-"${version}"-*."${artifact_distro}"."${arch}".rpm; do
                 [ -f "${f}" ] && echo "${f}" && return
             done
-        fi
-        for fname in "aerospike-server-${edition}_${version}${artifact_distro}_${deb_arch}.deb" "aerospike-server-${edition}_${version}_${deb_arch}.deb"; do
-            for dir in "${base_dir}" "${base_dir}/${version}" "${base_dir}/${lineage}" "${base_dir}/${lineage}/${version}"; do
-                [ -d "${dir}" ] || continue
-                if [ -f "${dir}/${fname}" ]; then
-                    echo "${dir}/${fname}"
-                    return
-                fi
+        done
+        # Glob: any server rpm matching edition + distro + arch
+        for dir in "${search_dirs[@]}"; do
+            [ -d "${dir}" ] || continue
+            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | head -1)
+            [ -n "${found}" ] && echo "${found}" && return
+        done
+    else
+        # Exact: edition_version-rev<distro>_arch.deb (glob the -rev part)
+        for dir in "${search_dirs[@]}"; do
+            [ -d "${dir}" ] || continue
+            for f in "${dir}"/aerospike-server-"${edition}"_"${version}"-*"${artifact_distro}"_"${deb_arch}".deb; do
+                [ -f "${f}" ] && echo "${f}" && return
             done
+        done
+        # Glob: any server deb matching edition + distro + arch
+        for dir in "${search_dirs[@]}"; do
+            [ -d "${dir}" ] || continue
+            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | head -1)
+            [ -n "${found}" ] && echo "${found}" && return
         done
     fi
 
-    # Fallback: glob for any server package matching edition and arch (e.g. version suffix differs)
-    for dir in "${base_dir}" "${base_dir}/${version}" "${base_dir}/${lineage}" "${base_dir}/${lineage}/${version}"; do
+    # Last resort: any file with edition, distro, AND arch in name
+    for dir in "${search_dirs[@]}"; do
         [ -d "${dir}" ] || continue
-        local found
-        if [ "${pkg_type}" = "rpm" ]; then
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server-${edition}-*.${artifact_distro}.${arch}.rpm" 2>/dev/null | head -1)
-            [ -z "${found}" ] && found=$(find "${dir}" -maxdepth 1 -type f -name "*aerospike-server*${edition}*${arch}.rpm" 2>/dev/null | head -1)
-        else
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server-${edition}_*_${deb_arch}.deb" 2>/dev/null | head -1)
-            [ -z "${found}" ] && found=$(find "${dir}" -maxdepth 1 -type f -name "*aerospike-server*${edition}*${deb_arch}.deb" 2>/dev/null | head -1)
-        fi
-        if [ -n "${found}" ]; then
-            echo "${found}"
-            return
-        fi
-    done
-
-    # Last resort: any file with edition and arch in name (e.g. custom naming)
-    for dir in "${base_dir}" "${base_dir}/${version}" "${base_dir}/${lineage}" "${base_dir}/${lineage}/${version}"; do
-        [ -d "${dir}" ] || continue
-        local f
         if [ "${pkg_type}" = "rpm" ]; then
             for f in "${dir}"/*.rpm; do
                 [ -f "${f}" ] || continue
-                if [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${arch}"* ]] && [[ "${f}" = *server* ]]; then
-                    echo "${f}"
-                    return
-                fi
+                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${arch}"* ]] && echo "${f}" && return
             done
         else
             for f in "${dir}"/*.deb; do
                 [ -f "${f}" ] || continue
-                if [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${deb_arch}"* ]] && [[ "${f}" = *server* ]]; then
-                    echo "${f}"
-                    return
-                fi
+                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${deb_arch}"* ]] && echo "${f}" && return
             done
         fi
     done
 
-    # Recursive fallback: search under base_dir (handles nested layouts e.g. releases/7.1/.../pkg.deb)
+    # Recursive: search nested layouts (e.g. releases/7.1/.../pkg)
     if [ -d "${base_dir}" ]; then
-        local found
         if [ "${pkg_type}" = "rpm" ]; then
-            found=$(find "${base_dir}" -type f -name "*aerospike-server*${edition}*${arch}.rpm" 2>/dev/null | head -1)
+            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | head -1)
         else
-            # Prefer edition-specific match, then any server package for this arch (e.g. version_distro in filename)
-            found=$(find "${base_dir}" -type f -name "*aerospike-server*${edition}*${deb_arch}.deb" 2>/dev/null | head -1)
-            [ -z "${found}" ] && found=$(find "${base_dir}" -type f -name "*aerospike-server*_*_${deb_arch}.deb" 2>/dev/null | head -1)
+            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | head -1)
         fi
-        if [ -n "${found}" ]; then
-            echo "${found}"
-            return
-        fi
+        [ -n "${found}" ] && echo "${found}" && return
     fi
     echo ""
 }
