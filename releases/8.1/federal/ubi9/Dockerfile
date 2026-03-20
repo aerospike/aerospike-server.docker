@@ -84,6 +84,9 @@ RUN \
     cp aerospike/LICENSE /licenses; \
   }; \
   { \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      microdnf install -y --setopt=install_weak_deps=0 openldap; \
+    fi; \
     rpm -i --excludedocs aerospike/aerospike-server-*.rpm; \
     rm -rf /opt/aerospike/bin; \
   }; \

@@ -193,6 +193,7 @@ RUN \
       apt-get install -y --no-install-recommends \
         libldap-2.5-0 || true; \
       dpkg --configure -a || true; \
+      ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1 || { echo "ERROR: liblber-2.5.so.0 not found – libldap-2.5-0 install failed" >&2; exit 1; }; \
     fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
@@ -307,6 +308,7 @@ RUN \
       apt-get install -y --no-install-recommends \
         libldap-2.5-0 || true; \
       dpkg --configure -a || true; \
+      ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1 || { echo "ERROR: liblber-2.5.so.0 not found – libldap-2.5-0 install failed" >&2; exit 1; }; \
     fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       . /etc/os-release 2>/dev/null || true; \
@@ -416,6 +418,9 @@ RUN \
     cp aerospike/LICENSE /licenses; \
   }; \
   { \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      microdnf install -y --setopt=install_weak_deps=0 openldap; \
+    fi; \
     rpm -i --excludedocs aerospike/aerospike-server-*.rpm; \
     rm -rf /opt/aerospike/bin; \
   }; \
@@ -498,6 +503,9 @@ RUN \
       fi; \
       curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; \
       [ -n "${sha256}" ] && echo "${sha256} server.rpm" | sha256sum -c -; \
+    fi; \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      microdnf install -y --setopt=install_weak_deps=0 openldap; \
     fi; \
     rpm -i --excludedocs server.rpm; \
     mkdir -p /var/{log,run}/aerospike; \
