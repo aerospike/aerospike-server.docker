@@ -99,9 +99,24 @@ RUN \
   }; \
   { \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      apt-get install -y --no-install-recommends \
-        libldap-2.5-0 || true; \
+      apt-get install -y --no-install-recommends libldap-2.4-2 2>/dev/null || true; \
+      apt-get install -y --no-install-recommends libldap-2.5-0 2>/dev/null || true; \
       dpkg --configure -a || true; \
+      if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then \
+        if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+          ldap_repo="http://archive.ubuntu.com/ubuntu"; \
+        else \
+          ldap_repo="http://ports.ubuntu.com/ubuntu-ports"; \
+        fi; \
+        echo "deb [trusted=yes] ${ldap_repo} focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
+        echo "deb [trusted=yes] ${ldap_repo} jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
+        apt-get update -y || true; \
+        apt-get install -y --no-install-recommends libldap-2.4-2 || true; \
+        apt-get install -y --no-install-recommends libldap-2.5-0 || true; \
+        dpkg --configure -a || true; \
+        rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list; \
+      fi; \
+      { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found – libldap install failed" >&2; exit 1; }; \
     fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
