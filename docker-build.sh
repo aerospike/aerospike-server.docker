@@ -190,20 +190,20 @@ RUN \
   }; \
   { \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      apt-get install -y --no-install-recommends libldap-2.5-0 2>/dev/null || true; \
+      apt-get install -y --no-install-recommends libldap-2.4-2 libldap-2.5-0 2>/dev/null || true; \
       dpkg --configure -a || true; \
-      if ! ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; then \
+      if ! ls /usr/lib/*/liblber-2.4.so.2 /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; then \
         if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
           echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
         else \
           echo "deb [trusted=yes] http://ports.ubuntu.com/ubuntu-ports jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
         fi; \
         apt-get update -y || true; \
-        apt-get install -y --no-install-recommends libldap-2.5-0 || true; \
+        apt-get install -y --no-install-recommends libldap-2.4-2 libldap-2.5-0 || true; \
         dpkg --configure -a || true; \
         rm -f /etc/apt/sources.list.d/jammy-ldap.list; \
       fi; \
-      ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1 || { echo "ERROR: liblber-2.5.so.0 not found – libldap-2.5-0 install failed" >&2; exit 1; }; \
+      ls /usr/lib/*/liblber-2.4.so.2 /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1 || { echo "ERROR: liblber not found – libldap install failed" >&2; exit 1; }; \
     fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
@@ -315,20 +315,20 @@ RUN \
       [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -; \
     fi; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      apt-get install -y --no-install-recommends libldap-2.5-0 2>/dev/null || true; \
+      apt-get install -y --no-install-recommends libldap-2.4-2 libldap-2.5-0 2>/dev/null || true; \
       dpkg --configure -a || true; \
-      if ! ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; then \
+      if ! ls /usr/lib/*/liblber-2.4.so.2 /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; then \
         if [ "${ARCH}" = "amd64" ]; then \
           echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
         else \
           echo "deb [trusted=yes] http://ports.ubuntu.com/ubuntu-ports jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
         fi; \
         apt-get update -y || true; \
-        apt-get install -y --no-install-recommends libldap-2.5-0 || true; \
+        apt-get install -y --no-install-recommends libldap-2.4-2 libldap-2.5-0 || true; \
         dpkg --configure -a || true; \
         rm -f /etc/apt/sources.list.d/jammy-ldap.list; \
       fi; \
-      ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1 || { echo "ERROR: liblber-2.5.so.0 not found – libldap-2.5-0 install failed" >&2; exit 1; }; \
+      ls /usr/lib/*/liblber-2.4.so.2 /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1 || { echo "ERROR: liblber not found – libldap install failed" >&2; exit 1; }; \
     fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       . /etc/os-release 2>/dev/null || true; \
