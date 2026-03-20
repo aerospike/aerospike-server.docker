@@ -191,7 +191,7 @@ RUN \
   { \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
       ldap_pkg="libldap-2.5-0"; \
-      apt-cache show libldap-2.5-0t64 >/dev/null 2>&1 && ldap_pkg="libldap-2.5-0t64"; \
+      apt-cache show libldap2 >/dev/null 2>&1 && ldap_pkg="libldap2"; \
       apt-get install -y --no-install-recommends "${ldap_pkg}" || true; \
       dpkg --configure -a || true; \
       ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1 || { echo "ERROR: liblber-2.5.so.0 not found – ${ldap_pkg} install failed" >&2; exit 1; }; \
@@ -307,7 +307,7 @@ RUN \
     fi; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
       ldap_pkg="libldap-2.5-0"; \
-      apt-cache show libldap-2.5-0t64 >/dev/null 2>&1 && ldap_pkg="libldap-2.5-0t64"; \
+      apt-cache show libldap2 >/dev/null 2>&1 && ldap_pkg="libldap2"; \
       apt-get install -y --no-install-recommends "${ldap_pkg}" || true; \
       dpkg --configure -a || true; \
       ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1 || { echo "ERROR: liblber-2.5.so.0 not found – ${ldap_pkg} install failed" >&2; exit 1; }; \
