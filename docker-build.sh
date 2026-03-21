@@ -123,6 +123,7 @@ function _append_run_deb() {
     if [ "${pkg_format}" = "tgz" ]; then
         cat <<'RUNBLOCK'
 # Install Aerospike Server and Tools
+# hadolint ignore=DL3008
 RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
@@ -265,6 +266,7 @@ RUNBLOCK
     else
         cat <<'RUNBLOCK'
 # Install Aerospike Server
+# hadolint ignore=DL3008
 RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
