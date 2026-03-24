@@ -361,6 +361,9 @@ function run_snyk_scan() {
     local snyk_cmd=(snyk container test "${image}" "--platform=linux/${arch}")
     [ -n "${dockerfile}" ] && [ -f "${dockerfile}" ] && snyk_cmd+=("--file=${dockerfile}")
     log_info "Running Snyk container scan..."
+    # Snyk exit code is intentionally non-fatal (|| true): scan is informational,
+    # not a build gate. A green test.sh run means functional tests passed; check
+    # .snyk log files for vulnerability findings.
     "${snyk_cmd[@]}" | tee "${scan_log}" || true
     _snyk_summary "${scan_log}" "${image}"
 }

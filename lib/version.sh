@@ -81,7 +81,7 @@ function find_local_server_package() {
         # Glob: any server rpm matching edition + distro + arch
         for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | head -1)
+            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
             [ -n "${found}" ] && echo "${found}" && return
         done
     else
@@ -95,7 +95,7 @@ function find_local_server_package() {
         # Glob: any server deb matching edition + distro + arch
         for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | head -1)
+            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
             [ -n "${found}" ] && echo "${found}" && return
         done
     fi
@@ -119,9 +119,9 @@ function find_local_server_package() {
     # Recursive: search nested layouts (e.g. releases/7.1/.../pkg)
     if [ -d "${base_dir}" ]; then
         if [ "${pkg_type}" = "rpm" ]; then
-            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | head -1)
+            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
         else
-            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | head -1)
+            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
         fi
         [ -n "${found}" ] && echo "${found}" && return
     fi
