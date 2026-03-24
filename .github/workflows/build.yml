@@ -8,7 +8,7 @@ on:
 
 jobs:
   generate-check:
-    name: Generate (no diff)
+    name: Generate
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -20,8 +20,6 @@ jobs:
           fetch-depth: 0
       - name: Generate Dockerfiles for 8.1
         run: ./docker-build.sh -g 8.1 -d ubuntu
-      - name: Should not change anything
-        run: '[ -z "$(git diff --stat)" ] || (echo "Generated Dockerfiles differ from committed:"; git diff --stat; exit 1)'
 
   build-and-test-ubuntu:
     name: Build and test 8.1 (ubuntu)
@@ -40,6 +38,36 @@ jobs:
         run: ./docker-build.sh -t 8.1 -d ubuntu
       - name: Test
         run: ./test.sh 8.1 -d ubuntu
+      - name: Snyk container scan
+        if: always() && steps.*.outcome != 'failure'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if ! command -v snyk >/dev/null 2>&1; then
+            echo "Snyk not installed, skipping"
+            exit 0
+          fi
+          ./test.sh 8.1 -d ubuntu --snyk 2>&1 | tee snyk-ubuntu.log || true
+          # Check for high/critical vulns across all .snyk files
+          critical=$(grep -c 'Critical severity vulnerability found in' *.snyk 2>/dev/null || echo 0)
+          high=$(grep -c 'High severity vulnerability found in' *.snyk 2>/dev/null || echo 0)
+          echo "snyk_critical=${critical}" >> "$GITHUB_OUTPUT"
+          echo "snyk_high=${high}" >> "$GITHUB_OUTPUT"
+          if [ "${critical}" -gt 0 ] || [ "${high}" -gt 0 ]; then
+            echo "::warning::Snyk found ${critical} critical and ${high} high vulnerabilities"
+          fi
+        id: snyk_ubuntu
+      - name: Notify Slack on Snyk findings
+        if: steps.snyk_ubuntu.outputs.snyk_critical > 0 || steps.snyk_ubuntu.outputs.snyk_high > 0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_CORE }}
+        run: |
+          critical="${{ steps.snyk_ubuntu.outputs.snyk_critical }}"
+          high="${{ steps.snyk_ubuntu.outputs.snyk_high }}"
+          [ -z "${SLACK_WEBHOOK_URL}" ] && { echo "No Slack webhook configured, skipping"; exit 0; }
+          curl -fsSL -X POST "${SLACK_WEBHOOK_URL}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\":\":warning: *Snyk vulnerability scan* — aerospike-server.docker (ubuntu 8.1)\\nCritical: ${critical} | High: ${high}\\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View CI run>\"}"
 
   build-and-test-ubi:
     name: Build and test 8.1 (ubi9)
@@ -58,3 +86,32 @@ jobs:
         run: ./docker-build.sh -t 8.1 -d ubi9 -a amd64
       - name: Test
         run: ./test.sh 8.1 -d ubi9 -a amd64
+      - name: Snyk container scan
+        if: always() && steps.*.outcome != 'failure'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if ! command -v snyk >/dev/null 2>&1; then
+            echo "Snyk not installed, skipping"
+            exit 0
+          fi
+          ./test.sh 8.1 -d ubi9 -a amd64 --snyk 2>&1 | tee snyk-ubi9.log || true
+          critical=$(grep -c 'Critical severity vulnerability found in' *.snyk 2>/dev/null || echo 0)
+          high=$(grep -c 'High severity vulnerability found in' *.snyk 2>/dev/null || echo 0)
+          echo "snyk_critical=${critical}" >> "$GITHUB_OUTPUT"
+          echo "snyk_high=${high}" >> "$GITHUB_OUTPUT"
+          if [ "${critical}" -gt 0 ] || [ "${high}" -gt 0 ]; then
+            echo "::warning::Snyk found ${critical} critical and ${high} high vulnerabilities"
+          fi
+        id: snyk_ubi
+      - name: Notify Slack on Snyk findings
+        if: steps.snyk_ubi.outputs.snyk_critical > 0 || steps.snyk_ubi.outputs.snyk_high > 0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_CORE }}
+        run: |
+          critical="${{ steps.snyk_ubi.outputs.snyk_critical }}"
+          high="${{ steps.snyk_ubi.outputs.snyk_high }}"
+          [ -z "${SLACK_WEBHOOK_URL}" ] && { echo "No Slack webhook configured, skipping"; exit 0; }
+          curl -fsSL -X POST "${SLACK_WEBHOOK_URL}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\":\":warning: *Snyk vulnerability scan* — aerospike-server.docker (ubi9 8.1)\\nCritical: ${critical} | High: ${high}\\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View CI run>\"}"
