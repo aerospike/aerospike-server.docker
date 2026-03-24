@@ -80,7 +80,7 @@ RUN \
 
     # get latest nightly server deb and install
     ls -lat /tmp; \
-    ./tmp/get-artifacts.sh git@github.com:citrusleaf/aerospike-server x86-ubuntu-24.04 cdt-select community; \
+    ./tmp/get-artifacts.sh git@github.com:citrusleaf/aerospike-server x86-ubuntu-24.04 cdt-key-list community; \
     mv artifacts/aerospike*.deb aerospike-server.deb; \
 
     # get latest nightly tools deb
