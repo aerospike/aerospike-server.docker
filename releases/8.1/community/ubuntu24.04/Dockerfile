@@ -11,6 +11,7 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
       org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
+      org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.vendor="Aerospike" \
       org.opencontainers.image.version="8.1.1.2" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
@@ -32,6 +33,7 @@ ARG AEROSPIKE_COMPAT_LIBS="0"
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
+# hadolint ignore=DL3008
 RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
@@ -116,7 +118,7 @@ RUN \
         dpkg --configure -a || true; \
         rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list; \
       fi; \
-      { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found – libldap install failed" >&2; exit 1; }; \
+      { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found - libldap install failed" >&2; exit 1; }; \
     fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
