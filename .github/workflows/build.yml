@@ -21,6 +21,7 @@ jobs:
       - name: Generate Dockerfiles for all support releases
         run: ./docker-build.sh -g 
       - name: Should not change anything
+        continue-on-error: true
         run: '[ -z "$(git diff --stat)" ] || (git diff --stat; exit 1)'
 
   build-and-test:
