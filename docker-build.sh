@@ -118,6 +118,13 @@ EOF
 
 # Emit the inline RUN block for Debian/Ubuntu-based images.
 # Quoted heredocs prevent shell expansion; content is Docker build-time.
+#
+# LDAP fallback: Ubuntu 24.04 no longer ships libldap-2.5-0 or libldap-2.4-2.
+# When needed, we temporarily add Focal/Jammy official repos with [trusted=yes]
+# to skip GPG key setup (keys are not in the minimal base image). The repos are
+# removed immediately after install. This is acceptable because (a) we pull only
+# libldap packages, (b) the repos are canonical Ubuntu archive mirrors, and
+# (c) the sources.list entries are deleted before the layer is committed.
 function _append_run_deb() {
     local pkg_format=$1
     if [ "${pkg_format}" = "tgz" ]; then
@@ -208,7 +215,7 @@ RUN \
         dpkg --configure -a || true; \
         rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list; \
       fi; \
-      { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found – libldap install failed" >&2; exit 1; }; \
+      { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found - libldap install failed" >&2; exit 1; }; \
     fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
@@ -667,6 +674,10 @@ function generate_dockerfile() {
         [ ${#copy_files[@]} -gt 0 ] && dockerfile_copy_local="COPY ${copy_files[*]} /tmp/"
     fi
 
+    # AEROSPIKE_COMPAT_LIBS: install legacy libssl1.1/libcurl4 from older Ubuntu repos.
+    # Only 7.2 binaries still link against OpenSSL 1.1 on ubuntu24.04.
+    # 8.0+ must be built against OpenSSL 3 (libssl1.1 carries high CVEs).
+    # 7.1 runs on ubuntu22.04 which has libssl1.1 natively.
     local needs_compat_libs="0"
     if [[ "${distro}" == ubuntu24.04 ]] && [[ "${lineage}" == "7.2" ]]; then
         needs_compat_libs="1"
@@ -681,6 +692,10 @@ function generate_dockerfile() {
 
     local base_name_label="${base_image}"
     [[ "${base_image}" == ubuntu:* ]] && base_name_label="docker.io/library/${base_image}"
+
+    local image_license="Apache-2.0"
+    [ "${edition}" = "enterprise" ] && image_license="Proprietary"
+    [ "${edition}" = "federal" ] && image_license="Proprietary"
 
     {
         # Header: FROM, LABEL, ARG (needs shell variable expansion)
@@ -698,6 +713,7 @@ LABEL org.opencontainers.image.title="Aerospike ${edition^} Server" \\
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \\
       org.opencontainers.image.base.name="${base_name_label}" \\
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \\
+      org.opencontainers.image.licenses="${image_license}" \\
       org.opencontainers.image.vendor="Aerospike" \\
       org.opencontainers.image.version="${version}" \\
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
