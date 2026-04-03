@@ -126,23 +126,144 @@ EOF
 # libldap packages, (b) the repos are canonical Ubuntu archive mirrors, and
 # (c) the sources.list entries are deleted before the layer is committed.
 function _append_run_deb() {
-    local pkg_format=$1
+    local pkg_format=$1 single_arch=${2:-}
     if [ "${pkg_format}" = "tgz" ]; then
-        cat <<'RUNBLOCK'
+        if [ "${single_arch}" = "amd64" ]; then
+            cat <<'RUNBLOCK'
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3008
 RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
-    apt-get update -y || true; \
-    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
-      apt-get install -y --no-install-recommends \
-        apt-utils binutils xz-utils ca-certificates curl procps || true; \
-      dpkg --configure -a || true; \
-      sleep 2; \
-      dpkg --configure -a || true; \
+    apt-get update -y; \
+    apt-get install -y --no-install-recommends \
+      binutils xz-utils ca-certificates curl procps; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
+  }; \
+  { \
+    curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static" --output /usr/bin/as-tini-static; \
+    echo "d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940 /usr/bin/as-tini-static" | sha256sum -c -; \
+    chmod +x /usr/bin/as-tini-static; \
+  }; \
+  { \
+    mkdir -p aerospike/pkg; \
+    pkg_link="${AEROSPIKE_X86_64_LINK}"; \
+    sha256="${AEROSPIKE_SHA_X86_64}"; \
+    if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+      echo "Could not fetch pkg - ${pkg_link}" >&2; \
+      exit 1; \
+    fi; \
+    echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
+    tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
+    rm aerospike-server.tgz; \
+    mkdir -p /var/{log,run}/aerospike; \
+    mkdir -p /etc/aerospike; \
+    mkdir -p /licenses; \
+    cp aerospike/LICENSE /licenses; \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      if [ -f aerospike/features.conf ]; then \
+        cp aerospike/features.conf /etc/aerospike/features.conf; \
+      elif [ -f aerospike/etc/aerospike/features.conf ]; then \
+        cp aerospike/etc/aerospike/features.conf /etc/aerospike/features.conf; \
+      fi; \
+    fi; \
+  }; \
+  { \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+          echo "Note: libldap-2.5-0 available but not installable"; \
+        fi; \
+      fi; \
+      if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+          echo "Note: libldap-2.4-2 available but not installable"; \
+        fi; \
+      fi; \
+      if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+      if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then \
+        echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
+        echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
+        apt-get update -y; \
+        if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+            echo "Note: libldap-2.5-0 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+            echo "Note: libldap-2.4-2 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list; \
+      fi; \
+      { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found - libldap install failed" >&2; exit 1; }; \
+    fi; \
+    if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
+      curl_pkg="libcurl4"; \
+      apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
+      if apt-cache show libssl1.1 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libssl1.1 "${curl_pkg}"; then \
+          echo "Note: libssl1.1 available but not installable"; \
+        fi; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+      fi; \
+    fi; \
+    dpkg -i aerospike/aerospike-server-*.deb; \
+    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }; \
+    rm -rf /opt/aerospike/bin; \
+  }; \
+  { \
+    ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg; \
+    tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/; \
+  }; \
+  { \
+    find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
+    mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
+    if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
+      mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
     else \
-      apt-get install -y --no-install-recommends apt-utils || true; \
+      mkdir /usr/lib/asadm; \
+      mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/; \
+    fi; \
+    ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+    if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then \
+      mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/; \
+    fi; \
+    ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+  }; \
+  { \
+    rm -rf aerospike; \
+  }; \
+  { \
+    for pkg in binutils xz-utils curl procps; do \
+      if ! dpkg --purge "${pkg}" 2>/dev/null; then \
+        echo "Note: keeping ${pkg} (has reverse dependencies)"; \
+      fi; \
+    done; \
+    rm -rf /var/lib/apt/lists/*; \
+    unset DEBIAN_FRONTEND; \
+  }; \
+  echo "done";
+
+RUNBLOCK
+        else
+            cat <<'RUNBLOCK'
+# Install Aerospike Server and Tools
+# hadolint ignore=DL3008
+RUN \
+  { \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update -y; \
+    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+      if ! apt-get install -y --no-install-recommends \
+        binutils xz-utils ca-certificates curl procps; then \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        sleep 2; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+      fi; \
+    else \
       apt-get install -y --no-install-recommends \
         binutils xz-utils ca-certificates curl procps; \
     fi; \
@@ -198,9 +319,17 @@ RUN \
   }; \
   { \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      apt-get install -y --no-install-recommends libldap-2.4-2 2>/dev/null || true; \
-      apt-get install -y --no-install-recommends libldap-2.5-0 2>/dev/null || true; \
-      dpkg --configure -a || true; \
+      if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+          echo "Note: libldap-2.5-0 available but not installable"; \
+        fi; \
+      fi; \
+      if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+          echo "Note: libldap-2.4-2 available but not installable"; \
+        fi; \
+      fi; \
+      if ! dpkg --configure -a 2>/dev/null; then true; fi; \
       if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then \
         if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
           ldap_repo="http://archive.ubuntu.com/ubuntu"; \
@@ -209,10 +338,18 @@ RUN \
         fi; \
         echo "deb [trusted=yes] ${ldap_repo} focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
         echo "deb [trusted=yes] ${ldap_repo} jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
-        apt-get update -y || true; \
-        apt-get install -y --no-install-recommends libldap-2.4-2 || true; \
-        apt-get install -y --no-install-recommends libldap-2.5-0 || true; \
-        dpkg --configure -a || true; \
+        apt-get update -y; \
+        if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+            echo "Note: libldap-2.5-0 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+            echo "Note: libldap-2.4-2 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
         rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list; \
       fi; \
       { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found - libldap install failed" >&2; exit 1; }; \
@@ -220,19 +357,23 @@ RUN \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
       apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
-      apt-get install -y --no-install-recommends \
-        libssl1.1 "${curl_pkg}" || true; \
-      dpkg --configure -a || true; \
+      if apt-cache show libssl1.1 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libssl1.1 "${curl_pkg}"; then \
+          echo "Note: libssl1.1 available but not installable"; \
+        fi; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+      fi; \
     fi; \
     if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
-      dpkg -i aerospike/aerospike-server-*.deb || true; \
-      dpkg --configure -a || true; \
-      sleep 2; \
-      dpkg --configure -a || true; \
+      if ! dpkg -i aerospike/aerospike-server-*.deb; then \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        sleep 2; \
+      fi; \
+      if ! dpkg --configure -a 2>/dev/null; then true; fi; \
     else \
       dpkg -i aerospike/aerospike-server-*.deb; \
     fi; \
-    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; dpkg -l 'aerospike*' 2>&1 || true; exit 1; }; \
+    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }; \
     rm -rf /opt/aerospike/bin; \
   }; \
   { \
@@ -258,30 +399,145 @@ RUN \
     rm -rf aerospike; \
   }; \
   { \
+    for pkg in binutils xz-utils curl procps; do \
+      if ! dpkg --purge "${pkg}" 2>/dev/null; then \
+        echo "Note: keeping ${pkg} (has reverse dependencies)"; \
+      fi; \
+    done; \
     rm -rf /var/lib/apt/lists/*; \
-    dpkg --purge \
-      apt-utils \
-      binutils \
-      xz-utils 2>&1 || true; \
-    apt-get purge -y curl procps || true; \
-    apt-get autoremove -y || true; \
     unset DEBIAN_FRONTEND; \
   }; \
   echo "done";
 
 RUNBLOCK
+        fi
     else
-        cat <<'RUNBLOCK'
+        if [ "${single_arch}" = "amd64" ]; then
+            cat <<'RUNBLOCK'
 # Install Aerospike Server
 # hadolint ignore=DL3008
 RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
-    apt-get update -y || true; \
-    apt-get install -y --no-install-recommends ca-certificates curl || true; \
-    dpkg --configure -a || true; \
-    sleep 1; \
-    dpkg --configure -a || true; \
+    apt-get update -y; \
+    apt-get install -y --no-install-recommends ca-certificates curl; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
+  }; \
+  { \
+    curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static" --output /usr/bin/as-tini-static; \
+    echo "d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940 /usr/bin/as-tini-static" | sha256sum -c -; \
+    chmod +x /usr/bin/as-tini-static; \
+  }; \
+  { \
+    if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then \
+      cp /tmp/server_amd64.deb server.deb; \
+      if [ -f /tmp/server_amd64.deb.sha256 ]; then \
+        hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256); \
+        echo "${hash}  server.deb" | sha256sum -c -; \
+      fi; \
+    else \
+      pkg_link="${AEROSPIKE_X86_64_LINK}"; \
+      sha256="${AEROSPIKE_SHA_X86_64}"; \
+      curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
+      [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -; \
+    fi; \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+      if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+          echo "Note: libldap-2.5-0 available but not installable"; \
+        fi; \
+      fi; \
+      if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+          echo "Note: libldap-2.4-2 available but not installable"; \
+        fi; \
+      fi; \
+      if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+      if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then \
+        echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
+        echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
+        apt-get update -y; \
+        if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+            echo "Note: libldap-2.5-0 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+            echo "Note: libldap-2.4-2 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list; \
+      fi; \
+      { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found - libldap install failed" >&2; exit 1; }; \
+    fi; \
+    if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
+      . /etc/os-release; \
+      if [ "${ID:-}" = "ubuntu" ]; then \
+        echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-compat.list; \
+        [ "${VERSION_ID}" != "22.04" ] && \
+          echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-compat.list; \
+        apt-get update -y; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        for cpkg in libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0; do \
+          if apt-cache show "${cpkg}" >/dev/null 2>&1; then \
+            if ! apt-get install -y --no-install-recommends "${cpkg}"; then \
+              echo "Note: ${cpkg} available but not installable"; \
+            fi; \
+          fi; \
+        done; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        if ! ldconfig 2>/dev/null; then true; fi; \
+        if ! ldconfig -p 2>/dev/null | grep -q libcrypto.so.1.1; then \
+          rm -f /var/cache/apt/archives/*.deb 2>/dev/null; \
+          for cpkg in libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0; do \
+            if apt-cache show "${cpkg}" >/dev/null 2>&1; then \
+              if ! apt-get install -y --no-install-recommends --download-only "${cpkg}" 2>/dev/null; then true; fi; \
+            fi; \
+          done; \
+          if ls /var/cache/apt/archives/*.deb >/dev/null 2>&1; then \
+            if ! dpkg -i /var/cache/apt/archives/*.deb; then \
+              echo "Note: some compat lib debs could not be installed"; \
+            fi; \
+          fi; \
+          if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        fi; \
+        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list; \
+      fi; \
+    fi; \
+    dpkg -i server.deb; \
+    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }; \
+    mkdir -p /var/{log,run}/aerospike; \
+  }; \
+  { \
+    rm -f server.deb; \
+    if ! dpkg --purge curl 2>/dev/null; then \
+      echo "Note: keeping curl (has reverse dependencies)"; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*; \
+    unset DEBIAN_FRONTEND; \
+  }; \
+  echo "done";
+
+RUNBLOCK
+        else
+            cat <<'RUNBLOCK'
+# Install Aerospike Server
+# hadolint ignore=DL3008
+RUN \
+  { \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update -y; \
+    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+      if ! apt-get install -y --no-install-recommends ca-certificates curl; then \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        sleep 2; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+      fi; \
+    else \
+      apt-get install -y --no-install-recommends ca-certificates curl; \
+    fi; \
     command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
   }; \
   { \
@@ -305,16 +561,16 @@ RUN \
     if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then \
       if [ "${ARCH}" = "amd64" ]; then \
         cp /tmp/server_amd64.deb server.deb; \
-        [ -f /tmp/server_amd64.deb.sha256 ] && { \
+        if [ -f /tmp/server_amd64.deb.sha256 ]; then \
           hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256); \
           echo "${hash}  server.deb" | sha256sum -c -; \
-        }; \
+        fi; \
       else \
         cp /tmp/server_arm64.deb server.deb; \
-        [ -f /tmp/server_arm64.deb.sha256 ] && { \
+        if [ -f /tmp/server_arm64.deb.sha256 ]; then \
           hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256); \
           echo "${hash}  server.deb" | sha256sum -c -; \
-        }; \
+        fi; \
       fi; \
     else \
       if [ "${ARCH}" = "amd64" ]; then \
@@ -328,9 +584,17 @@ RUN \
       [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -; \
     fi; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      apt-get install -y --no-install-recommends libldap-2.4-2 2>/dev/null || true; \
-      apt-get install -y --no-install-recommends libldap-2.5-0 2>/dev/null || true; \
-      dpkg --configure -a || true; \
+      if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+          echo "Note: libldap-2.5-0 available but not installable"; \
+        fi; \
+      fi; \
+      if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+          echo "Note: libldap-2.4-2 available but not installable"; \
+        fi; \
+      fi; \
+      if ! dpkg --configure -a 2>/dev/null; then true; fi; \
       if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then \
         if [ "${ARCH}" = "amd64" ]; then \
           ldap_repo="http://archive.ubuntu.com/ubuntu"; \
@@ -339,16 +603,24 @@ RUN \
         fi; \
         echo "deb [trusted=yes] ${ldap_repo} focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
         echo "deb [trusted=yes] ${ldap_repo} jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
-        apt-get update -y || true; \
-        apt-get install -y --no-install-recommends libldap-2.4-2 || true; \
-        apt-get install -y --no-install-recommends libldap-2.5-0 || true; \
-        dpkg --configure -a || true; \
+        apt-get update -y; \
+        if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+            echo "Note: libldap-2.5-0 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+            echo "Note: libldap-2.4-2 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
         rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list; \
       fi; \
-      { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found – libldap install failed" >&2; exit 1; }; \
+      { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found - libldap install failed" >&2; exit 1; }; \
     fi; \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
-      . /etc/os-release 2>/dev/null || true; \
+      . /etc/os-release; \
       if [ "${ID:-}" = "ubuntu" ]; then \
         if [ "${ARCH}" = "amd64" ]; then \
           repo_url="http://archive.ubuntu.com/ubuntu"; \
@@ -358,42 +630,58 @@ RUN \
         echo "deb [trusted=yes] ${repo_url} focal main" > /etc/apt/sources.list.d/focal-compat.list; \
         [ "${VERSION_ID}" != "22.04" ] && \
           echo "deb [trusted=yes] ${repo_url} jammy main" > /etc/apt/sources.list.d/jammy-compat.list; \
-        apt-get update -y || true; \
-        dpkg --configure -a || true; \
-        apt-get install -y --no-install-recommends \
-          libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0 || true; \
-        dpkg --configure -a || true; \
-        sleep 1; \
-        dpkg --configure -a || true; \
-        ldconfig 2>/dev/null || true; \
+        apt-get update -y; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        for cpkg in libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0; do \
+          if apt-cache show "${cpkg}" >/dev/null 2>&1; then \
+            if ! apt-get install -y --no-install-recommends "${cpkg}"; then \
+              echo "Note: ${cpkg} available but not installable"; \
+            fi; \
+          fi; \
+        done; \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        if ! ldconfig 2>/dev/null; then true; fi; \
         if ! ldconfig -p 2>/dev/null | grep -q libcrypto.so.1.1; then \
-          rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true; \
-          apt-get install -y --no-install-recommends --download-only \
-            libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0 2>/dev/null || true; \
-          dpkg -i /var/cache/apt/archives/*.deb 2>/dev/null || true; \
-          dpkg --configure -a || true; \
-          sleep 1; \
-          dpkg --configure -a || true; \
+          rm -f /var/cache/apt/archives/*.deb 2>/dev/null; \
+          for cpkg in libssl1.1 libcurl4 libldap-2.4-2 libldap-2.5-0; do \
+            if apt-cache show "${cpkg}" >/dev/null 2>&1; then \
+              if ! apt-get install -y --no-install-recommends --download-only "${cpkg}" 2>/dev/null; then true; fi; \
+            fi; \
+          done; \
+          if ls /var/cache/apt/archives/*.deb >/dev/null 2>&1; then \
+            if ! dpkg -i /var/cache/apt/archives/*.deb; then \
+              echo "Note: some compat lib debs could not be installed"; \
+            fi; \
+          fi; \
+          if ! dpkg --configure -a 2>/dev/null; then true; fi; \
         fi; \
         rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list; \
       fi; \
     fi; \
-    dpkg -i server.deb || true; \
-    dpkg --configure -a || true; \
-    sleep 1; \
-    dpkg --configure -a || true; \
-    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; dpkg -l 'aerospike*' 2>&1 || true; exit 1; }; \
+    if [ "${ARCH}" = "arm64" ]; then \
+      if ! dpkg -i server.deb; then \
+        if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+        sleep 2; \
+      fi; \
+      if ! dpkg --configure -a 2>/dev/null; then true; fi; \
+    else \
+      dpkg -i server.deb; \
+    fi; \
+    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }; \
     mkdir -p /var/{log,run}/aerospike; \
   }; \
   { \
-    rm -rf server.deb /var/lib/apt/lists/*; \
-    apt-get purge -y curl || true; \
-    apt-get autoremove -y || true; \
+    rm -f server.deb; \
+    if ! dpkg --purge curl 2>/dev/null; then \
+      echo "Note: keeping curl (has reverse dependencies)"; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*; \
     unset DEBIAN_FRONTEND; \
   }; \
   echo "done";
 
 RUNBLOCK
+        fi
     fi
 }
 
@@ -548,7 +836,7 @@ RUN \
     mkdir -p /var/{log,run}/aerospike; \
   }; \
   { \
-    rm -rf server.rpm; \
+    rm -f server.rpm; \
     microdnf clean all; \
     rm -rf /var/cache/yum /var/cache/dnf; \
   }; \
@@ -572,6 +860,14 @@ function generate_dockerfile() {
 
     local x86_link="" x86_sha="" arm_link="" arm_sha=""
     local pkg_format="tgz"
+
+    # Derive single_arch when exactly one arch is filtered (enables simplified Dockerfile generation).
+    local single_arch=""
+    if [ ${#ARCH_FILTERS[@]} -eq 1 ]; then
+        single_arch="${ARCH_FILTERS[0]}"
+        [ "${single_arch}" = "x86_64" ] && single_arch="amd64"
+        [ "${single_arch}" = "aarch64" ] && single_arch="arm64"
+    fi
 
     # When no tools version: skip tgz, go straight to native .rpm/.deb (server only)
     if [ -n "${tools_version}" ]; then
@@ -610,6 +906,16 @@ function generate_dockerfile() {
                 arm_sha=$(fetch_sha_for_link "${arm_link}")
             fi
         fi
+    fi
+
+    # When building single-arch, clear unused arch to keep the generated Dockerfile simple.
+    if [ "${single_arch}" = "amd64" ]; then
+        arm_link=""
+        arm_sha=""
+    fi
+    if [ "${single_arch}" = "arm64" ]; then
+        x86_link=""
+        x86_sha=""
     fi
 
     # Skip only when we have no package (no tgz sha, no native link, and no local package)
@@ -685,6 +991,11 @@ function generate_dockerfile() {
 
     local dockerfile_extra_args=""
     [ -n "${use_local_pkg}" ] && dockerfile_extra_args="ARG AEROSPIKE_LOCAL_PKG=\"1\""
+    local dockerfile_aarch64_args=""
+    if [ "${single_arch}" != "amd64" ]; then
+        dockerfile_aarch64_args="ARG AEROSPIKE_AARCH64_LINK=\"${arm_link}\"
+ARG AEROSPIKE_SHA_AARCH64=\"${arm_sha}\""
+    fi
     local dockerfile_features_copy=""
     if [ "${edition}" = "enterprise" ] || [ "${edition}" = "federal" ]; then
         dockerfile_features_copy="COPY features.conf /etc/aerospike/features.conf"
@@ -728,8 +1039,7 @@ ARG AEROSPIKE_EDITION="${edition}"
 ENV AEROSPIKE_LINUX_BASE="${base_image}"
 ARG AEROSPIKE_X86_64_LINK="${x86_link}"
 ARG AEROSPIKE_SHA_X86_64="${x86_sha}"
-ARG AEROSPIKE_AARCH64_LINK="${arm_link}"
-ARG AEROSPIKE_SHA_AARCH64="${arm_sha}"
+${dockerfile_aarch64_args}
 ARG AEROSPIKE_COMPAT_LIBS="${needs_compat_libs}"
 ${dockerfile_extra_args}
 
@@ -745,7 +1055,7 @@ HEADER
 
         # Inline RUN block (literal, no shell expansion via quoted heredocs)
         if [ "${pkg_type}" = "deb" ]; then
-            _append_run_deb "${pkg_format}"
+            _append_run_deb "${pkg_format}" "${single_arch}"
         else
             _append_run_rpm "${pkg_format}"
         fi
@@ -980,7 +1290,7 @@ EOF
 function main() {
     local mode="" custom_url="" version_or_lineage=""
     local generate_only=false
-    local bake_opts=""
+    local -a bake_opts=()
     local build_timestamp=""
     declare -ga REGISTRY_PREFIXES=()
 
@@ -1037,7 +1347,7 @@ function main() {
             shift 2
             ;;
         --no-cache)
-            bake_opts="--no-cache"
+            bake_opts+=(--no-cache)
             shift
             ;;
         -h | --help)
@@ -1084,11 +1394,11 @@ function main() {
     case "${mode}" in
     test)
         log_info "Building for local testing..."
-        docker buildx bake -f "${BAKE_FILE}" test --progress plain --load ${bake_opts}
+        docker buildx bake -f "${BAKE_FILE}" test --progress plain --load "${bake_opts[@]}"
         ;;
     push)
         log_info "Building and pushing to registry/registries (${REGISTRY_PREFIXES[*]})..."
-        docker buildx bake -f "${BAKE_FILE}" push --progress plain --push ${bake_opts}
+        docker buildx bake -f "${BAKE_FILE}" push --progress plain --push "${bake_opts[@]}"
         ;;
     esac
 
