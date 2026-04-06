@@ -243,7 +243,7 @@ RUN \
   }; \
   { \
     for pkg in binutils xz-utils curl procps; do \
-      if ! dpkg --purge "${pkg}" 2>/dev/null; then \
+      if ! dpkg --purge "${pkg}"; then \
         echo "Note: keeping ${pkg} (has reverse dependencies)"; \
       fi; \
     done; \
@@ -377,7 +377,7 @@ RUN \
   }; \
   { \
     for pkg in binutils xz-utils curl procps; do \
-      if ! dpkg --purge "${pkg}" 2>/dev/null; then \
+      if ! dpkg --purge "${pkg}"; then \
         echo "Note: keeping ${pkg} (has reverse dependencies)"; \
       fi; \
     done; \
@@ -545,7 +545,7 @@ RUN \
   }; \
   { \
     for pkg in binutils xz-utils curl procps; do \
-      if ! dpkg --purge "${pkg}" 2>/dev/null; then \
+      if ! dpkg --purge "${pkg}"; then \
         echo "Note: keeping ${pkg} (has reverse dependencies)"; \
       fi; \
     done; \
@@ -639,7 +639,7 @@ RUN \
           fi; \
         done; \
         if ! dpkg --configure -a; then true; fi; \
-        if ! ldconfig 2>/dev/null; then true; fi; \
+        if ! ldconfig; then true; fi; \
         if ! ldconfig -p 2>/dev/null | grep -q libcrypto.so.1.1; then \
           rm -f /var/cache/apt/archives/*.deb 2>/dev/null; \
           curl_pkg="libcurl4"; \
@@ -665,7 +665,7 @@ RUN \
   }; \
   { \
     rm -f server.deb; \
-    if ! dpkg --purge curl 2>/dev/null; then \
+    if ! dpkg --purge curl; then \
       echo "Note: keeping curl (has reverse dependencies)"; \
     fi; \
     if ! apt-get autoremove -y; then true; fi; \
@@ -760,7 +760,7 @@ RUN \
           fi; \
         done; \
         if ! dpkg --configure -a; then true; fi; \
-        if ! ldconfig 2>/dev/null; then true; fi; \
+        if ! ldconfig; then true; fi; \
         if ! ldconfig -p 2>/dev/null | grep -q libcrypto.so.1.1; then \
           rm -f /var/cache/apt/archives/*.deb 2>/dev/null; \
           curl_pkg="libcurl4"; \
@@ -790,7 +790,7 @@ RUN \
   }; \
   { \
     rm -f server.deb; \
-    if ! dpkg --purge curl 2>/dev/null; then \
+    if ! dpkg --purge curl; then \
       echo "Note: keeping curl (has reverse dependencies)"; \
     fi; \
     if ! apt-get autoremove -y; then true; fi; \
@@ -924,7 +924,7 @@ RUN \
           fi; \
         done; \
         if ! dpkg --configure -a; then true; fi; \
-        if ! ldconfig 2>/dev/null; then true; fi; \
+        if ! ldconfig; then true; fi; \
         if ! ldconfig -p 2>/dev/null | grep -q libcrypto.so.1.1; then \
           rm -f /var/cache/apt/archives/*.deb 2>/dev/null; \
           curl_pkg="libcurl4"; \
@@ -958,7 +958,7 @@ RUN \
   }; \
   { \
     rm -f server.deb; \
-    if ! dpkg --purge curl 2>/dev/null; then \
+    if ! dpkg --purge curl; then \
       echo "Note: keeping curl (has reverse dependencies)"; \
     fi; \
     if ! apt-get autoremove -y; then true; fi; \
