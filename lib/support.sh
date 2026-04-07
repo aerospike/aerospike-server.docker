@@ -65,7 +65,7 @@ function support_distro_to_base() {
     case "$1" in
     ubuntu22.04) echo "ubuntu:22.04" ;;
     ubuntu24.04) echo "ubuntu:24.04" ;;
-    ubi9) echo "registry.access.redhat.com/ubi9/ubi-minimal:9.4" ;;
+    ubi9) echo "registry.access.redhat.com/ubi9/ubi-minimal:9.7" ;;
     ubi10) echo "registry.access.redhat.com/ubi10/ubi-minimal:10.0" ;;
     *)
         log_warn "unsupported distro '$1'"

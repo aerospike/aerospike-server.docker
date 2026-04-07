@@ -37,15 +37,15 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 RUN \
   { \
     export DEBIAN_FRONTEND=noninteractive; \
-    apt-get update -y || true; \
+    apt-get update -y; \
     if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
-      apt-get install -y --no-install-recommends \
-        apt-utils binutils xz-utils ca-certificates curl procps || true; \
-      dpkg --configure -a || true; \
-      sleep 2; \
-      dpkg --configure -a || true; \
+      if ! apt-get install -y --no-install-recommends \
+        binutils xz-utils ca-certificates curl procps; then \
+        if ! dpkg --configure -a; then true; fi; \
+        sleep 2; \
+        if ! dpkg --configure -a; then true; fi; \
+      fi; \
     else \
-      apt-get install -y --no-install-recommends apt-utils || true; \
       apt-get install -y --no-install-recommends \
         binutils xz-utils ca-certificates curl procps; \
     fi; \
@@ -63,7 +63,10 @@ RUN \
       echo "Unsupported architecture - ${ARCH}" >&2; \
       exit 1; \
     fi; \
-    curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static; \
+    if ! curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static; then \
+      sleep 5; \
+      curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${suffix}" --output /usr/bin/as-tini-static; \
+    fi; \
     echo "${sha256} /usr/bin/as-tini-static" | sha256sum -c -; \
     chmod +x /usr/bin/as-tini-static; \
   }; \
@@ -101,9 +104,17 @@ RUN \
   }; \
   { \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      apt-get install -y --no-install-recommends libldap-2.4-2 2>/dev/null || true; \
-      apt-get install -y --no-install-recommends libldap-2.5-0 2>/dev/null || true; \
-      dpkg --configure -a || true; \
+      if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+          echo "Note: libldap-2.5-0 available but not installable"; \
+        fi; \
+      fi; \
+      if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+        if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+          echo "Note: libldap-2.4-2 available but not installable"; \
+        fi; \
+      fi; \
+      if ! dpkg --configure -a; then true; fi; \
       if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then \
         if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
           ldap_repo="http://archive.ubuntu.com/ubuntu"; \
@@ -112,10 +123,18 @@ RUN \
         fi; \
         echo "deb [trusted=yes] ${ldap_repo} focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
         echo "deb [trusted=yes] ${ldap_repo} jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
-        apt-get update -y || true; \
-        apt-get install -y --no-install-recommends libldap-2.4-2 || true; \
-        apt-get install -y --no-install-recommends libldap-2.5-0 || true; \
-        dpkg --configure -a || true; \
+        apt-get update -y; \
+        if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.5-0; then \
+            echo "Note: libldap-2.5-0 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends libldap-2.4-2; then \
+            echo "Note: libldap-2.4-2 available but not installable from fallback repos"; \
+          fi; \
+        fi; \
+        if ! dpkg --configure -a; then true; fi; \
         rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list; \
       fi; \
       { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || { echo "ERROR: liblber not found - libldap install failed" >&2; exit 1; }; \
@@ -123,19 +142,25 @@ RUN \
     if [ "${AEROSPIKE_COMPAT_LIBS}" = "1" ]; then \
       curl_pkg="libcurl4"; \
       apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"; \
-      apt-get install -y --no-install-recommends \
-        libssl1.1 "${curl_pkg}" || true; \
-      dpkg --configure -a || true; \
+      for cpkg in libssl1.1 "${curl_pkg}"; do \
+        if apt-cache show "${cpkg}" >/dev/null 2>&1; then \
+          if ! apt-get install -y --no-install-recommends "${cpkg}"; then \
+            echo "Note: ${cpkg} available but not installable"; \
+          fi; \
+        fi; \
+      done; \
+      if ! dpkg --configure -a; then true; fi; \
     fi; \
     if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
-      dpkg -i aerospike/aerospike-server-*.deb || true; \
-      dpkg --configure -a || true; \
-      sleep 2; \
-      dpkg --configure -a || true; \
+      if ! dpkg -i aerospike/aerospike-server-*.deb; then \
+        if ! dpkg --configure -a; then true; fi; \
+        sleep 2; \
+      fi; \
+      if ! dpkg --configure -a; then true; fi; \
     else \
       dpkg -i aerospike/aerospike-server-*.deb; \
     fi; \
-    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; dpkg -l 'aerospike*' 2>&1 || true; exit 1; }; \
+    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }; \
     rm -rf /opt/aerospike/bin; \
   }; \
   { \
@@ -161,13 +186,13 @@ RUN \
     rm -rf aerospike; \
   }; \
   { \
+    for pkg in binutils xz-utils curl procps; do \
+      if ! dpkg --purge "${pkg}" 2>/dev/null; then \
+        echo "Note: keeping ${pkg} (has reverse dependencies)"; \
+      fi; \
+    done; \
+    if ! apt-get autoremove -y; then true; fi; \
     rm -rf /var/lib/apt/lists/*; \
-    dpkg --purge \
-      apt-utils \
-      binutils \
-      xz-utils 2>&1 || true; \
-    apt-get purge -y curl procps || true; \
-    apt-get autoremove -y || true; \
     unset DEBIAN_FRONTEND; \
   }; \
   echo "done";
