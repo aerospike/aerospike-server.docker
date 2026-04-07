@@ -72,7 +72,7 @@ VERSION/LINEAGE:
 DISTRO SUPPORT BY LINEAGE (default: all distros below; primary UBI is ubi9):
     7.1:       ubuntu22.04, ubi9
     7.2, 8.0:  ubuntu24.04, ubi9
-    8.1+:      ubuntu24.04, ubi9, ubi10
+    8.1+:      ubuntu24.04, ubi10
 
 OUTPUT:
     releases/<lineage>/<edition>/<distro>/    Generated Dockerfiles
