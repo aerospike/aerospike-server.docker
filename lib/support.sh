@@ -32,7 +32,10 @@ function support_distros() {
     7.2 | 8.0)
         echo "ubuntu24.04 ubi9"
         ;;
-    8.1 | *)
+    8.1)
+        echo "ubuntu24.04 ubi9"
+        ;;
+    *)
         echo "ubuntu24.04 ubi9"
         ;;
     esac

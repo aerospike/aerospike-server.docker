@@ -7,6 +7,9 @@
 # Dependencies: lib/fetch.sh, lib/log.sh, lib/support.sh, lib/version.sh
 # Flow: parse args -> generate_dockerfiles -> [generate_bake -> build]
 #
+# Generated RUN layers use curl retries and sleep/backoff for downloads; sustained
+# outages on artifact hosts or GitHub can still fail builds after those attempts.
+#
 
 set -Eeuo pipefail
 
@@ -66,10 +69,10 @@ VERSION/LINEAGE:
     8.1.1.0-start-16               Development build
     8.1.1.0-start-16-gea126d3      Development build with git hash
 
-DISTRO SUPPORT BY LINEAGE (default -d; use -d ubi10 to add ubi10):
+DISTRO SUPPORT BY LINEAGE (default: all distros below for each lineage):
     7.1:       ubuntu22.04, ubi9
     7.2, 8.0:  ubuntu24.04, ubi9
-    8.1+:      ubuntu24.04, ubi9
+    8.1+:      ubuntu24.04, ubi9, ubi10
 
 OUTPUT:
     releases/<lineage>/<edition>/<distro>/    Generated Dockerfiles
@@ -125,6 +128,9 @@ EOF
 # removed immediately after install. This is acceptable because (a) we pull only
 # libldap packages, (b) the repos are canonical Ubuntu archive mirrors, and
 # (c) the sources.list entries are deleted before the layer is committed.
+# Operational note: if Ubuntu renames/removes libldap packages or archive paths,
+# the apt-cache gates or focal/jammy fallback lines may need updating; failures
+# surface at install or at the liblber check rather than silently skipping LDAP.
 #
 # Shared Dockerfile RUN fragments (quoted heredocs = Docker build-time shell).
 # Reduces duplicated LDAP / compat-lib / tools / cleanup logic across DEB branches.
@@ -301,14 +307,14 @@ function _emit_deb_tgz_tools_extract_layout() {
     if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
     else \
-      mkdir /usr/lib/asadm; \
+      mkdir -p /usr/lib/asadm; \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/; \
     fi; \
-    ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+    ln -snf /usr/lib/asadm/asadm /usr/bin/asadm; \
     if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/; \
     fi; \
-    ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+    ln -snf /usr/lib/asadm/asinfo /usr/bin/asinfo; \
   }; \
 EMIT
 }
@@ -354,14 +360,14 @@ function _emit_rpm_tgz_tools_layout_classic() {
     if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
     else \
-      mkdir /usr/lib/asadm; \
+      mkdir -p /usr/lib/asadm; \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/; \
     fi; \
-    ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+    ln -snf /usr/lib/asadm/asadm /usr/bin/asadm; \
     if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/; \
     fi; \
-    ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+    ln -snf /usr/lib/asadm/asinfo /usr/bin/asinfo; \
   }; \
 EMIT
 }
@@ -993,8 +999,9 @@ RUNBLOCK
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3041
 RUN \
+  _retry() { local _i; for _i in 1 2 3 4 5; do "$@" && return 0 || sleep $((_i*5)); done; "$@"; }; \
   { \
-    microdnf install -y --setopt=install_weak_deps=0 \
+    _retry microdnf install -y --setopt=install_weak_deps=0 \
       findutils \
       tar \
       gzip \
@@ -1051,7 +1058,7 @@ RUN \
   { \
     ARCH="$(uname -m)"; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      microdnf install -y --setopt=install_weak_deps=0 openldap; \
+      _retry microdnf install -y --setopt=install_weak_deps=0 openldap; \
     fi; \
     if [ "${ARCH}" = "aarch64" ]; then \
       if ! rpm -i --excludedocs aerospike/aerospike-server-*.rpm; then \
@@ -1179,8 +1186,9 @@ RUNBLOCK
 # Install Aerospike Server
 # hadolint ignore=DL3041
 RUN \
+  _retry() { local _i; for _i in 1 2 3 4 5; do "$@" && return 0 || sleep $((_i*5)); done; "$@"; }; \
   { \
-    microdnf install -y --setopt=install_weak_deps=0 ca-certificates; \
+    _retry microdnf install -y --setopt=install_weak_deps=0 ca-certificates; \
   }; \
   { \
     ARCH="$(uname -m)"; \
@@ -1232,7 +1240,7 @@ RUN \
       [ -n "${sha256}" ] && echo "${sha256} server.rpm" | sha256sum -c -; \
     fi; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-      microdnf install -y --setopt=install_weak_deps=0 openldap; \
+      _retry microdnf install -y --setopt=install_weak_deps=0 openldap; \
     fi; \
     if [ "${ARCH}" = "aarch64" ]; then \
       if ! rpm -i --excludedocs server.rpm; then \
@@ -1395,6 +1403,8 @@ function generate_dockerfile() {
     # Only 7.2 binaries still link against OpenSSL 1.1 on ubuntu24.04.
     # 8.0+ must be built against OpenSSL 3 (libssl1.1 carries high CVEs).
     # 7.1 runs on ubuntu22.04 which has libssl1.1 natively.
+    # Operational note: focal/jammy archive layout or package renames can break the
+    # compat path; update repo lines and package names when builds fail at apt/dpkg.
     local needs_compat_libs="0"
     if [[ "${distro}" == ubuntu24.04 ]] && [[ "${lineage}" == "7.2" ]]; then
         needs_compat_libs="1"
