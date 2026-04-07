@@ -357,7 +357,7 @@ function _emit_rpm_tgz_tools_layout_classic() {
     _tool_rpms=(aerospike/aerospike-tools*.rpm); \
     if [ "${#_tool_rpms[@]}" -eq 0 ]; then \
       echo "ERROR: no aerospike-tools*.rpm under aerospike/ after tar extract (cwd=$(pwd))" >&2; \
-      ls -la aerospike >&2 || true; \
+      if ! ls -la aerospike >&2; then true; fi; \
       exit 1; \
     fi; \
     _tool_rpm_base="${_tool_rpms[0]##*/}"; \
@@ -1749,7 +1749,11 @@ function generate_bake() {
                 for plat in ${platforms}; do
                     local arch=${plat#*/}
                     local test_tag
-                    [ "${omit_distro_in_tag}" -eq 1 ] && test_tag="${test_product}:${version}-${arch}" || test_tag="${test_product}:${version}-${distro}-${arch}"
+                    if [ "${omit_distro_in_tag}" -eq 1 ]; then
+                        test_tag="${test_product}:${version}-${arch}"
+                    else
+                        test_tag="${test_product}:${version}-${distro}-${arch}"
+                    fi
                     test_group+="\"${tag_base}_${arch}\", "
                     test_targets+="target \"${tag_base}_${arch}\" {
     tags=[\"${test_tag}\"]

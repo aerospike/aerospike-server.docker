@@ -120,7 +120,7 @@ RUN \
     _tool_rpms=(aerospike/aerospike-tools*.rpm); \
     if [ "${#_tool_rpms[@]}" -eq 0 ]; then \
       echo "ERROR: no aerospike-tools*.rpm under aerospike/ after tar extract (cwd=$(pwd))" >&2; \
-      ls -la aerospike >&2 || true; \
+      if ! ls -la aerospike >&2; then true; fi; \
       exit 1; \
     fi; \
     _tool_rpm_base="${_tool_rpms[0]##*/}"; \
