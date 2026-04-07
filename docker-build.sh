@@ -72,7 +72,7 @@ VERSION/LINEAGE:
 DISTRO SUPPORT BY LINEAGE (default: all distros below; primary UBI is ubi9):
     7.1:       ubuntu22.04, ubi9
     7.2, 8.0:  ubuntu24.04, ubi9
-    8.1+:      ubuntu24.04, ubi10
+    8.1+:      ubuntu24.04, ubi9, ubi10
 
 OUTPUT:
     releases/<lineage>/<edition>/<distro>/    Generated Dockerfiles
@@ -152,20 +152,20 @@ function _emit_deb_ldap_enterprise() {
       if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then \
 EMIT
     case "${mirror_kind}" in
-        amd64)
-            cat <<'EMIT'
+    amd64)
+        cat <<'EMIT'
         echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
         echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
 EMIT
-            ;;
-        arm64)
-            cat <<'EMIT'
+        ;;
+    arm64)
+        cat <<'EMIT'
         echo "deb [trusted=yes] http://ports.ubuntu.com/ubuntu-ports focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
         echo "deb [trusted=yes] http://ports.ubuntu.com/ubuntu-ports jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
 EMIT
-            ;;
-        multi)
-            cat <<'EMIT'
+        ;;
+    multi)
+        cat <<'EMIT'
         if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
           ldap_repo="http://archive.ubuntu.com/ubuntu"; \
         else \
@@ -174,9 +174,9 @@ EMIT
         echo "deb [trusted=yes] ${ldap_repo} focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
         echo "deb [trusted=yes] ${ldap_repo} jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
 EMIT
-            ;;
-        multi_native)
-            cat <<'EMIT'
+        ;;
+    multi_native)
+        cat <<'EMIT'
         if [ "${ARCH}" = "amd64" ]; then \
           ldap_repo="http://archive.ubuntu.com/ubuntu"; \
         else \
@@ -185,7 +185,7 @@ EMIT
         echo "deb [trusted=yes] ${ldap_repo} focal main" > /etc/apt/sources.list.d/focal-ldap.list; \
         echo "deb [trusted=yes] ${ldap_repo} jammy main" > /etc/apt/sources.list.d/jammy-ldap.list; \
 EMIT
-            ;;
+        ;;
     esac
     cat <<'EMIT'
         apt-get update -y; \
@@ -232,22 +232,22 @@ function _emit_deb_compat_native() {
       if [ "${ID:-}" = "ubuntu" ]; then \
 EMIT
     case "${repo_kind}" in
-        amd64)
-            cat <<'EMIT'
+    amd64)
+        cat <<'EMIT'
         echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu focal main" > /etc/apt/sources.list.d/focal-compat.list; \
         [ "${VERSION_ID}" != "22.04" ] && \
           echo "deb [trusted=yes] http://archive.ubuntu.com/ubuntu jammy main" > /etc/apt/sources.list.d/jammy-compat.list; \
 EMIT
-            ;;
-        arm64)
-            cat <<'EMIT'
+        ;;
+    arm64)
+        cat <<'EMIT'
         echo "deb [trusted=yes] http://ports.ubuntu.com/ubuntu-ports focal main" > /etc/apt/sources.list.d/focal-compat.list; \
         [ "${VERSION_ID}" != "22.04" ] && \
           echo "deb [trusted=yes] http://ports.ubuntu.com/ubuntu-ports jammy main" > /etc/apt/sources.list.d/jammy-compat.list; \
 EMIT
-            ;;
-        multi_native)
-            cat <<'EMIT'
+        ;;
+    multi_native)
+        cat <<'EMIT'
         if [ "${ARCH}" = "amd64" ]; then \
           repo_url="http://archive.ubuntu.com/ubuntu"; \
         else \
@@ -257,7 +257,7 @@ EMIT
         [ "${VERSION_ID}" != "22.04" ] && \
           echo "deb [trusted=yes] ${repo_url} jammy main" > /etc/apt/sources.list.d/jammy-compat.list; \
 EMIT
-            ;;
+        ;;
     esac
     cat <<'EMIT'
         apt-get update -y; \
@@ -349,7 +349,7 @@ EMIT
 }
 
 # RPM tgz: classic rpm2cpio + tools layout (amd64 and multi-aarch64/amd64 host).
-# Resolve tools RPM by basename (reliable glob), then extract like arm64 path (no cpio -D).
+# Resolve tools RPM by basename (reliable glob); extract with cpio -D (avoids subshell cd / hadolint DL3003).
 function _emit_rpm_tgz_tools_layout_classic() {
     cat <<'EMIT'
   { \
@@ -361,9 +361,9 @@ function _emit_rpm_tgz_tools_layout_classic() {
       exit 1; \
     fi; \
     _tool_rpm_base="${_tool_rpms[0]##*/}"; \
-    if ! ( cd aerospike/pkg && rpm2cpio "../${_tool_rpm_base}" | cpio -idm ); then \
+    if ! rpm2cpio "aerospike/${_tool_rpm_base}" | cpio -idm -D aerospike/pkg; then \
       sleep 3; \
-      ( cd aerospike/pkg && rpm2cpio "../${_tool_rpm_base}" | cpio -idm ); \
+      rpm2cpio "aerospike/${_tool_rpm_base}" | cpio -idm -D aerospike/pkg; \
     fi; \
   }; \
   { \
@@ -945,7 +945,7 @@ RUNBLOCK
 # Install Aerospike Server and Tools (arm64)
 # hadolint ignore=DL3041
 RUN \
-  _retry() { local _i; for _i in 1 2 3 4 5; do "$@" && return 0 || sleep $((_i*5)); done; "$@"; }; \
+  _retry() { local _i; for _i in 1 2 3 4 5; do if "$@"; then return 0; fi; sleep $((_i*5)); done; "$@"; }; \
   { \
     _retry microdnf install -y --setopt=install_weak_deps=0 \
       findutils \
@@ -1006,9 +1006,9 @@ RUN \
   }; \
   { \
     _rpm="aerospike/aerospike-tools*.rpm"; \
-    if ! ( cd aerospike/pkg && rpm2cpio ../${_rpm##*/} | cpio -idm ); then \
+    if ! rpm2cpio aerospike/${_rpm##*/} | cpio -idm -D aerospike/pkg; then \
       sleep 3; \
-      ( cd aerospike/pkg && rpm2cpio ../${_rpm##*/} | cpio -idm ); \
+      rpm2cpio aerospike/${_rpm##*/} | cpio -idm -D aerospike/pkg; \
     fi; \
   }; \
   { \
@@ -1051,7 +1051,7 @@ RUNBLOCK
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3041
 RUN \
-  _retry() { local _i; for _i in 1 2 3 4 5; do "$@" && return 0 || sleep $((_i*5)); done; "$@"; }; \
+  _retry() { local _i; for _i in 1 2 3 4 5; do if "$@"; then return 0; fi; sleep $((_i*5)); done; "$@"; }; \
   { \
     _retry microdnf install -y --setopt=install_weak_deps=0 \
       findutils \
@@ -1200,7 +1200,7 @@ RUNBLOCK
 # Install Aerospike Server (arm64)
 # hadolint ignore=DL3041
 RUN \
-  _retry() { local _i; for _i in 1 2 3 4 5; do "$@" && return 0 || sleep $((_i*5)); done; "$@"; }; \
+  _retry() { local _i; for _i in 1 2 3 4 5; do if "$@"; then return 0; fi; sleep $((_i*5)); done; "$@"; }; \
   { \
     _retry microdnf install -y --setopt=install_weak_deps=0 ca-certificates shadow-utils; \
   }; \
@@ -1259,7 +1259,7 @@ RUNBLOCK
 # Install Aerospike Server
 # hadolint ignore=DL3041
 RUN \
-  _retry() { local _i; for _i in 1 2 3 4 5; do "$@" && return 0 || sleep $((_i*5)); done; "$@"; }; \
+  _retry() { local _i; for _i in 1 2 3 4 5; do if "$@"; then return 0; fi; sleep $((_i*5)); done; "$@"; }; \
   { \
     _retry microdnf install -y --setopt=install_weak_deps=0 ca-certificates shadow-utils; \
   }; \

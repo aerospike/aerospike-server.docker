@@ -6,14 +6,14 @@
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7
 
-LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
+LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
       org.opencontainers.image.base.name="registry.access.redhat.com/ubi9/ubi-minimal:9.7" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
-      org.opencontainers.image.licenses="Proprietary" \
+      org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.1.1.2" \
+      org.opencontainers.image.version="8.0.0.14" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,13 +21,13 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="enterprise"
+ARG AEROSPIKE_EDITION="community"
 
 ENV AEROSPIKE_LINUX_BASE="registry.access.redhat.com/ubi9/ubi-minimal:9.7"
-ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-enterprise/8.1.1.2/aerospike-server-enterprise_8.1.1.2_tools-12.1.1_el9_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="1516e10150b29d86b01b2f0a46b8984e90dea93d2067677afa16ce1a698204ff"
-ARG AEROSPIKE_AARCH64_LINK="https://download.aerospike.com/artifacts/aerospike-server-enterprise/8.1.1.2/aerospike-server-enterprise_8.1.1.2_tools-12.1.1_el9_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="009aa894a9fdb6139dc11a99e23419812dc349276319a534c4902f7d2a6ed26a"
+ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-community/8.0.0.14/aerospike-server-community_8.0.0.14_tools-12.1.1_el9_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="fd07c6ef7fb6599b7bdf80489a4229dd92f3414a651aa6ef6ca9889eb7487260"
+ARG AEROSPIKE_AARCH64_LINK="https://download.aerospike.com/artifacts/aerospike-server-community/8.0.0.14/aerospike-server-community_8.0.0.14_tools-12.1.1_el9_aarch64.tgz"
+ARG AEROSPIKE_SHA_AARCH64="6b0d2e0848f1d9467c04678bc93d1217db5996bf063759a9839c2ae0015327c2"
 ARG AEROSPIKE_COMPAT_LIBS="0"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
@@ -170,7 +170,6 @@ RUN \
 
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
-COPY features.conf /etc/aerospike/features.conf
 
 # Mount the Aerospike data directory
 # VOLUME ["/opt/aerospike/data"]

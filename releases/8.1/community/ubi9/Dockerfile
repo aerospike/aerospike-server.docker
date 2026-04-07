@@ -35,7 +35,7 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3041
 RUN \
-  _retry() { local _i; for _i in 1 2 3 4 5; do "$@" && return 0 || sleep $((_i*5)); done; "$@"; }; \
+  _retry() { local _i; for _i in 1 2 3 4 5; do if "$@"; then return 0; fi; sleep $((_i*5)); done; "$@"; }; \
   { \
     _retry microdnf install -y --setopt=install_weak_deps=0 \
       findutils \
@@ -124,9 +124,9 @@ RUN \
       exit 1; \
     fi; \
     _tool_rpm_base="${_tool_rpms[0]##*/}"; \
-    if ! ( cd aerospike/pkg && rpm2cpio "../${_tool_rpm_base}" | cpio -idm ); then \
+    if ! rpm2cpio "aerospike/${_tool_rpm_base}" | cpio -idm -D aerospike/pkg; then \
       sleep 3; \
-      ( cd aerospike/pkg && rpm2cpio "../${_tool_rpm_base}" | cpio -idm ); \
+      rpm2cpio "aerospike/${_tool_rpm_base}" | cpio -idm -D aerospike/pkg; \
     fi; \
   }; \
   { \

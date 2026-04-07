@@ -33,7 +33,7 @@ function support_distros() {
         echo "ubuntu24.04 ubi9"
         ;;
     8.1)
-        echo "ubuntu24.04 ubi10"
+        echo "ubuntu24.04 ubi9 ubi10"
         ;;
     *)
         echo "ubuntu24.04 ubi9"
