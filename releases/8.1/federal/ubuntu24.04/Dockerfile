@@ -176,14 +176,14 @@ RUN \
     if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
     else \
-      mkdir /usr/lib/asadm; \
+      mkdir -p /usr/lib/asadm; \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/; \
     fi; \
-    ln -s /usr/lib/asadm/asadm /usr/bin/asadm; \
+    ln -snf /usr/lib/asadm/asadm /usr/bin/asadm; \
     if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/; \
     fi; \
-    ln -s /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+    ln -snf /usr/lib/asadm/asinfo /usr/bin/asinfo; \
   }; \
   { \
     rm -rf aerospike; \

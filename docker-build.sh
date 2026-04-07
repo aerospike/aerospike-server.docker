@@ -69,10 +69,10 @@ VERSION/LINEAGE:
     8.1.1.0-start-16               Development build
     8.1.1.0-start-16-gea126d3      Development build with git hash
 
-DISTRO SUPPORT BY LINEAGE (default: all distros below for each lineage):
+DISTRO SUPPORT BY LINEAGE (default: all distros below; primary UBI is ubi9):
     7.1:       ubuntu22.04, ubi9
     7.2, 8.0:  ubuntu24.04, ubi9
-    8.1+:      ubuntu24.04, ubi9, ubi10
+    8.1+:      ubuntu24.04, ubi10
 
 OUTPUT:
     releases/<lineage>/<edition>/<distro>/    Generated Dockerfiles
@@ -349,25 +349,51 @@ EMIT
 }
 
 # RPM tgz: classic rpm2cpio + tools layout (amd64 and multi-aarch64/amd64 host).
+# Resolve tools RPM by basename (reliable glob), then extract like arm64 path (no cpio -D).
 function _emit_rpm_tgz_tools_layout_classic() {
     cat <<'EMIT'
   { \
-    rpm2cpio aerospike/aerospike-tools*.rpm | cpio -idmv -D aerospike/pkg; \
+    shopt -s nullglob; \
+    _tool_rpms=(aerospike/aerospike-tools*.rpm); \
+    if [ "${#_tool_rpms[@]}" -eq 0 ]; then \
+      echo "ERROR: no aerospike-tools*.rpm under aerospike/ after tar extract (cwd=$(pwd))" >&2; \
+      ls -la aerospike >&2 || true; \
+      exit 1; \
+    fi; \
+    _tool_rpm_base="${_tool_rpms[0]##*/}"; \
+    if ! ( cd aerospike/pkg && rpm2cpio "../${_tool_rpm_base}" | cpio -idm ); then \
+      sleep 3; \
+      ( cd aerospike/pkg && rpm2cpio "../${_tool_rpm_base}" | cpio -idm ); \
+    fi; \
   }; \
   { \
-    find aerospike/pkg/opt/aerospike/bin/ -user aerospike -group aerospike -exec chown root:root {} +; \
-    mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike; \
+    if [ -d aerospike/pkg/opt/aerospike/bin/ ]; then \
+      find aerospike/pkg/opt/aerospike/bin/ -exec chown root:root {} +; \
+    fi; \
+    mkdir -p /etc/aerospike; \
+    if [ -f aerospike/pkg/etc/aerospike/astools.conf ]; then \
+      mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike/; \
+    fi; \
+    if [ ! -e aerospike/pkg/opt/aerospike/bin/asadm ]; then \
+      echo "ERROR: asadm missing under aerospike/pkg/opt/aerospike/bin after tools extract" >&2; \
+      find aerospike/pkg -maxdepth 6 \( -name asadm -o -name asinfo \) -print >&2; \
+      exit 1; \
+    fi; \
     if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/; \
     else \
       mkdir -p /usr/lib/asadm; \
       mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/; \
     fi; \
-    ln -snf /usr/lib/asadm/asadm /usr/bin/asadm; \
+    if [ -e /usr/lib/asadm/asadm ]; then \
+      ln -snf /usr/lib/asadm/asadm /usr/bin/asadm; \
+    fi; \
     if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then \
       mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/; \
     fi; \
-    ln -snf /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+    if [ -e /usr/lib/asadm/asinfo ]; then \
+      ln -snf /usr/lib/asadm/asinfo /usr/bin/asinfo; \
+    fi; \
   }; \
 EMIT
 }
@@ -839,6 +865,8 @@ RUNBLOCK
 # Emit the inline RUN block for UBI/RHEL-based images.
 # _retry helper is defined inline (inside RUN) for arm64/multi-arch blocks to
 # handle transient QEMU emulation failures on microdnf/rpm operations.
+# Curl: UBI minimal ships curl-minimal; installing package "curl" conflicts on UBI 9+.
+# We install curl-minimal (or full curl as fallback) only when /usr/bin/curl is missing.
 function _append_run_rpm() {
     local pkg_format=$1 single_arch=${2:-}
     if [ "${pkg_format}" = "tgz" ]; then
@@ -854,7 +882,16 @@ RUN \
       gzip \
       xz \
       ca-certificates \
-      cpio; \
+      cpio \
+      shadow-utils; \
+  }; \
+  { \
+    if ! command -v curl >/dev/null 2>&1; then \
+      if ! microdnf install -y curl-minimal; then \
+        microdnf install -y curl; \
+      fi; \
+    fi; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
   }; \
   { \
     if ! curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static" -o /usr/bin/as-tini-static; then \
@@ -886,7 +923,13 @@ RUN \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
       microdnf install -y --setopt=install_weak_deps=0 openldap; \
     fi; \
-    rpm -i --excludedocs aerospike/aerospike-server-*.rpm; \
+    if ! rpm -i --excludedocs aerospike/aerospike-server-*.rpm; then \
+      sleep 3; \
+      if ! rpm -i --force --excludedocs aerospike/aerospike-server-*.rpm; then \
+        sleep 5; \
+        rpm -i --force --nodeps --excludedocs aerospike/aerospike-server-*.rpm; \
+      fi; \
+    fi; \
     command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }; \
     rm -rf /opt/aerospike/bin; \
   }; \
@@ -910,7 +953,16 @@ RUN \
       gzip \
       xz \
       ca-certificates \
-      cpio; \
+      cpio \
+      shadow-utils; \
+  }; \
+  { \
+    if ! command -v curl >/dev/null 2>&1; then \
+      if ! microdnf install -y curl-minimal; then \
+        microdnf install -y curl; \
+      fi; \
+    fi; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
   }; \
   { \
     if ! curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64" -o /usr/bin/as-tini-static; then \
@@ -1007,7 +1059,16 @@ RUN \
       gzip \
       xz \
       ca-certificates \
-      cpio; \
+      cpio \
+      shadow-utils; \
+  }; \
+  { \
+    if ! command -v curl >/dev/null 2>&1; then \
+      if ! microdnf install -y curl-minimal; then \
+        microdnf install -y curl; \
+      fi; \
+    fi; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
   }; \
   { \
     ARCH="$(uname -m)"; \
@@ -1060,16 +1121,12 @@ RUN \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
       _retry microdnf install -y --setopt=install_weak_deps=0 openldap; \
     fi; \
-    if [ "${ARCH}" = "aarch64" ]; then \
-      if ! rpm -i --excludedocs aerospike/aerospike-server-*.rpm; then \
-        sleep 3; \
-        if ! rpm -i --force --excludedocs aerospike/aerospike-server-*.rpm; then \
-          sleep 5; \
-          rpm -i --force --nodeps --excludedocs aerospike/aerospike-server-*.rpm; \
-        fi; \
+    if ! rpm -i --excludedocs aerospike/aerospike-server-*.rpm; then \
+      sleep 3; \
+      if ! rpm -i --force --excludedocs aerospike/aerospike-server-*.rpm; then \
+        sleep 5; \
+        rpm -i --force --nodeps --excludedocs aerospike/aerospike-server-*.rpm; \
       fi; \
-    else \
-      rpm -i --excludedocs aerospike/aerospike-server-*.rpm; \
     fi; \
     command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }; \
     rm -rf /opt/aerospike/bin; \
@@ -1089,7 +1146,15 @@ RUNBLOCK
 # hadolint ignore=DL3041
 RUN \
   { \
-    microdnf install -y --setopt=install_weak_deps=0 ca-certificates; \
+    microdnf install -y --setopt=install_weak_deps=0 ca-certificates shadow-utils; \
+  }; \
+  { \
+    if ! command -v curl >/dev/null 2>&1; then \
+      if ! microdnf install -y curl-minimal; then \
+        microdnf install -y curl; \
+      fi; \
+    fi; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
   }; \
   { \
     if ! curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static" -o /usr/bin/as-tini-static; then \
@@ -1137,7 +1202,15 @@ RUNBLOCK
 RUN \
   _retry() { local _i; for _i in 1 2 3 4 5; do "$@" && return 0 || sleep $((_i*5)); done; "$@"; }; \
   { \
-    _retry microdnf install -y --setopt=install_weak_deps=0 ca-certificates; \
+    _retry microdnf install -y --setopt=install_weak_deps=0 ca-certificates shadow-utils; \
+  }; \
+  { \
+    if ! command -v curl >/dev/null 2>&1; then \
+      if ! _retry microdnf install -y curl-minimal; then \
+        _retry microdnf install -y curl; \
+      fi; \
+    fi; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
   }; \
   { \
     if ! curl -fsSL --retry 3 --retry-delay 3 "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64" -o /usr/bin/as-tini-static; then \
@@ -1188,7 +1261,15 @@ RUNBLOCK
 RUN \
   _retry() { local _i; for _i in 1 2 3 4 5; do "$@" && return 0 || sleep $((_i*5)); done; "$@"; }; \
   { \
-    _retry microdnf install -y --setopt=install_weak_deps=0 ca-certificates; \
+    _retry microdnf install -y --setopt=install_weak_deps=0 ca-certificates shadow-utils; \
+  }; \
+  { \
+    if ! command -v curl >/dev/null 2>&1; then \
+      if ! _retry microdnf install -y curl-minimal; then \
+        _retry microdnf install -y curl; \
+      fi; \
+    fi; \
+    command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }; \
   }; \
   { \
     ARCH="$(uname -m)"; \
