@@ -407,8 +407,11 @@ RUN \
     pkg_link="${AEROSPIKE_X86_64_LINK}"; \
     sha256="${AEROSPIKE_SHA_X86_64}"; \
     if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
-      echo "Could not fetch pkg - ${pkg_link}" >&2; \
-      exit 1; \
+      sleep 5; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
@@ -475,8 +478,11 @@ RUN \
     pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
     sha256="${AEROSPIKE_SHA_AARCH64}"; \
     if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
-      echo "Could not fetch pkg - ${pkg_link}" >&2; \
-      exit 1; \
+      sleep 5; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
@@ -572,8 +578,11 @@ RUN \
       exit 1; \
     fi; \
     if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
-      echo "Could not fetch pkg - ${pkg_link}" >&2; \
-      exit 1; \
+      sleep 5; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
@@ -650,7 +659,10 @@ RUN \
     else \
       pkg_link="${AEROSPIKE_X86_64_LINK}"; \
       sha256="${AEROSPIKE_SHA_X86_64}"; \
-      curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; then \
+        sleep 5; \
+        curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
+      fi; \
       [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -; \
     fi; \
 RUNBLOCK
@@ -700,7 +712,10 @@ RUN \
     else \
       pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
       sha256="${AEROSPIKE_SHA_AARCH64}"; \
-      curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; then \
+        sleep 5; \
+        curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
+      fi; \
       [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -; \
     fi; \
 RUNBLOCK
@@ -783,7 +798,10 @@ RUN \
         pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
         sha256="${AEROSPIKE_SHA_AARCH64}"; \
       fi; \
-      curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; then \
+        sleep 5; \
+        curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.deb; \
+      fi; \
       [ -n "${sha256}" ] && echo "${sha256} server.deb" | sha256sum -c -; \
     fi; \
 RUNBLOCK
@@ -845,8 +863,11 @@ RUN \
     pkg_link="${AEROSPIKE_X86_64_LINK}"; \
     sha256="${AEROSPIKE_SHA_X86_64}"; \
     if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
-      echo "Could not fetch pkg - ${pkg_link}" >&2; \
-      exit 1; \
+      sleep 5; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
@@ -898,8 +919,11 @@ RUN \
     pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
     sha256="${AEROSPIKE_SHA_AARCH64}"; \
     if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
-      echo "Could not fetch pkg - ${pkg_link}" >&2; \
-      exit 1; \
+      sleep 5; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
@@ -1011,8 +1035,11 @@ RUN \
       exit 1; \
     fi; \
     if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
-      echo "Could not fetch pkg - ${pkg_link}" >&2; \
-      exit 1; \
+      sleep 5; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
@@ -1075,7 +1102,10 @@ RUN \
     else \
       pkg_link="${AEROSPIKE_X86_64_LINK}"; \
       sha256="${AEROSPIKE_SHA_X86_64}"; \
-      curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; then \
+        sleep 5; \
+        curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; \
+      fi; \
       [ -n "${sha256}" ] && echo "${sha256} server.rpm" | sha256sum -c -; \
     fi; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
@@ -1120,7 +1150,10 @@ RUN \
     else \
       pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
       sha256="${AEROSPIKE_SHA_AARCH64}"; \
-      curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; then \
+        sleep 5; \
+        curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; \
+      fi; \
       [ -n "${sha256}" ] && echo "${sha256} server.rpm" | sha256sum -c -; \
     fi; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
@@ -1192,7 +1225,10 @@ RUN \
         pkg_link="${AEROSPIKE_AARCH64_LINK}"; \
         sha256="${AEROSPIKE_SHA_AARCH64}"; \
       fi; \
-      curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; then \
+        sleep 5; \
+        curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o server.rpm; \
+      fi; \
       [ -n "${sha256}" ] && echo "${sha256} server.rpm" | sha256sum -c -; \
     fi; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \

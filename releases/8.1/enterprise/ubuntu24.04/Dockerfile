@@ -84,8 +84,11 @@ RUN \
       exit 1; \
     fi; \
     if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
-      echo "Could not fetch pkg - ${pkg_link}" >&2; \
-      exit 1; \
+      sleep 5; \
+      if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" --output aerospike-server.tgz; then \
+        echo "Could not fetch pkg - ${pkg_link}" >&2; \
+        exit 1; \
+      fi; \
     fi; \
     echo "${sha256} aerospike-server.tgz" | sha256sum -c -; \
     tar xzf aerospike-server.tgz --strip-components=1 -C aerospike; \
@@ -187,7 +190,7 @@ RUN \
   }; \
   { \
     for pkg in binutils xz-utils curl procps; do \
-      if ! dpkg --purge "${pkg}" 2>/dev/null; then \
+      if ! dpkg --purge "${pkg}"; then \
         echo "Note: keeping ${pkg} (has reverse dependencies)"; \
       fi; \
     done; \
