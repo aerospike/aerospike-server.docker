@@ -65,6 +65,11 @@ jobs:
           for lineage in ${{ needs.generate-check.outputs.lineages }}; do
             ./docker-build.sh -t "${lineage}"
           done
+      # Each `docker-build.sh -t <lineage>` wipes releases/ and regenerates only that lineage,
+      # so after the loop only the last lineage remains on disk. test.sh needs every
+      # releases/X.Y/... tree to exist when it maps tags to Dockerfiles.
+      - name: Regenerate full releases/ tree for test.sh
+        run: ./docker-build.sh -g
       - name: Test images for lineages in releases/
         run: |
           for lineage in ${{ needs.generate-check.outputs.lineages }}; do
