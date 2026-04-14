@@ -258,5 +258,7 @@ FOOTER
     } | sed 's/[[:space:]]*$//' | cat -s >"${target}/Dockerfile"
 
     # Ensure file ends with newline
-    [ -n "$(tail -c1 "${target}/Dockerfile" 2>/dev/null)" ] && echo >>"${target}/Dockerfile"
+    if [ -n "$(tail -c1 "${target}/Dockerfile" 2>/dev/null)" ]; then
+        echo >>"${target}/Dockerfile"
+    fi
 }

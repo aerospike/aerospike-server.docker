@@ -177,5 +177,7 @@ ${copy_line}" "${df}"
     # Clean trailing whitespace
     _sed_i 's/[[:space:]]*$//' "${df}"
     # Ensure trailing newline
-    [ -n "$(tail -c1 "${df}" 2>/dev/null)" ] && echo >>"${df}"
+    if [ -n "$(tail -c1 "${df}" 2>/dev/null)" ]; then
+        echo >>"${df}"
+    fi
 }
