@@ -6,6 +6,15 @@
 
 set -Eeuo pipefail
 
+# Portable in-place sed (BSD sed on macOS vs GNU sed on Linux)
+_sed_i() {
+    if [[ "$OSTYPE" == darwin* ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 # resolve_packages distro edition version tools_version single_arch
 # Outputs: x86_link x86_sha arm_link arm_sha pkg_format use_local_pkg
 # Sets the six variables above in the caller's scope.
@@ -100,11 +109,11 @@ function prepare_local_packages() {
     [ ${#copy_files[@]} -gt 0 ] && copy_line="COPY ${copy_files[*]} /tmp/"
 }
 
-# update_dockerfile target version x86_link x86_sha arm_link arm_sha
-#                    use_local_pkg needs_compat_libs copy_line single_arch
+# update_dockerfile target version needs_compat_libs copy_line single_arch
 # Performs sed-based in-place patching of version-specific values in an
 # existing Dockerfile.  Also manages the COPY local-pkg line and
 # AEROSPIKE_LOCAL_PKG ARG.
+# Relies on caller-scoped: x86_link x86_sha arm_link arm_sha use_local_pkg
 function update_dockerfile() {
     local target=$1 version=$2 needs_compat_libs=$3 copy_line=$4 single_arch=$5
     local df="${target}/Dockerfile"
@@ -112,37 +121,35 @@ function update_dockerfile() {
     log_info "    Updating in-place: ${df}"
 
     # Patch version label
-    sed -i'' -e "s|org.opencontainers.image.version=\"[^\"]*\"|org.opencontainers.image.version=\"${version}\"|" "${df}"
+    _sed_i "s|org.opencontainers.image.version=\"[^\"]*\"|org.opencontainers.image.version=\"${version}\"|" "${df}"
 
     # Patch ARG values
     if [ "${single_arch}" != "arm64" ]; then
-        sed -i'' -e "s|^ARG AEROSPIKE_X86_64_LINK=.*|ARG AEROSPIKE_X86_64_LINK=\"${x86_link}\"|" "${df}"
-        sed -i'' -e "s|^ARG AEROSPIKE_SHA_X86_64=.*|ARG AEROSPIKE_SHA_X86_64=\"${x86_sha}\"|" "${df}"
+        _sed_i "s|^ARG AEROSPIKE_X86_64_LINK=.*|ARG AEROSPIKE_X86_64_LINK=\"${x86_link}\"|" "${df}"
+        _sed_i "s|^ARG AEROSPIKE_SHA_X86_64=.*|ARG AEROSPIKE_SHA_X86_64=\"${x86_sha}\"|" "${df}"
     fi
     if [ "${single_arch}" != "amd64" ]; then
-        sed -i'' -e "s|^ARG AEROSPIKE_AARCH64_LINK=.*|ARG AEROSPIKE_AARCH64_LINK=\"${arm_link}\"|" "${df}"
-        sed -i'' -e "s|^ARG AEROSPIKE_SHA_AARCH64=.*|ARG AEROSPIKE_SHA_AARCH64=\"${arm_sha}\"|" "${df}"
+        _sed_i "s|^ARG AEROSPIKE_AARCH64_LINK=.*|ARG AEROSPIKE_AARCH64_LINK=\"${arm_link}\"|" "${df}"
+        _sed_i "s|^ARG AEROSPIKE_SHA_AARCH64=.*|ARG AEROSPIKE_SHA_AARCH64=\"${arm_sha}\"|" "${df}"
     fi
-    sed -i'' -e "s|^ARG AEROSPIKE_COMPAT_LIBS=.*|ARG AEROSPIKE_COMPAT_LIBS=\"${needs_compat_libs}\"|" "${df}"
+    _sed_i "s|^ARG AEROSPIKE_COMPAT_LIBS=.*|ARG AEROSPIKE_COMPAT_LIBS=\"${needs_compat_libs}\"|" "${df}"
 
     # Manage AEROSPIKE_LOCAL_PKG ARG
     if [ -n "${use_local_pkg}" ]; then
         if grep -q '^ARG AEROSPIKE_LOCAL_PKG=' "${df}"; then
-            sed -i'' -e "s|^ARG AEROSPIKE_LOCAL_PKG=.*|ARG AEROSPIKE_LOCAL_PKG=\"1\"|" "${df}"
+            _sed_i "s|^ARG AEROSPIKE_LOCAL_PKG=.*|ARG AEROSPIKE_LOCAL_PKG=\"1\"|" "${df}"
         else
-            sed -i'' -e "/^ARG AEROSPIKE_COMPAT_LIBS=/a\\
+            _sed_i "/^ARG AEROSPIKE_COMPAT_LIBS=/a\\
 ARG AEROSPIKE_LOCAL_PKG=\"1\"" "${df}"
         fi
     else
-        sed -i'' -e '/^ARG AEROSPIKE_LOCAL_PKG=/d' "${df}"
+        _sed_i '/^ARG AEROSPIKE_LOCAL_PKG=/d' "${df}"
     fi
 
     # Manage the COPY <local-pkgs> /tmp/ line
-    # Remove any existing COPY ... /tmp/ line for server packages
-    sed -i'' -e '/^COPY server_.*\/tmp\/$/d' "${df}"
+    _sed_i '/^COPY server_.*\/tmp\/$/d' "${df}"
     if [ -n "${copy_line}" ]; then
-        # Insert right before the install.sh COPY line
-        sed -i'' -e "/^COPY install\.sh/i\\
+        _sed_i "/^COPY install\.sh/i\\
 ${copy_line}" "${df}"
     fi
 
@@ -168,7 +175,7 @@ ${copy_line}" "${df}"
     chmod +x "${target}/install.sh"
 
     # Clean trailing whitespace
-    sed -i'' -e 's/[[:space:]]*$//' "${df}"
+    _sed_i 's/[[:space:]]*$//' "${df}"
     # Ensure trailing newline
     [ -n "$(tail -c1 "${df}" 2>/dev/null)" ] && echo >>"${df}"
 }
