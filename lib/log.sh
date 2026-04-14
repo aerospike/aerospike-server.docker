@@ -16,8 +16,8 @@ if [ "${LOG_COLOR:="true"}" = "false" ]; then
 fi
 
 function _log_level() {
-    level=$1
-    msg=$2
+    local level=$1
+    local msg=$2
 
     echo -e "${level} ${BASH_SOURCE[2]}:${BASH_LINENO[1]} - ${msg}" >&2
 }

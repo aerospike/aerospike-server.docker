@@ -22,6 +22,7 @@ function generate_bake() {
         num_distros=$(echo "${distros_building}" | wc -w)
         [ "${num_distros}" -eq 1 ] && omit_distro_in_tag=1
 
+        # shellcheck disable=SC2086
         for edition in $(support_editions); do
             if [ ${#EDITION_FILTERS[@]} -gt 0 ]; then
                 local match=false
@@ -31,6 +32,7 @@ function generate_bake() {
                 [ "${match}" = false ] && continue
             fi
 
+            # shellcheck disable=SC2086
             for distro in ${distros_building}; do
                 local ctx="./releases/${lineage}/${edition}/${distro}"
                 [ ! -d "${ctx}" ] && continue
@@ -43,6 +45,7 @@ function generate_bake() {
                 [ "${edition}" != "community" ] && image_name+="-${edition}"
                 local test_product="${REGISTRY_PREFIXES[0]}/${image_name}"
 
+                # shellcheck disable=SC2086
                 for plat in ${platforms}; do
                     local arch=${plat#*/}
                     local test_tag

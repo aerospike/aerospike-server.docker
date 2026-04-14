@@ -53,7 +53,9 @@ function support_distros_matching() {
         return
     fi
     local out=""
+    # shellcheck disable=SC2086
     for d in ${all_distros}; do
+        # shellcheck disable=SC2086
         for f in ${filter_tokens}; do
             if [ "${d}" = "${f}" ] || [[ "${d}" == "${f}"* ]]; then
                 out="${out} ${d}"
@@ -124,8 +126,10 @@ function support_platforms_matching() {
         return
     fi
     local out=""
+    # shellcheck disable=SC2086
     for plat in ${all_platforms}; do
         local arch="${plat#*/}"
+        # shellcheck disable=SC2086
         for f in ${filter_tokens}; do
             case "${f}" in
             amd64 | x86_64)

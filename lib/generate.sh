@@ -51,6 +51,7 @@ function generate_dockerfiles() {
             log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
         fi
     else
+        # shellcheck disable=SC2086
         for lineage in $(support_releases); do
             local version tools_version
             version=$(find_latest_version_for_lineage "${lineage}")
@@ -91,6 +92,7 @@ function generate_dockerfiles() {
         distros_lineage=$(support_distros_matching "${lineage}" "${DISTRO_FILTERS[*]:-}")
         log_info "Processing ${lineage} (${version})"
 
+        # shellcheck disable=SC2086
         for edition in $(support_editions); do
             if [ ${#EDITION_FILTERS[@]} -gt 0 ]; then
                 local match=false
@@ -100,6 +102,7 @@ function generate_dockerfiles() {
                 [ "${match}" = false ] && continue
             fi
 
+            # shellcheck disable=SC2086
             for distro in ${distros_lineage}; do
                 local target="releases/${lineage}/${edition}/${distro}"
 

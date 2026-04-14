@@ -21,7 +21,7 @@ set -Eeuo pipefail
 
 # Install LDAP dependencies for enterprise/federal editions.
 # Ubuntu 24.04 no longer ships libldap; we fallback to Focal/Jammy repos.
-_install_ldap_deps() {
+function _install_ldap_deps() {
     if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then
         if ! apt-get install -y --no-install-recommends libldap-2.5-0; then
             echo "Note: libldap-2.5-0 available but not installable"
@@ -64,7 +64,7 @@ _install_ldap_deps() {
 }
 
 # Compat libs for tgz mode (simple: just install from current repos)
-_install_compat_libs_tgz() {
+function _install_compat_libs_tgz() {
     curl_pkg="libcurl4"
     apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"
     for cpkg in libssl1.1 "${curl_pkg}"; do
@@ -78,7 +78,7 @@ _install_compat_libs_tgz() {
 }
 
 # Compat libs for native deb mode (adds focal/jammy repos for older packages)
-_install_compat_libs_native() {
+function _install_compat_libs_native() {
     . /etc/os-release
     if [ "${ID:-}" = "ubuntu" ]; then
         if [ "$(dpkg --print-architecture)" = "amd64" ]; then
@@ -123,7 +123,7 @@ _install_compat_libs_native() {
 }
 
 # Install tools from extracted tgz (tools .deb -> ar -> tar -> move binaries)
-_install_tools_from_tgz() {
+function _install_tools_from_tgz() {
     ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg
     tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/
 
@@ -197,14 +197,14 @@ if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
     if [ "${ARCH}" = "amd64" ]; then
         cp /tmp/server_amd64.deb server.deb
         if [ -f /tmp/server_amd64.deb.sha256 ]; then
-            hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256)
-            echo "${hash}  server.deb" | sha256sum -c -
+            pkg_hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256)
+            echo "${pkg_hash}  server.deb" | sha256sum -c -
         fi
     else
         cp /tmp/server_arm64.deb server.deb
         if [ -f /tmp/server_arm64.deb.sha256 ]; then
-            hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256)
-            echo "${hash}  server.deb" | sha256sum -c -
+            pkg_hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256)
+            echo "${pkg_hash}  server.deb" | sha256sum -c -
         fi
     fi
 

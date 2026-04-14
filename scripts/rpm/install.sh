@@ -15,10 +15,10 @@
 set -Eeuo pipefail
 
 # Retry helper for arm64 QEMU emulation flakiness
-_retry() { local _i; for _i in 1 2 3 4 5; do if "$@"; then return 0; fi; sleep $((_i*5)); done; "$@"; }
+function _retry() { local _i; for _i in 1 2 3 4 5; do if "$@"; then return 0; fi; sleep $((_i*5)); done; "$@"; }
 
 # Install tools from tgz (rpm2cpio extract)
-_install_tools_from_tgz() {
+function _install_tools_from_tgz() {
     shopt -s nullglob
     _tool_rpms=(aerospike/aerospike-tools*.rpm)
     if [ "${#_tool_rpms[@]}" -eq 0 ]; then
@@ -112,14 +112,14 @@ if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
     if [ "${ARCH}" = "x86_64" ]; then
         cp /tmp/server_x86_64.rpm server.rpm
         [ -f /tmp/server_x86_64.rpm.sha256 ] && {
-            hash=$(awk '{print $1}' /tmp/server_x86_64.rpm.sha256)
-            echo "${hash}  server.rpm" | sha256sum -c -
+            pkg_hash=$(awk '{print $1}' /tmp/server_x86_64.rpm.sha256)
+            echo "${pkg_hash}  server.rpm" | sha256sum -c -
         }
     else
         cp /tmp/server_aarch64.rpm server.rpm
         [ -f /tmp/server_aarch64.rpm.sha256 ] && {
-            hash=$(awk '{print $1}' /tmp/server_aarch64.rpm.sha256)
-            echo "${hash}  server.rpm" | sha256sum -c -
+            pkg_hash=$(awk '{print $1}' /tmp/server_aarch64.rpm.sha256)
+            echo "${pkg_hash}  server.rpm" | sha256sum -c -
         }
     fi
 

@@ -36,7 +36,7 @@ function resolve_packages() {
     if is_local_artifacts_dir; then
         local local_base="${ARTIFACTS_DOMAIN}"
         [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-        [ -d "${local_base}" ] && local_base=$(cd "${local_base}" && pwd)
+        [ -d "${local_base}" ] && local_base=$(cd "${local_base}" || exit 1; pwd)
         local local_x86 local_arm
         local_x86=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "x86_64" "${pkg_type}")
         local_arm=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "aarch64" "${pkg_type}")
@@ -79,7 +79,7 @@ function prepare_local_packages() {
     if [ "${need_sha}" = true ]; then
         local local_base="${ARTIFACTS_DOMAIN}"
         [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-        [ -d "${local_base}" ] && local_base=$(cd "${local_base}" && pwd)
+        [ -d "${local_base}" ] && local_base=$(cd "${local_base}" || exit 1; pwd)
         if [ -d "${local_base}" ]; then
             log_info "    Creating missing .sha256 in ${local_base} (shasum-artifacts.sh)"
             "${SCRIPT_DIR}/scripts/shasum-artifacts.sh" "${local_base}" >/dev/null 2>&1 || true
