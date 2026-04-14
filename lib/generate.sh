@@ -40,7 +40,10 @@ function generate_dockerfiles() {
         local lineage="${version_or_lineage}"
         local version tools_version
         version=$(find_latest_version_for_lineage "${lineage}")
-        [ -z "${version}" ] && { log_warn "${lineage} -> NOT FOUND"; exit 1; }
+        [ -z "${version}" ] && {
+            log_warn "${lineage} -> NOT FOUND"
+            exit 1
+        }
         tools_version=$(find_tools_version "${version}")
         VERSION_MAP["${lineage}"]="${version}"
         TOOLS_MAP["${lineage}"]="${tools_version:-}"
@@ -55,7 +58,10 @@ function generate_dockerfiles() {
         for lineage in $(support_releases); do
             local version tools_version
             version=$(find_latest_version_for_lineage "${lineage}")
-            [ -z "${version}" ] && { log_warn "${lineage} -> NOT FOUND"; continue; }
+            [ -z "${version}" ] && {
+                log_warn "${lineage} -> NOT FOUND"
+                continue
+            }
             tools_version=$(find_tools_version "${version}")
             VERSION_MAP["${lineage}"]="${version}"
             TOOLS_MAP["${lineage}"]="${tools_version:-}"
@@ -97,7 +103,10 @@ function generate_dockerfiles() {
             if [ ${#EDITION_FILTERS[@]} -gt 0 ]; then
                 local match=false
                 for ef in "${EDITION_FILTERS[@]}"; do
-                    [ "${ef}" = "${edition}" ] && { match=true; break; }
+                    [ "${ef}" = "${edition}" ] && {
+                        match=true
+                        break
+                    }
                 done
                 [ "${match}" = false ] && continue
             fi
@@ -122,6 +131,7 @@ function generate_dockerfiles() {
                         [ "${single_arch}" = "aarch64" ] && single_arch="arm64"
                     fi
 
+                    # shellcheck disable=SC2034  # set by resolve_packages, consumed by generate/update_dockerfile
                     local x86_link x86_sha arm_link arm_sha pkg_format use_local_pkg
                     resolve_packages "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${single_arch}" "${pkg_type}"
 
@@ -149,7 +159,7 @@ function generate_dockerfiles() {
         done
     done
 
-    # Export for bake generation
+    # shellcheck disable=SC2034  # consumed by generate_bake in caller scope
     declare -gA G_VERSION_MAP
     for key in "${!VERSION_MAP[@]}"; do
         G_VERSION_MAP["${key}"]="${VERSION_MAP[${key}]}"

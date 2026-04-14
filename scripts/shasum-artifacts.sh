@@ -7,8 +7,14 @@
 set -Eeuo pipefail
 
 ARTIFACTS_DIR="${1:-artifacts}"
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" || exit 1; pwd)
-REPO_ROOT=$(cd "${SCRIPT_DIR}/.." || exit 1; pwd)
+SCRIPT_DIR=$(
+    cd "$(dirname "${BASH_SOURCE[0]:-$0}")" || exit 1
+    pwd
+)
+REPO_ROOT=$(
+    cd "${SCRIPT_DIR}/.." || exit 1
+    pwd
+)
 
 if [[ "${ARTIFACTS_DIR}" == /* ]]; then
     BASE="${ARTIFACTS_DIR}"

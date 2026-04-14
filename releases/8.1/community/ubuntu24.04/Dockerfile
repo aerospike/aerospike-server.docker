@@ -34,7 +34,7 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
 COPY install.sh /tmp/install.sh
-# hadolint ignore=DL3008,DL3041
+# hadolint ignore=DL3003,DL3008,DL3041,SC2015
 RUN bash /tmp/install.sh && rm -f /tmp/install.sh
 
 # Add the Aerospike configuration specific to this dockerfile

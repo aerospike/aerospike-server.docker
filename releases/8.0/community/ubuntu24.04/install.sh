@@ -21,7 +21,7 @@ set -Eeuo pipefail
 
 # Install LDAP dependencies for enterprise/federal editions.
 # Ubuntu 24.04 no longer ships libldap; we fallback to Focal/Jammy repos.
-_install_ldap_deps() {
+function _install_ldap_deps() {
     if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then
         if ! apt-get install -y --no-install-recommends libldap-2.5-0; then
             echo "Note: libldap-2.5-0 available but not installable"
@@ -34,15 +34,15 @@ _install_ldap_deps() {
     fi
     if ! dpkg --configure -a; then true; fi
 
-    if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || \
-           ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then
+    if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 ||
+        ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then
         if [ "$(dpkg --print-architecture)" = "amd64" ]; then
             ldap_repo="http://archive.ubuntu.com/ubuntu"
         else
             ldap_repo="http://ports.ubuntu.com/ubuntu-ports"
         fi
-        echo "deb [trusted=yes] ${ldap_repo} focal main" > /etc/apt/sources.list.d/focal-ldap.list
-        echo "deb [trusted=yes] ${ldap_repo} jammy main" > /etc/apt/sources.list.d/jammy-ldap.list
+        echo "deb [trusted=yes] ${ldap_repo} focal main" >/etc/apt/sources.list.d/focal-ldap.list
+        echo "deb [trusted=yes] ${ldap_repo} jammy main" >/etc/apt/sources.list.d/jammy-ldap.list
         apt-get update -y
         if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then
             if ! apt-get install -y --no-install-recommends libldap-2.5-0; then
@@ -58,13 +58,16 @@ _install_ldap_deps() {
         rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list
     fi
 
-    { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 || \
-      ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } || \
-      { echo "ERROR: liblber not found - libldap install failed" >&2; exit 1; }
+    { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 ||
+        ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } ||
+        {
+            echo "ERROR: liblber not found - libldap install failed" >&2
+            exit 1
+        }
 }
 
 # Compat libs for tgz mode (simple: just install from current repos)
-_install_compat_libs_tgz() {
+function _install_compat_libs_tgz() {
     curl_pkg="libcurl4"
     apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"
     for cpkg in libssl1.1 "${curl_pkg}"; do
@@ -78,7 +81,7 @@ _install_compat_libs_tgz() {
 }
 
 # Compat libs for native deb mode (adds focal/jammy repos for older packages)
-_install_compat_libs_native() {
+function _install_compat_libs_native() {
     . /etc/os-release
     if [ "${ID:-}" = "ubuntu" ]; then
         if [ "$(dpkg --print-architecture)" = "amd64" ]; then
@@ -86,9 +89,9 @@ _install_compat_libs_native() {
         else
             repo_url="http://ports.ubuntu.com/ubuntu-ports"
         fi
-        echo "deb [trusted=yes] ${repo_url} focal main" > /etc/apt/sources.list.d/focal-compat.list
-        [ "${VERSION_ID}" != "22.04" ] && \
-            echo "deb [trusted=yes] ${repo_url} jammy main" > /etc/apt/sources.list.d/jammy-compat.list
+        echo "deb [trusted=yes] ${repo_url} focal main" >/etc/apt/sources.list.d/focal-compat.list
+        [ "${VERSION_ID}" != "22.04" ] &&
+            echo "deb [trusted=yes] ${repo_url} jammy main" >/etc/apt/sources.list.d/jammy-compat.list
         apt-get update -y
         if ! dpkg --configure -a; then true; fi
         curl_pkg="libcurl4"
@@ -123,7 +126,7 @@ _install_compat_libs_native() {
 }
 
 # Install tools from extracted tgz (tools .deb -> ar -> tar -> move binaries)
-_install_tools_from_tgz() {
+function _install_tools_from_tgz() {
     ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg
     tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/
 
@@ -162,7 +165,10 @@ else
     apt-get install -y --no-install-recommends \
         binutils xz-utils ca-certificates curl procps
 fi
-command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || {
+    echo "ERROR: curl not found" >&2
+    exit 1
+}
 
 # Download and verify tini
 if [ "${ARCH}" = "amd64" ]; then
@@ -197,14 +203,14 @@ if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
     if [ "${ARCH}" = "amd64" ]; then
         cp /tmp/server_amd64.deb server.deb
         if [ -f /tmp/server_amd64.deb.sha256 ]; then
-            hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256)
-            echo "${hash}  server.deb" | sha256sum -c -
+            pkg_hash=$(awk '{print $1}' /tmp/server_amd64.deb.sha256)
+            echo "${pkg_hash}  server.deb" | sha256sum -c -
         fi
     else
         cp /tmp/server_arm64.deb server.deb
         if [ -f /tmp/server_arm64.deb.sha256 ]; then
-            hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256)
-            echo "${hash}  server.deb" | sha256sum -c -
+            pkg_hash=$(awk '{print $1}' /tmp/server_arm64.deb.sha256)
+            echo "${pkg_hash}  server.deb" | sha256sum -c -
         fi
     fi
 
@@ -224,7 +230,10 @@ if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
     else
         dpkg -i server.deb
     fi
-    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }
+    command -v asd >/dev/null 2>&1 || {
+        echo "ERROR: asd not installed" >&2
+        exit 1
+    }
     mkdir -p /var/{log,run}/aerospike
 
     rm -f server.deb
@@ -273,7 +282,10 @@ else
     else
         dpkg -i aerospike/aerospike-server-*.deb
     fi
-    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }
+    command -v asd >/dev/null 2>&1 || {
+        echo "ERROR: asd not installed" >&2
+        exit 1
+    }
     rm -rf /opt/aerospike/bin
 
     _install_tools_from_tgz

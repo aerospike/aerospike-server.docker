@@ -14,7 +14,10 @@
 
 set -Eeuo pipefail
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" || exit 1; pwd)
+SCRIPT_DIR=$(
+    cd "$(dirname "${BASH_SOURCE[0]:-$0}")" || exit 1
+    pwd
+)
 cd "${SCRIPT_DIR}" || exit 1
 
 source lib/log.sh

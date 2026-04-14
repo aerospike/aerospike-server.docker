@@ -15,7 +15,14 @@
 set -Eeuo pipefail
 
 # Retry helper for arm64 QEMU emulation flakiness
-function _retry() { local _i; for _i in 1 2 3 4 5; do if "$@"; then return 0; fi; sleep $((_i*5)); done; "$@"; }
+function _retry() {
+    local _i
+    for _i in 1 2 3 4 5; do
+        if "$@"; then return 0; fi
+        sleep $((_i * 5))
+    done
+    "$@"
+}
 
 # Install tools from tgz (rpm2cpio extract)
 function _install_tools_from_tgz() {
@@ -77,7 +84,10 @@ if ! command -v curl >/dev/null 2>&1; then
         _retry microdnf install -y curl
     fi
 fi
-command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found" >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || {
+    echo "ERROR: curl not found" >&2
+    exit 1
+}
 
 # Download and verify tini
 if [ "${ARCH}" = "x86_64" ]; then
@@ -135,7 +145,10 @@ if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
     else
         rpm -i --excludedocs server.rpm
     fi
-    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }
+    command -v asd >/dev/null 2>&1 || {
+        echo "ERROR: asd not installed" >&2
+        exit 1
+    }
     mkdir -p /var/{log,run}/aerospike
 
     rm -f server.rpm
@@ -169,7 +182,10 @@ else
             rpm -i --force --nodeps --excludedocs aerospike/aerospike-server-*.rpm
         fi
     fi
-    command -v asd >/dev/null 2>&1 || { echo "ERROR: asd not installed" >&2; exit 1; }
+    command -v asd >/dev/null 2>&1 || {
+        echo "ERROR: asd not installed" >&2
+        exit 1
+    }
     rm -rf /opt/aerospike/bin
 
     _install_tools_from_tgz

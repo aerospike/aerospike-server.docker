@@ -46,7 +46,10 @@ function find_local_server_package() {
     local pkg_type=$6
 
     if [ -d "${base_dir}" ]; then
-        base_dir=$(cd "${base_dir}" || exit 1; pwd)
+        base_dir=$(
+            cd "${base_dir}" || exit 1
+            pwd
+        )
     fi
 
     if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
@@ -136,7 +139,10 @@ function find_latest_version_for_lineage_local() {
     # Resolve relative path (e.g. ../signed-artifacts) against current dir (script dir when run from docker-build.sh)
     [[ "${base_dir}" != /* ]] && [[ "${base_dir}" != http* ]] && base_dir="$(pwd)/${base_dir}"
     [ -d "${base_dir}" ] || return
-    base_dir=$(cd "${base_dir}" || exit 1; pwd)
+    base_dir=$(
+        cd "${base_dir}" || exit 1
+        pwd
+    )
 
     local versions=""
     # Direct version subdirs (e.g. 8.1.1.0, 7.1.0.21)
@@ -265,7 +271,7 @@ function get_server_package_link_native() {
     local edition=$2
     local version=$3
     # shellcheck disable=SC2034
-    local _unused=$4  # tools_version (kept for call-site compat)
+    local _unused=$4 # tools_version (kept for call-site compat)
     local arch=$5
     local pkg_type=$6
 

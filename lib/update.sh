@@ -22,7 +22,11 @@ function resolve_packages() {
     local artifact_distro=$1 edition=$2 version=$3 tools_version=$4 single_arch=$5
     local pkg_type=$6
 
-    x86_link="" ; x86_sha="" ; arm_link="" ; arm_sha=""
+    x86_link=""
+    x86_sha=""
+    arm_link=""
+    arm_sha=""
+    # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
     pkg_format="tgz"
     use_local_pkg=""
 
@@ -36,7 +40,10 @@ function resolve_packages() {
     if is_local_artifacts_dir; then
         local local_base="${ARTIFACTS_DOMAIN}"
         [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-        [ -d "${local_base}" ] && local_base=$(cd "${local_base}" || exit 1; pwd)
+        [ -d "${local_base}" ] && local_base=$(
+            cd "${local_base}" || exit 1
+            pwd
+        )
         local local_x86 local_arm
         local_x86=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "x86_64" "${pkg_type}")
         local_arm=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "aarch64" "${pkg_type}")
@@ -60,8 +67,14 @@ function resolve_packages() {
         fi
     fi
 
-    if [ "${single_arch}" = "amd64" ]; then arm_link=""; arm_sha=""; fi
-    if [ "${single_arch}" = "arm64" ]; then x86_link=""; x86_sha=""; fi
+    if [ "${single_arch}" = "amd64" ]; then
+        arm_link=""
+        arm_sha=""
+    fi
+    if [ "${single_arch}" = "arm64" ]; then
+        x86_link=""
+        x86_sha=""
+    fi
 }
 
 # prepare_local_packages target pkg_type x86_link arm_link
@@ -79,7 +92,10 @@ function prepare_local_packages() {
     if [ "${need_sha}" = true ]; then
         local local_base="${ARTIFACTS_DOMAIN}"
         [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-        [ -d "${local_base}" ] && local_base=$(cd "${local_base}" || exit 1; pwd)
+        [ -d "${local_base}" ] && local_base=$(
+            cd "${local_base}" || exit 1
+            pwd
+        )
         if [ -d "${local_base}" ]; then
             log_info "    Creating missing .sha256 in ${local_base} (shasum-artifacts.sh)"
             "${SCRIPT_DIR}/scripts/shasum-artifacts.sh" "${local_base}" >/dev/null 2>&1 || true
@@ -142,7 +158,7 @@ function update_dockerfile() {
             # Append after COMPAT_LIBS line (awk is portable; sed a\ is not on BSD)
             local tmpfile
             tmpfile=$(mktemp)
-            awk '/^ARG AEROSPIKE_COMPAT_LIBS=/{print; print "ARG AEROSPIKE_LOCAL_PKG=\"1\""; next}{print}' "${df}" > "${tmpfile}" && mv "${tmpfile}" "${df}"
+            awk '/^ARG AEROSPIKE_COMPAT_LIBS=/{print; print "ARG AEROSPIKE_LOCAL_PKG=\"1\""; next}{print}' "${df}" >"${tmpfile}" && mv "${tmpfile}" "${df}"
         fi
     else
         _sed_i '/^ARG AEROSPIKE_LOCAL_PKG=/d' "${df}"
@@ -166,7 +182,7 @@ function update_dockerfile() {
             saw_install = 1
         }
         { print }
-    ' "${df}" > "${tmpfile}" && mv "${tmpfile}" "${df}"
+    ' "${df}" >"${tmpfile}" && mv "${tmpfile}" "${df}"
 
     # Refresh support files
     cp template/0/entrypoint.sh "${target}/"

@@ -24,18 +24,17 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 ARG AEROSPIKE_EDITION="federal"
 
 ENV AEROSPIKE_LINUX_BASE="ubuntu:22.04"
-ARG AEROSPIKE_X86_64_LINK="/Users/phucvinh/aerospike/server-docker/DOI-Rejection-fix/aerospike-server.docker/artifacts/signed-artifacts/aerospike-server-federal-TEST_7.1.0.22-12ubuntu22.04_amd64.deb"
-ARG AEROSPIKE_SHA_X86_64="5bae47f916ea0a6df7fb4b1730cb1f1cf3c8d8f9fae3a53556d8cfb4fcee2445"
+ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-federal/7.1.0.22/aerospike-server-federal_7.1.0.22_tools-12.1.1_ubuntu22.04_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="50b827b30bce7955842073b9dff228d8175f8f64a24569e20803e3a1b7c3ed18"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 ARG AEROSPIKE_COMPAT_LIBS="0"
-ARG AEROSPIKE_LOCAL_PKG="1"
+
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
-COPY server_amd64.deb server_amd64.deb.sha256 /tmp/
 COPY install.sh /tmp/install.sh
-# hadolint ignore=DL3008,DL3041
+# hadolint ignore=DL3003,DL3008,DL3041,SC2015
 RUN bash /tmp/install.sh && rm -f /tmp/install.sh
 
 # Add the Aerospike configuration specific to this dockerfile

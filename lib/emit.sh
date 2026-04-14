@@ -45,7 +45,10 @@ function generate_dockerfile() {
     if is_local_artifacts_dir; then
         local local_base="${ARTIFACTS_DOMAIN}"
         [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-        [ -d "${local_base}" ] && local_base=$(cd "${local_base}" || exit 1; pwd)
+        [ -d "${local_base}" ] && local_base=$(
+            cd "${local_base}" || exit 1
+            pwd
+        )
         local local_x86 local_arm
         local_x86=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "x86_64" "${pkg_type}")
         local_arm=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "aarch64" "${pkg_type}")
@@ -72,8 +75,14 @@ function generate_dockerfile() {
 
     # When building single-arch, clear unused arch.
     # Federal edition is x86-only, so arm_link/arm_sha will already be empty.
-    if [ "${single_arch}" = "amd64" ]; then arm_link=""; arm_sha=""; fi
-    if [ "${single_arch}" = "arm64" ]; then x86_link=""; x86_sha=""; fi
+    if [ "${single_arch}" = "amd64" ]; then
+        arm_link=""
+        arm_sha=""
+    fi
+    if [ "${single_arch}" = "arm64" ]; then
+        x86_link=""
+        x86_sha=""
+    fi
 
     # Skip when no package available
     if [ -z "${x86_sha}" ] && [ -z "${use_local_pkg}" ] && { [ "${pkg_format}" = "tgz" ] || [ -z "${x86_link}" ]; }; then
@@ -118,7 +127,10 @@ function generate_dockerfile() {
         if [ "${need_sha}" = true ]; then
             local local_base="${ARTIFACTS_DOMAIN}"
             [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-            [ -d "${local_base}" ] && local_base=$(cd "${local_base}" || exit 1; pwd)
+            [ -d "${local_base}" ] && local_base=$(
+                cd "${local_base}" || exit 1
+                pwd
+            )
             if [ -d "${local_base}" ]; then
                 log_info "    Creating missing .sha256 in ${local_base} (shasum-artifacts.sh)"
                 "${SCRIPT_DIR}/scripts/shasum-artifacts.sh" "${local_base}" >/dev/null 2>&1 || true
@@ -224,7 +236,7 @@ HEADER
         cat <<'INSTALL'
 # Install Aerospike Server and Tools
 COPY install.sh /tmp/install.sh
-# hadolint ignore=DL3008,DL3041
+# hadolint ignore=DL3003,DL3008,DL3041,SC2015
 RUN bash /tmp/install.sh && rm -f /tmp/install.sh
 
 INSTALL
