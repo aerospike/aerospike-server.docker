@@ -139,19 +139,34 @@ function update_dockerfile() {
         if grep -q '^ARG AEROSPIKE_LOCAL_PKG=' "${df}"; then
             _sed_i "s|^ARG AEROSPIKE_LOCAL_PKG=.*|ARG AEROSPIKE_LOCAL_PKG=\"1\"|" "${df}"
         else
-            _sed_i "/^ARG AEROSPIKE_COMPAT_LIBS=/a\\
-ARG AEROSPIKE_LOCAL_PKG=\"1\"" "${df}"
+            # Append after COMPAT_LIBS line (awk is portable; sed a\ is not on BSD)
+            local tmpfile
+            tmpfile=$(mktemp)
+            awk '/^ARG AEROSPIKE_COMPAT_LIBS=/{print; print "ARG AEROSPIKE_LOCAL_PKG=\"1\""; next}{print}' "${df}" > "${tmpfile}" && mv "${tmpfile}" "${df}"
         fi
     else
         _sed_i '/^ARG AEROSPIKE_LOCAL_PKG=/d' "${df}"
     fi
 
-    # Manage the COPY <local-pkgs> /tmp/ line
-    _sed_i '/^COPY server_.*\/tmp\/$/d' "${df}"
-    if [ -n "${copy_line}" ]; then
-        _sed_i "/^COPY install\.sh/i\\
-${copy_line}" "${df}"
-    fi
+    # Manage the COPY <local-pkgs> /tmp/ line.
+    # Handles both clean lines and corrupted lines (BSD sed i\ merge bug).
+    local tmpfile
+    tmpfile=$(mktemp)
+    awk -v copy_line="${copy_line}" '
+        /^COPY server_/ { next }
+        /^COPY install\.sh/ {
+            if (copy_line != "") print copy_line
+            print "COPY install.sh /tmp/install.sh"
+            saw_install = 1
+            next
+        }
+        /^# hadolint/ && !saw_install {
+            if (copy_line != "") print copy_line
+            print "COPY install.sh /tmp/install.sh"
+            saw_install = 1
+        }
+        { print }
+    ' "${df}" > "${tmpfile}" && mv "${tmpfile}" "${df}"
 
     # Refresh support files
     cp template/0/entrypoint.sh "${target}/"

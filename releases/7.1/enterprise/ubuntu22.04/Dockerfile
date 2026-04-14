@@ -24,15 +24,16 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 ARG AEROSPIKE_EDITION="enterprise"
 
 ENV AEROSPIKE_LINUX_BASE="ubuntu:22.04"
-ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.1.0.22/aerospike-server-enterprise_7.1.0.22_tools-12.1.1_ubuntu22.04_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="2f61112af6c7b7b0c043d17bd4d7ee4d319d04fc5529d740d760622766e5dd9a"
-ARG AEROSPIKE_AARCH64_LINK="https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.1.0.22/aerospike-server-enterprise_7.1.0.22_tools-12.1.1_ubuntu22.04_aarch64.tgz"
-ARG AEROSPIKE_SHA_AARCH64="4ec3b844fa4881f10ee00bd0e3c46eb6aebbefdeaefe8401f58144442722bb33"
+ARG AEROSPIKE_X86_64_LINK="/Users/phucvinh/aerospike/server-docker/DOI-Rejection-fix/aerospike-server.docker/artifacts/signed-artifacts/aerospike-server-enterprise-TEST_7.1.0.22-12ubuntu22.04_amd64.deb"
+ARG AEROSPIKE_SHA_X86_64="ffb933219d736e5ae101fd769df0760623061f05f6ccd0a218c7b37b87a3f80f"
+ARG AEROSPIKE_AARCH64_LINK="/Users/phucvinh/aerospike/server-docker/DOI-Rejection-fix/aerospike-server.docker/artifacts/signed-artifacts/aerospike-server-enterprise-TEST_7.1.0.22-12ubuntu22.04_arm64.deb"
+ARG AEROSPIKE_SHA_AARCH64="daf925ef92de5668eb83e8c834d578716378f7fe93da19171989752e3113a2cd"
 ARG AEROSPIKE_COMPAT_LIBS="0"
-
+ARG AEROSPIKE_LOCAL_PKG="1"
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
+COPY server_amd64.deb server_amd64.deb.sha256 server_arm64.deb server_arm64.deb.sha256 /tmp/
 COPY install.sh /tmp/install.sh
 # hadolint ignore=DL3008,DL3041
 RUN bash /tmp/install.sh && rm -f /tmp/install.sh
