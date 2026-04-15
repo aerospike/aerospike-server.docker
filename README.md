@@ -391,18 +391,15 @@ scripts/
   shasum-artifacts.sh    Create .sha256 for local package dirs
 ```
 
-Dockerfiles are **persistent** (checked into the repo) and compact. All installation
-logic lives in `scripts/deb/install.sh` and `scripts/rpm/install.sh`, which are
-`COPY`'d into the image and `RUN` during Docker build. This eliminates duplicated
-inline shell in Dockerfiles and makes the install logic independently testable.
+Dockerfiles are **persistent** (checked into the repo) and compact. All installation logic lives in `scripts/deb/install.sh` and `scripts/rpm/install.sh`, which are `COPY`'d into the image and `RUN` during Docker build. This eliminates duplicated inline shell in Dockerfiles and makes the install logic independently testable.
 
 ### Modes of Operation
 
-| Mode | Command | Behavior |
-|------|---------|----------|
-| **Update** (default) | `./docker-build.sh -t 8.1` | Patches existing Dockerfiles in-place (ARG values, SHAs, links). Refreshes support files (entrypoint.sh, install.sh, config). Auto-falls back to full generation if Dockerfile is missing. |
-| **Generate** | `./docker-build.sh -g 8.1` | Full regeneration from scratch. Removes `releases/<lineage>/` for targeted lineages and writes fresh Dockerfiles. Use after structural changes (new distro, install script rewrite, etc.). |
-| **Generate + Build** | `./docker-build.sh -g -t 8.1` | Full regeneration, then builds locally. Combinable with `-p` for push. |
+| Mode                 | Command                       | Behavior                                                                                                                                                                                   |
+|----------------------|-------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Update** (default) | `./docker-build.sh -t 8.1`    | Patches existing Dockerfiles in-place (ARG values, SHAs, links). Refreshes support files (entrypoint.sh, install.sh, config). Auto-falls back to full generation if Dockerfile is missing. |
+| **Generate**         | `./docker-build.sh -g 8.1`    | Full regeneration from scratch. Removes `releases/<lineage>/` for targeted lineages and writes fresh Dockerfiles. Use after structural changes (new distro, install script rewrite, etc.). |
+| **Generate + Build** | `./docker-build.sh -g -t 8.1` | Full regeneration, then builds locally. Combinable with `-p` for push.                                                                                                                     |
 
 ### Quick Start
 
@@ -434,32 +431,30 @@ inline shell in Dockerfiles and makes the install logic independently testable.
 
 ### Build Options
 
-```
-Usage: ./docker-build.sh -t|-p|-g [OPTIONS] [version|lineage]
-
-MODE (one required):
-    -t               Test mode - build and load locally
-    -p               Push mode - build and push to registry (multi-arch)
-    -g, --generate   Full Dockerfile regeneration (combinable with -t/-p)
-
-OPTIONS:
-    -r, --registry REG  Container registry for push mode.
-                        Multiple: repeat -r (e.g. -r reg1 -r reg2). Default: aerospike.
-    -u, --url URL       Custom artifacts URL or local directory path
-    -e, --edition ED    Filter editions: community, enterprise, federal (multiple allowed)
-    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10
-                        Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
-    -a, --arch ARCH     Filter architectures: amd64, arm64 (or x86_64, aarch64)
-    -T, --timestamp TS  Fixed timestamp for push tags (YYYYMMDDHHMMSS)
-    --no-cache          Disable Docker build cache
-    -h, --help          Show full help
-
-VERSION FORMATS:
-    8.1                       Lineage (auto-detects latest version)
-    8.1.1.0                   Specific release
-    8.1.1.0-rc2               Release candidate
-    8.1.1.0-start-16          Development build
-```
+	Usage: ./docker-build.sh -t|-p|-g [OPTIONS] [version|lineage]
+	
+	MODE (one required):
+	    -t               Test mode - build and load locally
+	    -p               Push mode - build and push to registry (multi-arch)
+	    -g, --generate   Full Dockerfile regeneration (combinable with -t/-p)
+	
+	OPTIONS:
+	    -r, --registry REG  Container registry for push mode.
+	                        Multiple: repeat -r (e.g. -r reg1 -r reg2). Default: aerospike.
+	    -u, --url URL       Custom artifacts URL or local directory path
+	    -e, --edition ED    Filter editions: community, enterprise, federal (multiple allowed)
+	    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10
+	                        Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
+	    -a, --arch ARCH     Filter architectures: amd64, arm64 (or x86_64, aarch64)
+	    -T, --timestamp TS  Fixed timestamp for push tags (YYYYMMDDHHMMSS)
+	    --no-cache          Disable Docker build cache
+	    -h, --help          Show full help
+	
+	VERSION FORMATS:
+	    8.1                       Lineage (auto-detects latest version)
+	    8.1.1.0                   Specific release
+	    8.1.1.0-rc2               Release candidate
+	    8.1.1.0-start-16          Development build
 
 ### Testing Images
 
