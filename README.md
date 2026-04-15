@@ -348,12 +348,12 @@ These images are based on Ubuntu or Red Hat UBI depending on the variant:
 
 ### Supported Releases and Distros
 
-| Lineage | Distros              | Editions                       |
-|---------|----------------------|--------------------------------|
-| 7.1     | ubuntu22.04, ubi9    | community, enterprise, federal |
-| 7.2     | ubuntu24.04, ubi9    | community, enterprise, federal |
-| 8.0     | ubuntu24.04, ubi9    | community, enterprise, federal |
-| 8.1+    | ubuntu24.04, ubi10   | community, enterprise, federal |
+| Lineage | Distros            | Editions                       |
+|---------|--------------------|--------------------------------|
+| 7.1     | ubuntu22.04, ubi9  | community, enterprise, federal |
+| 7.2     | ubuntu24.04, ubi9  | community, enterprise, federal |
+| 8.0     | ubuntu24.04, ubi9  | community, enterprise, federal |
+| 8.1+    | ubuntu24.04, ubi10 | community, enterprise, federal |
 
 ## Building Images
 
@@ -374,22 +374,20 @@ docker buildx create --name mybuilder --driver docker-container --bootstrap --us
 
 The build system uses a modular design:
 
-```
-docker-build.sh          Main entry point (usage, arg parsing, mode selection)
-lib/
-  emit.sh                Generate Dockerfiles (COPY install.sh approach)
-  update.sh              In-place update of existing Dockerfiles (sed patching)
-  generate.sh            Orchestration loop (routes between update and generate)
-  bake.sh                Generate bake-multi.hcl for Docker buildx
-  support.sh             Release/distro/edition support matrix
-  version.sh             Version lookup, package URL generation
-  fetch.sh               HTTP fetch helper
-  log.sh                 Colored logging functions
-scripts/
-  deb/install.sh         Single source of truth for DEB-based installs
-  rpm/install.sh         Single source of truth for RPM-based installs
-  shasum-artifacts.sh    Create .sha256 for local package dirs
-```
+	docker-build.sh          Main entry point (usage, arg parsing, mode selection)
+	lib/
+	  emit.sh                Generate Dockerfiles (COPY install.sh approach)
+	  update.sh              In-place update of existing Dockerfiles (sed patching)
+	  generate.sh            Orchestration loop (routes between update and generate)
+	  bake.sh                Generate bake-multi.hcl for Docker buildx
+	  support.sh             Release/distro/edition support matrix
+	  version.sh             Version lookup, package URL generation
+	  fetch.sh               HTTP fetch helper
+	  log.sh                 Colored logging functions
+	scripts/
+	  deb/install.sh         Single source of truth for DEB-based installs
+	  rpm/install.sh         Single source of truth for RPM-based installs
+	  shasum-artifacts.sh    Create .sha256 for local package dirs
 
 Dockerfiles are **persistent** (checked into the repo) and compact. All installation logic lives in `scripts/deb/install.sh` and `scripts/rpm/install.sh`, which are `COPY`'d into the image and `RUN` during Docker build. This eliminates duplicated inline shell in Dockerfiles and makes the install logic independently testable.
 
