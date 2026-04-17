@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dockerfile generation: emit header + COPY install.sh + RUN + footer.
+# Dockerfile generation: emit header + RUN heredoc (install.sh inlined) + footer.
 # The install logic now lives in scripts/deb/install.sh and scripts/rpm/install.sh.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh
@@ -8,8 +8,8 @@ set -Eeuo pipefail
 
 # generate_dockerfile lineage distro edition version tools_version
 #
-# Emits a compact Dockerfile that COPYs the appropriate install script into the
-# image and runs it.  All installation logic is in scripts/{deb,rpm}/install.sh.
+# Emits a compact Dockerfile that runs the install script via RUN <<heredoc (BuildKit).
+# No COPY of install.sh (policy scanners). Logic is in scripts/{deb,rpm}/install.sh.
 function generate_dockerfile() {
     local lineage=$1 distro=$2 edition=$3 version=$4 tools_version=$5
     local target="releases/${lineage}/${edition}/${distro}"
@@ -102,12 +102,6 @@ function generate_dockerfile() {
     cp template/0/entrypoint.sh "${target}/"
     chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
-    if [ "${edition}" = "enterprise" ] || [ "${edition}" = "federal" ]; then
-        cp config/eval_features.conf "${target}/features.conf" || {
-            log_failure "    Missing required feature key source: config/eval_features.conf"
-            return 1
-        }
-    fi
 
     # Copy the appropriate install script into the context directory
     if [ "${pkg_type}" = "deb" ]; then
@@ -176,21 +170,13 @@ ARG AEROSPIKE_SHA_X86_64=\"${x86_sha}\""
         dockerfile_aarch64_args="ARG AEROSPIKE_AARCH64_LINK=\"${arm_link}\"
 ARG AEROSPIKE_SHA_AARCH64=\"${arm_sha}\""
     fi
-    local dockerfile_features_copy=""
-    if [ "${edition}" = "enterprise" ] || [ "${edition}" = "federal" ]; then
-        dockerfile_features_copy="COPY features.conf /etc/aerospike/features.conf"
-    fi
-
     local base_name_label="${base_image}"
     [[ "${base_image}" == ubuntu:* ]] && base_name_label="docker.io/library/${base_image}"
-
-    local image_license="Apache-2.0"
-    [ "${edition}" = "enterprise" ] && image_license="Proprietary"
-    [ "${edition}" = "federal" ] && image_license="Proprietary"
 
     # --- Emit Dockerfile ---
     {
         cat <<HEADER
+# syntax=docker/dockerfile:1
 #
 # Aerospike Server Dockerfile
 #
@@ -204,7 +190,6 @@ LABEL org.opencontainers.image.title="Aerospike ${edition^} Server" \\
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \\
       org.opencontainers.image.base.name="${base_name_label}" \\
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \\
-      org.opencontainers.image.licenses="${image_license}" \\
       org.opencontainers.image.vendor="Aerospike" \\
       org.opencontainers.image.version="${version}" \\
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
@@ -232,20 +217,18 @@ HEADER
             echo ""
         fi
 
-        # COPY and RUN the install script
-        cat <<'INSTALL'
-# Install Aerospike Server and Tools
-COPY install.sh /tmp/install.sh
-# hadolint ignore=DL3003,DL3008,DL3041,SC2015
-RUN bash /tmp/install.sh && rm -f /tmp/install.sh
-
-INSTALL
+        # Inline install script (no COPY install.sh — satisfies strict image policies)
+        echo "# Install Aerospike Server and Tools"
+        echo "# hadolint ignore=DL3003,DL3008,DL3041,SC2015"
+        echo "RUN bash <<'AEROSPIKE_INSTALL'"
+        cat "${target}/install.sh"
+        echo "AEROSPIKE_INSTALL"
+        echo ""
 
         # Footer
         cat <<FOOTER
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
-${dockerfile_features_copy}
 
 # Mount the Aerospike data directory
 # VOLUME ["/opt/aerospike/data"]

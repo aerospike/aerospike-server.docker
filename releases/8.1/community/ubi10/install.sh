@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # UBI/RHEL: install Aerospike server + tools.
 # Single source of truth for all RPM-based Docker images.
-# Called inside Docker RUN via: COPY install.sh /tmp/install.sh && RUN bash /tmp/install.sh
+# Executed from the Dockerfile RUN heredoc (BuildKit); not copied as a separate layer file.
 #
 # Expected ARG/ENV from Dockerfile:
 #   AEROSPIKE_EDITION        community|enterprise|federal

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 #
 # Aerospike Server Dockerfile
 #
@@ -11,9 +12,8 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
       org.opencontainers.image.base.name="registry.access.redhat.com/ubi9/ubi-minimal:9.7" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
-      org.opencontainers.image.licenses="Proprietary" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.0.0.14" \
+      org.opencontainers.image.version="8.0.0.15" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -24,8 +24,8 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 ARG AEROSPIKE_EDITION="federal"
 
 ENV AEROSPIKE_LINUX_BASE="registry.access.redhat.com/ubi9/ubi-minimal:9.7"
-ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-federal/8.0.0.14/aerospike-server-federal_8.0.0.14_tools-12.1.1_el9_x86_64.tgz"
-ARG AEROSPIKE_SHA_X86_64="9f50e1e5b75d9d8cb30502facacf6326d73690f5d7291c7d231bbe8741c6157d"
+ARG AEROSPIKE_X86_64_LINK="https://download.aerospike.com/artifacts/aerospike-server-federal/8.0.0.15/aerospike-server-federal_8.0.0.15_tools-13.0.0_el9_x86_64.tgz"
+ARG AEROSPIKE_SHA_X86_64="53f44e948f8dce8e53680f59fed6f7edae41a9fe7835b7961972401710e6d2b0"
 ARG AEROSPIKE_AARCH64_LINK=""
 ARG AEROSPIKE_SHA_AARCH64=""
 ARG AEROSPIKE_COMPAT_LIBS="0"
@@ -33,13 +33,211 @@ ARG AEROSPIKE_COMPAT_LIBS="0"
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # Install Aerospike Server and Tools
-COPY install.sh /tmp/install.sh
 # hadolint ignore=DL3003,DL3008,DL3041,SC2015
-RUN bash /tmp/install.sh && rm -f /tmp/install.sh
+RUN bash <<'AEROSPIKE_INSTALL'
+#!/usr/bin/env bash
+# UBI/RHEL: install Aerospike server + tools.
+# Single source of truth for all RPM-based Docker images.
+# Executed from the Dockerfile RUN heredoc (BuildKit); not copied as a separate layer file.
+#
+# Expected ARG/ENV from Dockerfile:
+#   AEROSPIKE_EDITION        community|enterprise|federal
+#   AEROSPIKE_X86_64_LINK    download URL (x86_64, tgz or native rpm)
+#   AEROSPIKE_SHA_X86_64     SHA256
+#   AEROSPIKE_AARCH64_LINK   download URL (aarch64, tgz or native rpm)
+#   AEROSPIKE_SHA_AARCH64    SHA256
+#   AEROSPIKE_LOCAL_PKG      0|1 (when using -u local dir, packages pre-copied to /tmp)
+#
+# Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
+set -Eeuo pipefail
+
+# Retry helper for arm64 QEMU emulation flakiness
+function _retry() {
+    local _i
+    for _i in 1 2 3 4 5; do
+        if "$@"; then return 0; fi
+        sleep $((_i * 5))
+    done
+    "$@"
+}
+
+# Install tools from tgz (rpm2cpio extract)
+function _install_tools_from_tgz() {
+    shopt -s nullglob
+    _tool_rpms=(aerospike/aerospike-tools*.rpm)
+    if [ "${#_tool_rpms[@]}" -eq 0 ]; then
+        echo "ERROR: no aerospike-tools*.rpm under aerospike/ after tar extract (cwd=$(pwd))" >&2
+        if ! ls -la aerospike >&2; then true; fi
+        exit 1
+    fi
+    _tool_rpm_base="${_tool_rpms[0]##*/}"
+    if ! rpm2cpio "aerospike/${_tool_rpm_base}" | cpio -idm -D aerospike/pkg; then
+        sleep 3
+        rpm2cpio "aerospike/${_tool_rpm_base}" | cpio -idm -D aerospike/pkg
+    fi
+
+    if [ -d aerospike/pkg/opt/aerospike/bin/ ]; then
+        find aerospike/pkg/opt/aerospike/bin/ -exec chown root:root {} +
+    fi
+    mkdir -p /etc/aerospike
+    if [ -f aerospike/pkg/etc/aerospike/astools.conf ]; then
+        mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike/
+    fi
+    if [ ! -e aerospike/pkg/opt/aerospike/bin/asadm ]; then
+        echo "ERROR: asadm missing under aerospike/pkg/opt/aerospike/bin after tools extract" >&2
+        find aerospike/pkg -maxdepth 6 \( -name asadm -o -name asinfo \) -print >&2
+        exit 1
+    fi
+    if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then
+        mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/
+    else
+        mkdir -p /usr/lib/asadm
+        mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/
+    fi
+    if [ -e /usr/lib/asadm/asadm ]; then
+        ln -snf /usr/lib/asadm/asadm /usr/bin/asadm
+    fi
+    if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then
+        mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/
+    fi
+    if [ -e /usr/lib/asadm/asinfo ]; then
+        ln -snf /usr/lib/asadm/asinfo /usr/bin/asinfo
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Main install logic
+# ---------------------------------------------------------------------------
+
+ARCH="$(uname -m)"
+
+# Install build dependencies (with retry for arm64 QEMU)
+_retry microdnf install -y --setopt=install_weak_deps=0 \
+    findutils tar gzip xz ca-certificates cpio shadow-utils
+
+# Install curl (curl-minimal preferred on ubi-minimal; fallback to full curl)
+if ! command -v curl >/dev/null 2>&1; then
+    if ! _retry microdnf install -y curl-minimal; then
+        _retry microdnf install -y curl
+    fi
+fi
+command -v curl >/dev/null 2>&1 || {
+    echo "ERROR: curl not found" >&2
+    exit 1
+}
+
+# Download and verify tini
+if [ "${ARCH}" = "x86_64" ]; then
+    tini_sha=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
+    tini_suffix=""
+else
+    tini_sha=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b
+    tini_suffix="-arm64"
+fi
+if ! curl -fsSL --retry 3 --retry-delay 3 \
+    "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${tini_suffix}" \
+    -o /usr/bin/as-tini-static; then
+    sleep 5
+    curl -fsSL --retry 3 --retry-delay 3 \
+        "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${tini_suffix}" \
+        -o /usr/bin/as-tini-static
+fi
+echo "${tini_sha} /usr/bin/as-tini-static" | sha256sum -c -
+chmod +x /usr/bin/as-tini-static
+
+# Select arch-specific package link and SHA
+if [ "${ARCH}" = "x86_64" ]; then
+    pkg_link="${AEROSPIKE_X86_64_LINK:-}"
+    sha256="${AEROSPIKE_SHA_X86_64:-}"
+else
+    pkg_link="${AEROSPIKE_AARCH64_LINK:-}"
+    sha256="${AEROSPIKE_SHA_AARCH64:-}"
+fi
+
+# --- Install: local native .rpm (AEROSPIKE_LOCAL_PKG=1) ---
+if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
+    if [ "${ARCH}" = "x86_64" ]; then
+        cp /tmp/server_x86_64.rpm server.rpm
+        [ -f /tmp/server_x86_64.rpm.sha256 ] && {
+            pkg_hash=$(awk '{print $1}' /tmp/server_x86_64.rpm.sha256)
+            echo "${pkg_hash}  server.rpm" | sha256sum -c -
+        }
+    else
+        cp /tmp/server_aarch64.rpm server.rpm
+        [ -f /tmp/server_aarch64.rpm.sha256 ] && {
+            pkg_hash=$(awk '{print $1}' /tmp/server_aarch64.rpm.sha256)
+            echo "${pkg_hash}  server.rpm" | sha256sum -c -
+        }
+    fi
+
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
+        _retry microdnf install -y --setopt=install_weak_deps=0 openldap
+    fi
+
+    if [ "${ARCH}" = "aarch64" ]; then
+        if ! rpm -i --excludedocs server.rpm; then
+            sleep 3
+            rpm -i --force --excludedocs server.rpm
+        fi
+    else
+        rpm -i --excludedocs server.rpm
+    fi
+    command -v asd >/dev/null 2>&1 || {
+        echo "ERROR: asd not installed" >&2
+        exit 1
+    }
+    mkdir -p /var/{log,run}/aerospike
+
+    rm -f server.rpm
+    if ! microdnf clean all; then true; fi
+    rm -rf /var/cache/yum /var/cache/dnf
+
+# --- Install: tgz bundle (default) ---
+else
+    mkdir -p aerospike/pkg
+    if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o aerospike-server.tgz; then
+        sleep 5
+        if ! curl -fsSL --retry 3 --retry-delay 3 "${pkg_link}" -o aerospike-server.tgz; then
+            echo "Could not fetch pkg - ${pkg_link}" >&2
+            exit 1
+        fi
+    fi
+    echo "${sha256} aerospike-server.tgz" | sha256sum -c -
+    tar xzf aerospike-server.tgz --strip-components=1 -C aerospike
+    rm aerospike-server.tgz
+    mkdir -p /var/{log,run}/aerospike /licenses
+    cp aerospike/LICENSE /licenses
+
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
+        _retry microdnf install -y --setopt=install_weak_deps=0 openldap
+    fi
+
+    if ! rpm -i --excludedocs aerospike/aerospike-server-*.rpm; then
+        sleep 3
+        if ! rpm -i --force --excludedocs aerospike/aerospike-server-*.rpm; then
+            sleep 5
+            rpm -i --force --nodeps --excludedocs aerospike/aerospike-server-*.rpm
+        fi
+    fi
+    command -v asd >/dev/null 2>&1 || {
+        echo "ERROR: asd not installed" >&2
+        exit 1
+    }
+    rm -rf /opt/aerospike/bin
+
+    _install_tools_from_tgz
+
+    rm -rf aerospike
+    if ! microdnf remove -y findutils tar gzip xz cpio; then true; fi
+    if ! microdnf clean all; then true; fi
+    rm -rf /var/cache/yum /var/cache/dnf
+fi
+
+echo "done"
+AEROSPIKE_INSTALL
 
 # Add the Aerospike configuration specific to this dockerfile
 COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
-COPY features.conf /etc/aerospike/features.conf
 
 # Mount the Aerospike data directory
 # VOLUME ["/opt/aerospike/data"]

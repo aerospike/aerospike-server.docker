@@ -15,6 +15,59 @@ _sed_i() {
     fi
 }
 
+# Refresh the embedded install script block in a Dockerfile (same layout as emit.sh).
+# Optional COPY_LINE: e.g. "COPY server_amd64.deb ... /tmp/" inserted before the install section.
+function _dockerfile_refresh_install_block() {
+    local df=$1
+    local inst=$2
+    local copy_line=${3:-}
+    python3 - "$df" "$inst" "${copy_line}" <<'PY'
+import pathlib, re, sys
+
+df_path = pathlib.Path(sys.argv[1])
+inst_path = pathlib.Path(sys.argv[2])
+copy_line = sys.argv[3] if len(sys.argv) > 3 else ""
+script = inst_path.read_text()
+if not script.endswith("\n"):
+    script += "\n"
+prefix = (copy_line.rstrip() + "\n\n") if copy_line.strip() else ""
+new_block = (
+    prefix
+    + "# Install Aerospike Server and Tools\n"
+    + "# hadolint ignore=DL3003,DL3008,DL3041,SC2015\n"
+    + "RUN bash <<'AEROSPIKE_INSTALL'\n"
+    + script
+    + "AEROSPIKE_INSTALL\n"
+)
+text = df_path.read_text()
+# Strip prior local-pkg COPY lines; fresh ones come from copy_line above.
+lines = [ln for ln in text.splitlines(True) if not re.match(r"^COPY server_", ln)]
+text = "".join(lines)
+text2, n_old = re.subn(
+    r"(?ms)^# Install Aerospike Server and Tools\n"
+    r"COPY install\.sh /tmp/install\.sh\n"
+    r"# hadolint[^\n]*\n"
+    r"RUN bash /tmp/install\.sh && rm -f /tmp/install\.sh\n",
+    new_block,
+    text,
+    count=1,
+)
+if n_old == 0:
+    text2, n_new = re.subn(
+        r"(?ms)^# Install Aerospike Server and Tools\n.*?\nAEROSPIKE_INSTALL\n",
+        new_block,
+        text,
+        count=1,
+    )
+    if n_new != 1:
+        sys.stderr.write(f"{df_path}: could not replace install block (matched {n_new})\n")
+        sys.exit(1)
+if not text2.startswith("# syntax=docker/dockerfile:1"):
+    text2 = "# syntax=docker/dockerfile:1\n" + text2
+df_path.write_text(text2)
+PY
+}
+
 # resolve_packages distro edition version tools_version single_arch
 # Outputs: x86_link x86_sha arm_link arm_sha pkg_format use_local_pkg
 # Sets the six variables above in the caller's scope.
@@ -164,36 +217,10 @@ function update_dockerfile() {
         _sed_i '/^ARG AEROSPIKE_LOCAL_PKG=/d' "${df}"
     fi
 
-    # Manage the COPY <local-pkgs> /tmp/ line.
-    # Handles both clean lines and corrupted lines (BSD sed i\ merge bug).
-    local tmpfile
-    tmpfile=$(mktemp)
-    awk -v copy_line="${copy_line}" '
-        /^COPY server_/ { next }
-        /^COPY install\.sh/ {
-            if (copy_line != "") print copy_line
-            print "COPY install.sh /tmp/install.sh"
-            saw_install = 1
-            next
-        }
-        /^# hadolint/ && !saw_install {
-            if (copy_line != "") print copy_line
-            print "COPY install.sh /tmp/install.sh"
-            saw_install = 1
-        }
-        { print }
-    ' "${df}" >"${tmpfile}" && mv "${tmpfile}" "${df}"
-
     # Refresh support files
     cp template/0/entrypoint.sh "${target}/"
     chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
-
-    local edition
-    edition=$(basename "$(dirname "${target}")")
-    if [ "${edition}" = "enterprise" ] || [ "${edition}" = "federal" ]; then
-        cp config/eval_features.conf "${target}/features.conf" || true
-    fi
 
     # Refresh install script
     local pkg_type
@@ -204,6 +231,9 @@ function update_dockerfile() {
         cp scripts/rpm/install.sh "${target}/install.sh"
     fi
     chmod +x "${target}/install.sh"
+
+    # Re-embed install.sh (RUN heredoc); refresh local-pkg COPY prefix via copy_line.
+    _dockerfile_refresh_install_block "${df}" "${target}/install.sh" "${copy_line}"
 
     # Clean trailing whitespace
     _sed_i 's/[[:space:]]*$//' "${df}"

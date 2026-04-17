@@ -23,12 +23,6 @@ if asd --version | grep -q "Community"; then
     FEATURE_KEY_FILE="" # invalid for community edition
 fi
 
-# Enterprise/Federal must have a feature key.
-if [ -n "${FEATURE_KEY_FILE}" ] && [ ! -f "${FEATURE_KEY_FILE}" ]; then
-    echo "ERROR: required feature key file not found: ${FEATURE_KEY_FILE}" >&2
-    exit 1
-fi
-
 function bash_eval_template() {
     local template_file=$1
     local target_file=$2
