@@ -162,6 +162,7 @@ function generate_dockerfiles() {
     # shellcheck disable=SC2034  # consumed by generate_bake in caller scope
     declare -gA G_VERSION_MAP
     for key in "${!VERSION_MAP[@]}"; do
+        # shellcheck disable=SC2034  # consumed by generate_bake in caller scope
         G_VERSION_MAP["${key}"]="${VERSION_MAP[${key}]}"
     done
 }

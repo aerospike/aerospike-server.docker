@@ -101,6 +101,7 @@ function resolve_packages() {
         local_x86=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "x86_64" "${pkg_type}")
         local_arm=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "aarch64" "${pkg_type}")
         if [ -n "${local_x86}" ] || [ -n "${local_arm}" ]; then
+            # shellcheck disable=SC2034  # consumed by caller via dynamic scoping
             pkg_format="${pkg_type}"
             [ -n "${local_x86}" ] && x86_link="${local_x86}"
             [ -n "${local_arm}" ] && arm_link="${local_arm}"
@@ -113,6 +114,7 @@ function resolve_packages() {
             x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
             x86_sha=$(fetch_sha_for_link "${x86_link}")
             if [ -n "${x86_link}" ]; then
+                # shellcheck disable=SC2034  # consumed by caller via dynamic scoping
                 pkg_format="${pkg_type}"
                 arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
                 arm_sha=$(fetch_sha_for_link "${arm_link}")
