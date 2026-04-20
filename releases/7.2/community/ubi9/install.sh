@@ -74,9 +74,9 @@ function _install_tools_from_tgz() {
 
 ARCH="$(uname -m)"
 
-# Install build dependencies (with retry for arm64 QEMU)
+# Install build dependencies (with retry for arm64 QEMU). procps-ng provides ps(1); kept at runtime.
 _retry microdnf install -y --setopt=install_weak_deps=0 \
-    findutils tar gzip xz ca-certificates cpio shadow-utils
+    findutils tar gzip xz ca-certificates cpio shadow-utils procps-ng
 
 # Install curl (curl-minimal preferred on ubi-minimal; fallback to full curl)
 if ! command -v curl >/dev/null 2>&1; then

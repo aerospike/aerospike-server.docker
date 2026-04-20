@@ -132,7 +132,7 @@ function _install_tools_from_tgz() {
 export DEBIAN_FRONTEND=noninteractive
 ARCH="$(dpkg --print-architecture)"
 
-# Install build dependencies
+# Install build dependencies (procps provides /usr/bin/ps; kept in the final image — see purge loop)
 apt-get update -y
 if [ "${ARCH}" = "arm64" ]; then
     _try=1
@@ -290,7 +290,7 @@ else
     _install_tools_from_tgz
 
     rm -rf aerospike
-    for pkg in binutils xz-utils curl procps; do
+    for pkg in binutils xz-utils curl; do
         if ! dpkg --purge "${pkg}"; then
             echo "Note: keeping ${pkg} (has reverse dependencies)"
         fi
