@@ -30,7 +30,7 @@ function _install_tools_from_tgz() {
     _tool_rpms=(aerospike/aerospike-tools*.rpm)
     if [ "${#_tool_rpms[@]}" -eq 0 ]; then
         echo "ERROR: no aerospike-tools*.rpm under aerospike/ after tar extract (cwd=$(pwd))" >&2
-        if ! ls -la aerospike >&2; then true; fi
+        ls -la aerospike >&2 || true
         exit 1
     fi
     _tool_rpm_base="${_tool_rpms[0]##*/}"
@@ -140,7 +140,10 @@ if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
     if [ "${ARCH}" = "aarch64" ]; then
         if ! rpm -i --excludedocs server.rpm; then
             sleep 3
-            rpm -i --force --excludedocs server.rpm
+            rpm -i --excludedocs server.rpm || {
+                echo "ERROR: rpm -i server.rpm failed" >&2
+                exit 1
+            }
         fi
     else
         rpm -i --excludedocs server.rpm
@@ -152,7 +155,7 @@ if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
     mkdir -p /var/{log,run}/aerospike
 
     rm -f server.rpm
-    if ! microdnf clean all; then true; fi
+    microdnf clean all || echo "WARNING: microdnf clean failed" >&2
     rm -rf /var/cache/yum /var/cache/dnf
 
 # --- Install: tgz bundle (default) ---
@@ -177,10 +180,10 @@ else
 
     if ! rpm -i --excludedocs aerospike/aerospike-server-*.rpm; then
         sleep 3
-        if ! rpm -i --force --excludedocs aerospike/aerospike-server-*.rpm; then
-            sleep 5
-            rpm -i --force --nodeps --excludedocs aerospike/aerospike-server-*.rpm
-        fi
+        rpm -i --excludedocs aerospike/aerospike-server-*.rpm || {
+            echo "ERROR: rpm -i aerospike-server failed (install missing deps instead of --nodeps)" >&2
+            exit 1
+        }
     fi
     command -v asd >/dev/null 2>&1 || {
         echo "ERROR: asd not installed" >&2
@@ -191,8 +194,8 @@ else
     _install_tools_from_tgz
 
     rm -rf aerospike
-    if ! microdnf remove -y findutils tar gzip xz cpio; then true; fi
-    if ! microdnf clean all; then true; fi
+    microdnf remove -y findutils tar gzip xz cpio || echo "WARNING: microdnf remove build deps failed" >&2
+    microdnf clean all || echo "WARNING: microdnf clean failed" >&2
     rm -rf /var/cache/yum /var/cache/dnf
 fi
 

@@ -12,6 +12,9 @@
 #   AEROSPIKE_COMPAT_LIBS    0|1 (legacy libssl1.1/libcurl4 for 7.2 on ubuntu24.04)
 #   AEROSPIKE_LOCAL_PKG      0|1 (when using -u local dir, packages pre-copied to /tmp)
 #
+# No [trusted=yes] third-party apt suites (DOI / supply-chain policy): only packages
+# available from the image's default Ubuntu archives.
+#
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 set -Eeuo pipefail
 
@@ -19,54 +22,26 @@ set -Eeuo pipefail
 # Helper functions
 # ---------------------------------------------------------------------------
 
-# Install LDAP dependencies for enterprise/federal editions.
-# Ubuntu 24.04 no longer ships libldap; we fallback to Focal/Jammy repos.
+# Install LDAP dependencies for enterprise/federal from the default suite only.
+# Ubuntu 22.04: libldap-2.5-0 (sonames liblber-2.5.so.0). Ubuntu 24.04+: libldap2 only
+# (OpenLDAP 2.6, liblber.so.2) — there is no libldap-2.5-0 package on Noble.
 function _install_ldap_deps() {
-    if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then
-        if ! apt-get install -y --no-install-recommends libldap-2.5-0; then
-            echo "Note: libldap-2.5-0 available but not installable"
-        fi
-    fi
-    if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then
-        if ! apt-get install -y --no-install-recommends libldap-2.4-2; then
-            echo "Note: libldap-2.4-2 available but not installable"
-        fi
-    fi
-    if ! dpkg --configure -a; then true; fi
-
-    if ! { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 ||
-        ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; }; then
-        if [ "$(dpkg --print-architecture)" = "amd64" ]; then
-            ldap_repo="http://archive.ubuntu.com/ubuntu"
-        else
-            ldap_repo="http://ports.ubuntu.com/ubuntu-ports"
-        fi
-        echo "deb [trusted=yes] ${ldap_repo} focal main" >/etc/apt/sources.list.d/focal-ldap.list
-        echo "deb [trusted=yes] ${ldap_repo} jammy main" >/etc/apt/sources.list.d/jammy-ldap.list
-        apt-get update -y
-        if apt-cache show libldap-2.5-0 >/dev/null 2>&1; then
-            if ! apt-get install -y --no-install-recommends libldap-2.5-0; then
-                echo "Note: libldap-2.5-0 available but not installable from fallback repos"
+    for cpkg in libldap-2.5-0 libldap-2.4-2 libldap2; do
+        if apt-cache show "${cpkg}" >/dev/null 2>&1; then
+            if ! apt-get install -y --no-install-recommends "${cpkg}"; then
+                echo "Note: ${cpkg} available but not installable"
             fi
         fi
-        if apt-cache show libldap-2.4-2 >/dev/null 2>&1; then
-            if ! apt-get install -y --no-install-recommends libldap-2.4-2; then
-                echo "Note: libldap-2.4-2 available but not installable from fallback repos"
-            fi
-        fi
-        if ! dpkg --configure -a; then true; fi
-        rm -f /etc/apt/sources.list.d/focal-ldap.list /etc/apt/sources.list.d/jammy-ldap.list
-    fi
+    done
+    dpkg --configure -a || echo "WARNING: dpkg --configure -a reported errors (LDAP deps)" >&2
 
-    { ls /usr/lib/*/liblber-2.4.so.2 >/dev/null 2>&1 ||
-        ls /usr/lib/*/liblber-2.5.so.0 >/dev/null 2>&1; } ||
-        {
-            echo "ERROR: liblber not found - libldap install failed" >&2
-            exit 1
-        }
+    if ! find /usr/lib /lib -maxdepth 2 -name 'liblber*.so*' -print -quit | grep -q .; then
+        echo "ERROR: liblber not found - libldap install failed" >&2
+        exit 1
+    fi
 }
 
-# Compat libs for tgz mode (simple: just install from current repos)
+# Compat libs for tgz mode: install from current repos only.
 function _install_compat_libs_tgz() {
     curl_pkg="libcurl4"
     apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"
@@ -77,52 +52,21 @@ function _install_compat_libs_tgz() {
             fi
         fi
     done
-    if ! dpkg --configure -a; then true; fi
+    dpkg --configure -a || echo "WARNING: dpkg --configure -a reported errors (compat tgz)" >&2
 }
 
-# Compat libs for native deb mode (adds focal/jammy repos for older packages)
+# Native .deb path: same compat policy as tgz — no extra apt suites.
 function _install_compat_libs_native() {
-    . /etc/os-release
-    if [ "${ID:-}" = "ubuntu" ]; then
-        if [ "$(dpkg --print-architecture)" = "amd64" ]; then
-            repo_url="http://archive.ubuntu.com/ubuntu"
-        else
-            repo_url="http://ports.ubuntu.com/ubuntu-ports"
-        fi
-        echo "deb [trusted=yes] ${repo_url} focal main" >/etc/apt/sources.list.d/focal-compat.list
-        [ "${VERSION_ID}" != "22.04" ] &&
-            echo "deb [trusted=yes] ${repo_url} jammy main" >/etc/apt/sources.list.d/jammy-compat.list
-        apt-get update -y
-        if ! dpkg --configure -a; then true; fi
-        curl_pkg="libcurl4"
-        apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"
-        for cpkg in libssl1.1 "${curl_pkg}" libldap-2.4-2 libldap-2.5-0; do
-            if apt-cache show "${cpkg}" >/dev/null 2>&1; then
-                if ! apt-get install -y --no-install-recommends "${cpkg}"; then
-                    echo "Note: ${cpkg} available but not installable"
-                fi
+    _install_compat_libs_tgz
+    for cpkg in libldap-2.4-2 libldap-2.5-0 libldap2; do
+        if apt-cache show "${cpkg}" >/dev/null 2>&1; then
+            if ! apt-get install -y --no-install-recommends "${cpkg}"; then
+                echo "Note: ${cpkg} available but not installable"
             fi
-        done
-        if ! dpkg --configure -a; then true; fi
-        if ! ldconfig; then true; fi
-        if ! ldconfig -p 2>/dev/null | grep -q libcrypto.so.1.1; then
-            rm -f /var/cache/apt/archives/*.deb 2>/dev/null
-            curl_pkg="libcurl4"
-            apt-cache show libcurl4t64 >/dev/null 2>&1 && curl_pkg="libcurl4t64"
-            for cpkg in libssl1.1 "${curl_pkg}" libldap-2.4-2 libldap-2.5-0; do
-                if apt-cache show "${cpkg}" >/dev/null 2>&1; then
-                    if ! apt-get install -y --no-install-recommends --download-only "${cpkg}" 2>/dev/null; then true; fi
-                fi
-            done
-            if ls /var/cache/apt/archives/*.deb >/dev/null 2>&1; then
-                if ! dpkg -i /var/cache/apt/archives/*.deb; then
-                    echo "Note: some compat lib debs could not be installed"
-                fi
-            fi
-            if ! dpkg --configure -a; then true; fi
         fi
-        rm -f /etc/apt/sources.list.d/focal-compat.list /etc/apt/sources.list.d/jammy-compat.list
-    fi
+    done
+    dpkg --configure -a || echo "WARNING: dpkg --configure -a reported errors (compat native)" >&2
+    ldconfig || echo "WARNING: ldconfig failed" >&2
 }
 
 # Install tools from extracted tgz (tools .deb -> ar -> tar -> move binaries)
@@ -155,11 +99,19 @@ ARCH="$(dpkg --print-architecture)"
 # Install build dependencies
 apt-get update -y
 if [ "${ARCH}" = "arm64" ]; then
-    if ! apt-get install -y --no-install-recommends \
-        binutils xz-utils ca-certificates curl procps; then
-        if ! dpkg --configure -a; then true; fi
+    _try=1
+    while [ "${_try}" -le 3 ]; do
+        if apt-get install -y --no-install-recommends \
+            binutils xz-utils ca-certificates curl procps; then
+            break
+        fi
+        dpkg --configure -a || echo "WARNING: dpkg --configure -a (before retry apt install)" >&2
         sleep 2
-        if ! dpkg --configure -a; then true; fi
+        _try=$((_try + 1))
+    done
+    if [ "${_try}" -gt 3 ]; then
+        echo "ERROR: apt-get install build dependencies failed after retries" >&2
+        exit 1
     fi
 else
     apt-get install -y --no-install-recommends \
@@ -223,10 +175,14 @@ if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
 
     if [ "${ARCH}" = "arm64" ]; then
         if ! dpkg -i server.deb; then
-            if ! dpkg --configure -a; then true; fi
+            dpkg --configure -a || echo "WARNING: dpkg --configure -a before server.deb retry" >&2
             sleep 2
+            dpkg -i server.deb || {
+                echo "ERROR: dpkg -i server.deb failed" >&2
+                exit 1
+            }
         fi
-        if ! dpkg --configure -a; then true; fi
+        dpkg --configure -a || echo "WARNING: dpkg --configure -a after server.deb" >&2
     else
         dpkg -i server.deb
     fi
@@ -240,7 +196,7 @@ if [ "${AEROSPIKE_LOCAL_PKG:-0}" = "1" ]; then
     if ! dpkg --purge curl; then
         echo "Note: keeping curl (has reverse dependencies)"
     fi
-    if ! apt-get autoremove -y; then true; fi
+    apt-get autoremove -y || echo "WARNING: apt-get autoremove failed" >&2
     rm -rf /var/lib/apt/lists/*
 
 # --- Install: tgz bundle (default) ---
@@ -275,10 +231,14 @@ else
 
     if [ "${ARCH}" = "arm64" ]; then
         if ! dpkg -i aerospike/aerospike-server-*.deb; then
-            if ! dpkg --configure -a; then true; fi
+            dpkg --configure -a || echo "WARNING: dpkg --configure -a before server deb retry" >&2
             sleep 2
+            dpkg -i aerospike/aerospike-server-*.deb || {
+                echo "ERROR: dpkg -i aerospike-server deb failed" >&2
+                exit 1
+            }
         fi
-        if ! dpkg --configure -a; then true; fi
+        dpkg --configure -a || echo "WARNING: dpkg --configure -a after server deb" >&2
     else
         dpkg -i aerospike/aerospike-server-*.deb
     fi
@@ -296,7 +256,7 @@ else
             echo "Note: keeping ${pkg} (has reverse dependencies)"
         fi
     done
-    if ! apt-get autoremove -y; then true; fi
+    apt-get autoremove -y || echo "WARNING: apt-get autoremove failed" >&2
     rm -rf /var/lib/apt/lists/*
 fi
 

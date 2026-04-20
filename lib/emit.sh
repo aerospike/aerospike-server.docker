@@ -201,7 +201,6 @@ LABEL org.opencontainers.image.title="Aerospike ${edition^} Server" \\
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="${edition}"
 
-ENV AEROSPIKE_LINUX_BASE="${base_image}"
 ${dockerfile_x86_args}
 ${dockerfile_aarch64_args}
 ARG AEROSPIKE_COMPAT_LIBS="${needs_compat_libs}"
@@ -244,6 +243,8 @@ COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 EXPOSE 3000 3001 3002
 
 COPY entrypoint.sh /entrypoint.sh
+
+STOPSIGNAL SIGTERM
 
 # Tini init set to restart ASD on SIGUSR1 and terminate ASD on SIGTERM
 ENTRYPOINT ["/usr/bin/as-tini-static", "-r", "SIGUSR1", "-t", "SIGTERM", "--", "/entrypoint.sh"]
