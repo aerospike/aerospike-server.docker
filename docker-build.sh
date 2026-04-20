@@ -66,7 +66,23 @@ OPTIONS:
                         Default: all platforms (linux/amd64, linux/arm64; federal is amd64 only)
     -T, --timestamp TS  Use TS for push tags (e.g. version-TS). Format: YYYYMMDDHHMMSS
                         Default: current UTC time
+    -n, --revision N    Immutable build counter for extra tags: <version>_N and, with distros,
+                        <version>-<distro>_N (e.g. 8.1.2.0_1, 8.1.2.0-ubuntu24.04_2). Non-negative
+                        integer. Omitted by default. Applies to bake push/test tags only (-t / -p).
     --no-cache          Disable Docker build cache (force full rebuild)
+
+    Bake file tags (bake-multi.hcl; only for -t / -p, not -g alone):
+        By default, images are tagged with lineage, full version, and version-timestamp only.
+        Use -n/--revision for extra immutable <version>_N tags (see above). Optional :latest-style
+        tags are off unless you pass one of:
+
+    --tag-latest        Always add extra tags: :latest or :latest-<distro_slug> on push targets,
+                        and :latest-<arch> or :latest-<distro_slug>-<arch> on test targets.
+    --auto-latest       Add those same extra tags only when the resolved build version equals
+                        the newest GA across all support lineages (7.1, 7.2, 8.0, 8.1). Queries
+                        artifact listings; use with -t or -p. Ignored if --tag-latest is set.
+    --no-latest         Disable both (default). Use to override BAKE_TAG_LATEST_AUTO / FORCE env.
+
     -h, --help          Show this help message
 
 VERSION/LINEAGE:
@@ -84,7 +100,7 @@ DISTRO SUPPORT BY LINEAGE (default: all distros below; primary UBI is ubi9):
 
 OUTPUT:
     releases/<lineage>/<edition>/<distro>/    Generated Dockerfiles
-    bake-multi.hcl                            Docker buildx bake file
+    bake-multi.hcl                            Docker buildx bake file (see -n, --tag-latest, --auto-latest)
 
 MODES OF OPERATION:
     Without -g (default):
@@ -98,39 +114,41 @@ MODES OF OPERATION:
         (new distro, new dependencies, install script rewrite, etc.).
 
 EXAMPLES:
-    # Build all editions/distros for lineage 8.1 (local test, in-place update)
+    # --- Basic: resolve latest patch for a lineage, update Dockerfiles, build ---
     $0 -t 8.1
-
-    # Build specific edition and distro
     $0 -t 8.1 -e enterprise -d ubuntu24.04
-
-    # Build multiple editions and distros
     $0 -t 8.1 -e enterprise community -d ubuntu24.04 ubi9
-
-    # Build for specific architecture(s) only
     $0 -t 8.1 -a amd64
     $0 -t 8.1 -a arm64
-    $0 -p 8.1 -a amd64 arm64
-
-    # Build and push to registry
     $0 -p 8.1 -e enterprise federal
-
-    # Build and push to one or more registries
     $0 -p 8.1 -e enterprise -r artifact.aerospike.io/database-docker-dev-local
     $0 -p 8.1 -e enterprise -r reg1 -r reg2
+    $0 -t
 
-    # Push with custom timestamp for tags (e.g. product:8.1.1.1-20250225120000)
-    $0 -p 8.1 -T 20250225120000
+    # --- bake-multi.hcl: optional :latest-style tags (default: off) ---
+    # Always add e.g. ...:latest or ...:latest-ubuntu24-04 on push, ...:latest-amd64 on test
+    $0 -p 8.1 --tag-latest
+    $0 -t 8.1 -e community -d ubuntu24.04 --tag-latest
+    # Add ...:latest* only if the built version equals newest GA across 7.1–8.1 (queries artifacts)
+    $0 -t 8.1 --auto-latest
+    $0 -p 8.1 --auto-latest
+    # Explicitly disable (default); overrides BAKE_TAG_LATEST_* env if set
+    $0 -p 8.1 --no-latest
 
-    # Fully regenerate Dockerfiles only (no build)
+    # --- bake-multi.hcl: timestamp and immutable revision _N (extra tags; default: no -n) ---
+    # Push tags include ...:<version>-<TS> plus optional ...:<version>_N (single-distro filter)
+    $0 -p 8.1 -e community -d ubuntu24.04 -T 20250225120000 -n 1
+    # Multi-distro push also gets ...:<version>-<distro>_N (e.g. 8.1.2.0-ubuntu24.04_2)
+    $0 -p 8.1 -n 2
+    # Test load: extra tag ...:<version>_N-amd64 or ...:<version>-<distro>_N-amd64
+    $0 -t 8.1 -e enterprise -d ubuntu24.04 -n 2
+
+    # --- Regenerate Dockerfiles only (no bake / no docker build) ---
     $0 -g 8.1
 
-    # Build from custom/staging artifacts server
+    # --- Custom artifacts URL (e.g. staging) ---
     $0 -t 8.1.1.0-start-108 -e enterprise -d ubi9 \\
        -u https://stage.aerospike.com/artifacts/docker/aerospike-server-enterprise
-
-    # Build all supported lineages
-    $0 -t
 EOF
 }
 
@@ -143,6 +161,8 @@ function main() {
     local full_generate=false
     local -a bake_opts=()
     local build_timestamp=""
+    local immutable_revision=""
+    local tag_latest_auto=0 tag_latest_force=0
     declare -ga REGISTRY_PREFIXES=()
 
     declare -ga EDITION_FILTERS=()
@@ -196,8 +216,25 @@ function main() {
             build_timestamp="$2"
             shift 2
             ;;
+        -n | --revision)
+            immutable_revision="$2"
+            shift 2
+            ;;
         --no-cache)
             bake_opts+=(--no-cache)
+            shift
+            ;;
+        --tag-latest)
+            tag_latest_force=1
+            shift
+            ;;
+        --auto-latest)
+            tag_latest_auto=1
+            shift
+            ;;
+        --no-latest)
+            tag_latest_auto=0
+            tag_latest_force=0
             shift
             ;;
         -h | --help)
@@ -215,6 +252,13 @@ function main() {
             ;;
         esac
     done
+
+    if [ -n "${immutable_revision}" ]; then
+        if ! [[ "${immutable_revision}" =~ ^[0-9]+$ ]]; then
+            log_warn "-n/--revision must be a non-negative integer (got: ${immutable_revision})"
+            exit 1
+        fi
+    fi
 
     # -g alone = generate-only; -g with -t/-p = full regenerate + build
     if [ "${full_generate}" = true ] && [ -z "${mode}" ]; then
@@ -248,6 +292,12 @@ function main() {
     echo ""
     log_info "=== Building Images ==="
 
+    export BAKE_TAG_LATEST_AUTO="${tag_latest_auto}"
+    export BAKE_TAG_LATEST_FORCE="${tag_latest_force}"
+    export BAKE_IMMUTABLE_REVISION="${immutable_revision}"
+    if [ -n "${immutable_revision}" ]; then
+        log_info "Bake immutable revision tags enabled: _${immutable_revision} (e.g. <version>_${immutable_revision})"
+    fi
     generate_bake "${build_timestamp}"
 
     case "${mode}" in
