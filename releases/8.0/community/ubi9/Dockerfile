@@ -125,6 +125,9 @@ command -v curl >/dev/null 2>&1 || {
     exit 1
 }
 
+# as-tini-static is Aerospike's tini fork (not vanilla Docker tini): supports -r SIGUSR1 / -t
+# SIGTERM wired in the Dockerfile ENTRYPOINT for controlled ASD restart and shutdown.
+
 # Download and verify tini
 if [ "${ARCH}" = "x86_64" ]; then
     tini_sha=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
