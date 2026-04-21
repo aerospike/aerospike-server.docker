@@ -103,6 +103,9 @@ function generate_dockerfile() {
     chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
 
+    mkdir -p "${target}/static/tini"
+    cp "${SCRIPT_DIR}/static/tini/as-tini-static-amd64" "${SCRIPT_DIR}/static/tini/as-tini-static-arm64" "${target}/static/tini/"
+
     # Copy the appropriate install script into the context directory
     if [ "${pkg_type}" = "deb" ]; then
         cp scripts/deb/install.sh "${target}/install.sh"
@@ -209,6 +212,9 @@ ${dockerfile_extra_args}
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 HEADER
+
+        cat "${SCRIPT_DIR}/lib/dockerfile_fragment_tini.docker"
+        echo ""
 
         # Optional COPY for local packages (before install script)
         if [ -n "${dockerfile_copy_local}" ]; then

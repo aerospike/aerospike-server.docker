@@ -1,0 +1,8 @@
+Vendored Aerospike tini 1.0.1 (same bytes as GitHub release assets).
+Refresh with: scripts/fetch-tini-static.sh
+
+as-tini-static-amd64  SHA256 d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
+  https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static
+
+as-tini-static-arm64  SHA256 1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b
+  https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64

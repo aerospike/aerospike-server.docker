@@ -89,27 +89,11 @@ command -v curl >/dev/null 2>&1 || {
     exit 1
 }
 
-# as-tini-static is Aerospike's tini fork (not vanilla Docker tini): supports -r SIGUSR1 / -t
-# SIGTERM wired in the Dockerfile ENTRYPOINT for controlled ASD restart and shutdown.
-
-# Download and verify tini
-if [ "${ARCH}" = "x86_64" ]; then
-    tini_sha=d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940
-    tini_suffix=""
-else
-    tini_sha=1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b
-    tini_suffix="-arm64"
-fi
-if ! curl -fsSL --retry 3 --retry-delay 3 \
-    "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${tini_suffix}" \
-    -o /usr/bin/as-tini-static; then
-    sleep 5
-    curl -fsSL --retry 3 --retry-delay 3 \
-        "https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static${tini_suffix}" \
-        -o /usr/bin/as-tini-static
-fi
-echo "${tini_sha} /usr/bin/as-tini-static" | sha256sum -c -
-chmod +x /usr/bin/as-tini-static
+# as-tini-static is COPY'd in the Dockerfile from static/tini/ (no RUN-time GitHub fetch).
+test -x /usr/bin/as-tini-static || {
+    echo "ERROR: /usr/bin/as-tini-static missing (Dockerfile vendored tini step)" >&2
+    exit 1
+}
 
 # Select arch-specific package link and SHA
 if [ "${ARCH}" = "x86_64" ]; then

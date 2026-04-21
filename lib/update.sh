@@ -68,6 +68,44 @@ df_path.write_text(text2)
 PY
 }
 
+function _sync_static_tini_to_target() {
+    local target=$1
+    mkdir -p "${target}/static/tini"
+    cp "${SCRIPT_DIR}/static/tini/as-tini-static-amd64" "${SCRIPT_DIR}/static/tini/as-tini-static-arm64" "${target}/static/tini/"
+}
+
+# Insert vendored-tini COPY/RUN after SHELL if missing (matches lib/dockerfile_fragment_tini.docker).
+function _dockerfile_ensure_vendored_tini() {
+    local df=$1
+    python3 - "${df}" "${SCRIPT_DIR}/lib/dockerfile_fragment_tini.docker" <<'PY'
+import pathlib, sys
+
+df_path = pathlib.Path(sys.argv[1])
+frag_path = pathlib.Path(sys.argv[2])
+frag = frag_path.read_text()
+if not frag.endswith("\n"):
+    frag += "\n"
+text = df_path.read_text()
+if "COPY static/tini/as-tini-static-amd64" in text:
+    raise SystemExit(0)
+lines = text.splitlines(keepends=True)
+out = []
+inserted = False
+for line in lines:
+    out.append(line)
+    if inserted:
+        continue
+    if line.startswith("SHELL [") and "]" in line:
+        out.append("\n")
+        out.append(frag)
+        inserted = True
+if not inserted:
+    sys.stderr.write(f"{df_path}: could not find SHELL line to insert vendored tini\n")
+    sys.exit(1)
+df_path.write_text("".join(out))
+PY
+}
+
 # resolve_packages distro edition version tools_version single_arch
 # Outputs: x86_link x86_sha arm_link arm_sha pkg_format use_local_pkg
 # Sets the six variables above in the caller's scope.
@@ -233,6 +271,9 @@ function update_dockerfile() {
         cp scripts/rpm/install.sh "${target}/install.sh"
     fi
     chmod +x "${target}/install.sh"
+
+    _sync_static_tini_to_target "${target}"
+    _dockerfile_ensure_vendored_tini "${df}"
 
     # Re-embed install.sh (RUN heredoc); refresh local-pkg COPY prefix via copy_line.
     _dockerfile_refresh_install_block "${df}" "${target}/install.sh" "${copy_line}"
