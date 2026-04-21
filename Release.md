@@ -194,7 +194,7 @@ Updated README.md with:
 	Generated files ignored: `bake-multi.hcl`, `.DS_Store`. The `releases/` directory is not in `.gitignore` in the current layout; it can be committed (e.g. for 7.1) or ignored depending on workflow.
 
 -	**CI workflows**  
-	`.github/workflows/build.yml` still references `update.sh` and `build.sh`. These should be updated to use `docker-build.sh` (e.g. generate with `./docker-build.sh -g` for the "no diff" check, and `./docker-build.sh -t` for build/test) to align with the new build system.
+	`.github/workflows/build.yml` uses `./docker-build.sh` for all generation and build steps (e.g. `./docker-build.sh -g` for the "no diff" check, `./docker-build.sh -t` for build/test).
 
 -	**Code organization (PR-ready)**
 

@@ -7,8 +7,14 @@
 set -Eeuo pipefail
 
 ARTIFACTS_DIR="${1:-artifacts}"
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)
-REPO_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
+SCRIPT_DIR=$(
+    cd "$(dirname "${BASH_SOURCE[0]:-$0}")" || exit 1
+    pwd
+)
+REPO_ROOT=$(
+    cd "${SCRIPT_DIR}/.." || exit 1
+    pwd
+)
 
 if [[ "${ARTIFACTS_DIR}" == /* ]]; then
     BASE="${ARTIFACTS_DIR}"
@@ -25,9 +31,9 @@ fi
 
 # Prefer sha256sum (Linux), else shasum -a 256 (macOS); both output "hash  filename"
 if command -v sha256sum >/dev/null 2>&1; then
-    HASH_CMD="sha256sum"
+    HASH_CMD=(sha256sum)
 elif command -v shasum >/dev/null 2>&1; then
-    HASH_CMD="shasum -a 256"
+    HASH_CMD=(shasum -a 256)
 else
     echo "Need sha256sum or shasum" >&2
     exit 1
@@ -43,7 +49,7 @@ while IFS= read -r -d '' f; do
     out="${f}.sha256"
     # Write "hash  filename" (basename only so verification works from same dir)
     b=$(basename "${f}")
-    "${HASH_CMD}" "${f}" | (
+    "${HASH_CMD[@]}" "${f}" | (
         read -r hash rest
         echo "${hash}  ${b}"
     ) >"${out}"

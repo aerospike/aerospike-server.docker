@@ -32,8 +32,11 @@ function support_distros() {
     7.2 | 8.0)
         echo "ubuntu24.04 ubi9"
         ;;
-    8.1 | *)
-        echo "ubuntu24.04 ubi9"
+    8.1)
+        echo "ubuntu24.04 ubi10"
+        ;;
+    *)
+        echo "ubuntu22.04 ubi9"
         ;;
     esac
 }
@@ -50,7 +53,9 @@ function support_distros_matching() {
         return
     fi
     local out=""
+    # shellcheck disable=SC2086
     for d in ${all_distros}; do
+        # shellcheck disable=SC2086
         for f in ${filter_tokens}; do
             if [ "${d}" = "${f}" ] || [[ "${d}" == "${f}"* ]]; then
                 out="${out} ${d}"
@@ -65,7 +70,7 @@ function support_distro_to_base() {
     case "$1" in
     ubuntu22.04) echo "ubuntu:22.04" ;;
     ubuntu24.04) echo "ubuntu:24.04" ;;
-    ubi9) echo "registry.access.redhat.com/ubi9/ubi-minimal:9.4" ;;
+    ubi9) echo "registry.access.redhat.com/ubi9/ubi-minimal:9.7" ;;
     ubi10) echo "registry.access.redhat.com/ubi10/ubi-minimal:10.0" ;;
     *)
         log_warn "unsupported distro '$1'"
@@ -121,8 +126,10 @@ function support_platforms_matching() {
         return
     fi
     local out=""
+    # shellcheck disable=SC2086
     for plat in ${all_platforms}; do
         local arch="${plat#*/}"
+        # shellcheck disable=SC2086
         for f in ${filter_tokens}; do
             case "${f}" in
             amd64 | x86_64)

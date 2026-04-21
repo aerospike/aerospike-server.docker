@@ -3,3 +3,10 @@
 # Generated files
 bake-multi.hcl
 
+# Snyk scan output
+*.snyk
+
+# Local test artifacts and backups
+artifacts/
+*.bak
+
