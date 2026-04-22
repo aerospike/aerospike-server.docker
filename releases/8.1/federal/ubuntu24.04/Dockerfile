@@ -35,8 +35,18 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 # COPY avoids RUN-time fetch from GitHub (Docker Official / air-gapped / reproducible builds).
 # hadolint ignore=DL3042
 COPY static/tini/as-tini-static-amd64 static/tini/as-tini-static-arm64 /opt/aerospike-tini/
-ARG TARGETARCH
-RUN cp "/opt/aerospike-tini/as-tini-static-${TARGETARCH}" /usr/bin/as-tini-static && chmod +x /usr/bin/as-tini-static \
+# TARGETARCH is auto-populated by BuildKit. The empty default keeps the
+# legacy builder used by Docker Official Images (DOI) from tripping `set -u`,
+# and the RUN below falls back to `uname -m`, so the same Dockerfile works on
+# both BuildKit and the legacy builder, on Debian/Ubuntu and UBI/RHEL alike.
+ARG TARGETARCH=
+RUN case "${TARGETARCH:-$(uname -m)}" in \
+        amd64 | x86_64) arch=amd64 ;; \
+        arm64 | aarch64) arch=arm64 ;; \
+        *) echo "ERROR: unsupported arch ${TARGETARCH:-$(uname -m)} for as-tini-static" >&2; exit 1 ;; \
+    esac \
+    && cp "/opt/aerospike-tini/as-tini-static-${arch}" /usr/bin/as-tini-static \
+    && chmod +x /usr/bin/as-tini-static \
     && rm -rf /opt/aerospike-tini
 
 # Install Aerospike Server and Tools
