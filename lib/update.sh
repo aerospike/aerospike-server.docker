@@ -87,6 +87,23 @@ if not frag.endswith("\n"):
     frag += "\n"
 text = df_path.read_text()
 if "COPY static/tini/as-tini-static-amd64" in text:
+    # Self-heal older Dockerfiles that have tini COPY/RUN but missed ARG TARGETARCH.
+    if (
+        "cp \"/opt/aerospike-tini/as-tini-static-${TARGETARCH}\"" in text
+        and "ARG TARGETARCH" not in text
+    ):
+        lines = text.splitlines(keepends=True)
+        out = []
+        inserted = False
+        for line in lines:
+            if (not inserted) and line.startswith("RUN cp \"/opt/aerospike-tini/as-tini-static-${TARGETARCH}\""):
+                out.append("ARG TARGETARCH\n")
+                inserted = True
+            out.append(line)
+        if not inserted:
+            sys.stderr.write(f"{df_path}: could not insert ARG TARGETARCH before tini RUN\n")
+            sys.exit(1)
+        df_path.write_text("".join(out))
     raise SystemExit(0)
 lines = text.splitlines(keepends=True)
 out = []
