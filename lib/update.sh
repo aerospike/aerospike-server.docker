@@ -74,11 +74,19 @@ function _sync_static_tini_to_target() {
     cp "${SCRIPT_DIR}/static/tini/as-tini-static-amd64" "${SCRIPT_DIR}/static/tini/as-tini-static-arm64" "${target}/static/tini/"
 }
 
-# Insert vendored-tini COPY/RUN after SHELL if missing (matches lib/dockerfile_fragment_tini.docker).
+# Ensure the vendored-tini block in the Dockerfile matches the canonical
+# fragment (lib/dockerfile_fragment_tini.docker). Three cases:
+#   1. Block missing entirely  -> insert fragment after SHELL.
+#   2. Old-form block present  -> replace whole block (comments + COPY +
+#      optional `ARG TARGETARCH` + RUN cp) with the fragment. Old form
+#      relies on BuildKit to auto-populate ${TARGETARCH}, which the legacy
+#      builder used by Docker Official Images (DOI) does not, breaking
+#      under `set -u`. The new fragment falls back to `uname -m`.
+#   3. New-form block already present -> no-op (idempotent).
 function _dockerfile_ensure_vendored_tini() {
     local df=$1
     python3 - "${df}" "${SCRIPT_DIR}/lib/dockerfile_fragment_tini.docker" <<'PY'
-import pathlib, sys
+import pathlib, re, sys
 
 df_path = pathlib.Path(sys.argv[1])
 frag_path = pathlib.Path(sys.argv[2])
@@ -86,8 +94,37 @@ frag = frag_path.read_text()
 if not frag.endswith("\n"):
     frag += "\n"
 text = df_path.read_text()
-if "COPY static/tini/as-tini-static-amd64" in text:
+
+# Case 3: already in the new (DOI-safe) form.
+if 'as-tini-static-${arch}' in text:
     raise SystemExit(0)
+
+# Case 2: replace the entire old tini block with the canonical fragment.
+if "COPY static/tini/as-tini-static-amd64" in text:
+    pattern = re.compile(
+        r"(?ms)"
+        # leading tini-related comment lines (any contiguous run of `# ...` lines)
+        r"(?:^#[^\n]*\n)*"
+        # the COPY line
+        r"^COPY static/tini/as-tini-static-amd64[^\n]*\n"
+        # optional bare `ARG TARGETARCH` (old form had no default)
+        r"(?:^ARG TARGETARCH[^\n]*\n)?"
+        # RUN cp ... start line
+        r"^RUN cp \"/opt/aerospike-tini/as-tini-static-\$\{TARGETARCH\}\"[^\n]*\n"
+        # any number of leading-whitespace continuation lines
+        r"(?:^[ \t][^\n]*\n)*"
+    )
+    text2, n = pattern.subn(frag, text, count=1)
+    if n != 1:
+        sys.stderr.write(
+            f"{df_path}: could not match existing tini block to replace "
+            "(file format unexpected)\n"
+        )
+        sys.exit(1)
+    df_path.write_text(text2)
+    raise SystemExit(0)
+
+# Case 1: insert the fragment after the SHELL line.
 lines = text.splitlines(keepends=True)
 out = []
 inserted = False
