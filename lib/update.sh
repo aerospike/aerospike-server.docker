@@ -186,6 +186,44 @@ function _dockerfile_refresh_install_block() {
     _sed_i 's/[[:space:]]*$//' "${df}"
 }
 
+# Sync the native-package COPY instruction in a Dockerfile.
+#   copy_glob  non-empty (e.g. "*.deb") → ensure exactly one "COPY <glob> /tmp/aerospike/" line
+#              exists immediately before the "# Install Aerospike Server" anchor.
+#   copy_glob  empty → remove any such COPY line (TGZ mode or remote-URL native mode).
+# Idempotent: safe to call on both new and already-updated Dockerfiles.
+function _dockerfile_sync_native_copy() {
+    local df=$1 copy_glob=$2
+    local tmp
+    tmp=$(mktemp)
+    # shellcheck disable=SC2064
+    trap "rm -f '${tmp}'" RETURN
+
+    if [ -n "${copy_glob}" ]; then
+        local copy_line="COPY ${copy_glob} /tmp/aerospike/"
+        # If the exact line already exists, nothing to do.
+        if grep -qF "${copy_line}" "${df}"; then
+            return 0
+        fi
+        # Remove any stale COPY *.deb / COPY *.rpm line first (different glob or edition).
+        _sed_i '/^COPY \*\.\(deb\|rpm\) \/tmp\/aerospike\//d' "${df}"
+        # Insert the COPY line (+ blank line) immediately before the install anchor.
+        awk -v cline="${copy_line}" '
+        /^# Install Aerospike/ && !inserted {
+            print cline
+            print ""
+            inserted = 1
+        }
+        { print }
+        ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+    else
+        # TGZ mode or remote-URL native: remove any native-copy line.
+        _sed_i '/^COPY \*\.\(deb\|rpm\) \/tmp\/aerospike\//d' "${df}"
+        # Collapse any resulting double blank line.
+        awk 'prev=="" && /^$/ && blank { next } /^$/ { blank=1 } !/^$/ { blank=0 } { prev=$0; print }' \
+            "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+    fi
+}
+
 # Remove the vendored-tini COPY block from a Dockerfile (if present from older
 # Dockerfiles). Tini is now fetched at build time via curl in the install block.
 function _dockerfile_remove_vendored_tini() {
@@ -313,6 +351,17 @@ function update_dockerfile() {
 
     # Remove vendored-tini COPY block (older Dockerfiles only; idempotent if absent).
     _dockerfile_remove_vendored_tini "${df}"
+
+    # Sync the COPY instruction for local native package builds:
+    # - use_native + local files  → insert/keep   COPY *.{deb,rpm} /tmp/aerospike/
+    # - use_native + remote URLs  → no COPY needed (curl downloads the file)
+    # - TGZ mode                  → remove any stale COPY *.deb/rpm line
+    local _copy_glob=""
+    if "${_use_native}"; then
+        [[ "${x86_link:-}" != http* ]] && [ -n "${x86_link:-}" ] && _copy_glob="*.${pkg_type}"
+        [[ "${arm_link:-}" != http* ]] && [ -n "${arm_link:-}" ] && _copy_glob="*.${pkg_type}"
+    fi
+    _dockerfile_sync_native_copy "${df}" "${_copy_glob}"
 
     # Re-inline install logic as RUN \ block; substitute package URL/SHA placeholders.
     _dockerfile_refresh_install_block "${df}" "${install_script}" "${_use_native}"
