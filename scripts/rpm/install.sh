@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # UBI/RHEL: install Aerospike server + tools.
 # Single source of truth for all RPM-based Docker images.
-# Executed from the Dockerfile RUN heredoc (BuildKit); not copied as a separate layer file.
+# Inlined into the Dockerfile as a `RUN \` block by lib/sh_to_dockerfile_run.py
+# (Docker Official Images rejects both BuildKit heredocs and COPY of build-time
+# scripts; the accepted pattern is all logic inline in the Dockerfile).
 #
 # Expected ARG/ENV from Dockerfile:
 #   AEROSPIKE_EDITION        community|enterprise|federal
@@ -13,6 +15,25 @@
 #
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 set -Eeuo pipefail
+
+# ---------------------------------------------------------------------------
+# Install tini from vendored binaries
+# ---------------------------------------------------------------------------
+# Use the package manager for userspace arch — DOI guidance: `uname -m` reports
+# the kernel/host arch, not the image's userspace arch.
+ARCH="$(rpm --eval '%{_arch}')"
+case "${ARCH}" in
+    x86_64) _tini_arch=amd64 ;;
+    aarch64) _tini_arch=arm64 ;;
+    *) echo "Unsupported architecture - ${ARCH}" >&2; exit 1 ;;
+esac
+cp "/opt/aerospike-tini/as-tini-static-${_tini_arch}" /usr/bin/as-tini-static
+chmod +x /usr/bin/as-tini-static
+rm -rf /opt/aerospike-tini
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
 
 # Retry helper for arm64 QEMU emulation flakiness
 function _retry() {
@@ -72,7 +93,7 @@ function _install_tools_from_tgz() {
 # Main install logic
 # ---------------------------------------------------------------------------
 
-ARCH="$(uname -m)"
+ARCH="$(rpm --eval '%{_arch}')"
 
 # Install build dependencies (with retry for arm64 QEMU). procps-ng provides ps(1); kept at runtime.
 _retry microdnf install -y --setopt=install_weak_deps=0 \
@@ -86,12 +107,6 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 command -v curl >/dev/null 2>&1 || {
     echo "ERROR: curl not found" >&2
-    exit 1
-}
-
-# as-tini-static is COPY'd in the Dockerfile from static/tini/ (no RUN-time GitHub fetch).
-test -x /usr/bin/as-tini-static || {
-    echo "ERROR: /usr/bin/as-tini-static missing (Dockerfile vendored tini step)" >&2
     exit 1
 }
 
@@ -185,5 +200,3 @@ else
     microdnf clean all || echo "WARNING: microdnf clean failed" >&2
     rm -rf /var/cache/yum /var/cache/dnf
 fi
-
-echo "done"

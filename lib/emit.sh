@@ -106,13 +106,15 @@ function generate_dockerfile() {
     mkdir -p "${target}/static/tini"
     cp "${SCRIPT_DIR}/static/tini/as-tini-static-amd64" "${SCRIPT_DIR}/static/tini/as-tini-static-arm64" "${target}/static/tini/"
 
-    # Copy the appropriate install script into the context directory
+    # Resolve the install script path (not copied into the build context —
+    # DOI does not support COPY of build-time-only scripts; logic is inlined
+    # directly in the Dockerfile as a RUN \ block via sh_to_dockerfile_run.py).
+    local install_script
     if [ "${pkg_type}" = "deb" ]; then
-        cp scripts/deb/install.sh "${target}/install.sh"
+        install_script="${SCRIPT_DIR}/scripts/deb/install.sh"
     else
-        cp scripts/rpm/install.sh "${target}/install.sh"
+        install_script="${SCRIPT_DIR}/scripts/rpm/install.sh"
     fi
-    chmod +x "${target}/install.sh"
 
     # --- Handle local packages: copy into context, generate COPY line ---
     local dockerfile_copy_local=""
@@ -156,9 +158,11 @@ function generate_dockerfile() {
     fi
 
     # --- Build Dockerfile variables ---
-    local needs_compat_libs="0"
+    # ARG AEROSPIKE_COMPAT_LIBS is only needed for 7.2 on ubuntu24.04 (legacy libs);
+    # omit it for all other versions to match the DOI-accepted reference structure.
+    local compat_libs_arg=""
     if [[ "${distro}" == ubuntu24.04 ]] && [[ "${lineage}" == "7.2" ]]; then
-        needs_compat_libs="1"
+        compat_libs_arg='ARG AEROSPIKE_COMPAT_LIBS="1"'
     fi
 
     local dockerfile_extra_args=""
@@ -179,7 +183,7 @@ ARG AEROSPIKE_SHA_AARCH64=\"${arm_sha}\""
     # --- Emit Dockerfile ---
     {
         cat <<HEADER
-# syntax=docker/dockerfile:1
+
 #
 # Aerospike Server Dockerfile
 #
@@ -204,9 +208,10 @@ LABEL org.opencontainers.image.title="Aerospike ${edition^} Server" \\
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="${edition}"
 
+ENV AEROSPIKE_LINUX_BASE="${base_image}"
 ${dockerfile_x86_args}
 ${dockerfile_aarch64_args}
-ARG AEROSPIKE_COMPAT_LIBS="${needs_compat_libs}"
+${compat_libs_arg}
 ${dockerfile_extra_args}
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
@@ -222,12 +227,10 @@ HEADER
             echo ""
         fi
 
-        # Inline install script (no COPY install.sh — satisfies strict image policies)
-        echo "# Install Aerospike Server and Tools"
-        echo "# hadolint ignore=DL3003,DL3008,DL3041,SC2015"
-        echo "RUN bash <<'AEROSPIKE_INSTALL'"
-        cat "${target}/install.sh"
-        echo "AEROSPIKE_INSTALL"
+        # Inline all install logic directly as a RUN \ block (DOI-accepted pattern).
+        # DOI rejects BuildKit heredocs AND COPY of build-time scripts — the build
+        # context only contains Dockerfile + runtime support files (no install.sh).
+        python3 "${SCRIPT_DIR}/lib/sh_to_dockerfile_run.py" "${install_script}"
         echo ""
 
         # Footer
@@ -249,8 +252,6 @@ COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
 EXPOSE 3000 3001 3002
 
 COPY entrypoint.sh /entrypoint.sh
-
-STOPSIGNAL SIGTERM
 
 # Tini init set to restart ASD on SIGUSR1 and terminate ASD on SIGTERM
 ENTRYPOINT ["/usr/bin/as-tini-static", "-r", "SIGUSR1", "-t", "SIGTERM", "--", "/entrypoint.sh"]

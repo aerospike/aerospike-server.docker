@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Ubuntu/Debian: install Aerospike server + tools.
 # Single source of truth for all DEB-based Docker images.
-# Executed from the Dockerfile RUN heredoc (BuildKit); not copied as a separate layer file.
+# Inlined into the Dockerfile as a `RUN \` block by lib/sh_to_dockerfile_run.py
+# (Docker Official Images rejects both BuildKit heredocs and COPY of build-time
+# scripts; the accepted pattern is all logic inline in the Dockerfile).
 #
 # Expected ARG/ENV from Dockerfile:
 #   AEROSPIKE_EDITION        community|enterprise|federal
@@ -17,6 +19,19 @@
 #
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 set -Eeuo pipefail
+
+# ---------------------------------------------------------------------------
+# Install tini from vendored binaries
+# ---------------------------------------------------------------------------
+ARCH="$(dpkg --print-architecture)"
+case "${ARCH}" in
+    amd64) _tini_arch=amd64 ;;
+    arm64) _tini_arch=arm64 ;;
+    *) echo "Unsupported architecture - ${ARCH}" >&2; exit 1 ;;
+esac
+cp "/opt/aerospike-tini/as-tini-static-${_tini_arch}" /usr/bin/as-tini-static
+chmod +x /usr/bin/as-tini-static
+rm -rf /opt/aerospike-tini
 
 # ---------------------------------------------------------------------------
 # Helper functions
@@ -69,24 +84,32 @@ function _install_compat_libs_native() {
     ldconfig || echo "WARNING: ldconfig failed" >&2
 }
 
-# Install tools from extracted tgz (tools .deb -> ar -> tar -> move binaries)
+# Install tools from extracted tgz (tools .deb -> ar -> tar -> move binaries).
+# Gracefully skips asadm/asinfo symlinks when the binary is absent so that
+# server-only packages (no tools) do not produce dangling symlinks.
 function _install_tools_from_tgz() {
     ar -x aerospike/aerospike-tools*.deb --output aerospike/pkg
     tar xf aerospike/pkg/data.tar.xz -C aerospike/pkg/
 
     find aerospike/pkg/opt/aerospike/bin/ -exec chown root:root {} +
-    mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike
+    if [ -f aerospike/pkg/etc/aerospike/astools.conf ]; then
+        mv aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike
+    fi
     if [ -d 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then
         mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/
-    else
+    elif [ -e 'aerospike/pkg/opt/aerospike/bin/asadm' ]; then
         mkdir -p /usr/lib/asadm
         mv aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/
     fi
-    ln -snf /usr/lib/asadm/asadm /usr/bin/asadm
+    if [ -e /usr/lib/asadm/asadm ]; then
+        ln -snf /usr/lib/asadm/asadm /usr/bin/asadm
+    fi
     if [ -f 'aerospike/pkg/opt/aerospike/bin/asinfo' ]; then
         mv aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/
     fi
-    ln -snf /usr/lib/asadm/asinfo /usr/bin/asinfo
+    if [ -e /usr/lib/asadm/asinfo ]; then
+        ln -snf /usr/lib/asadm/asinfo /usr/bin/asinfo
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -119,12 +142,6 @@ else
 fi
 command -v curl >/dev/null 2>&1 || {
     echo "ERROR: curl not found" >&2
-    exit 1
-}
-
-# as-tini-static is COPY'd in the Dockerfile from static/tini/ (no RUN-time GitHub fetch).
-test -x /usr/bin/as-tini-static || {
-    echo "ERROR: /usr/bin/as-tini-static missing (Dockerfile vendored tini step)" >&2
     exit 1
 }
 
@@ -248,4 +265,3 @@ else
 fi
 
 unset DEBIAN_FRONTEND
-echo "done"
