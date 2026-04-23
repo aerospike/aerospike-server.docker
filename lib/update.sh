@@ -2,7 +2,7 @@
 # In-place Dockerfile update: patch ARGs, LABELs, and local-pkg COPY lines
 # without regenerating the full Dockerfile.  Used by default (no -g flag).
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh
+# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
 
 set -Eeuo pipefail
 
@@ -24,96 +24,116 @@ function _dockerfile_refresh_install_block() {
     local df=$1
     local inst=$2
     local copy_line=${3:-}
-    python3 - "$df" "$inst" "${copy_line}" "${SCRIPT_DIR}" <<'PY'
-import importlib.util, pathlib, re, sys
 
-df_path   = pathlib.Path(sys.argv[1])
-inst_path = sys.argv[2]
-copy_line = sys.argv[3] if len(sys.argv) > 3 else ""
-script_dir = sys.argv[4] if len(sys.argv) > 4 else "."
+    # Temp files; cleaned up on function return (including on error).
+    local nbf tmp
+    nbf=$(mktemp)
+    tmp=$(mktemp)
+    # shellcheck disable=SC2064
+    trap "rm -f '${nbf}' '${tmp}'" RETURN
 
-# Load the shared converter module (lib/sh_to_dockerfile_run.py).
-_spec = importlib.util.spec_from_file_location(
-    "sh_to_dockerfile_run",
-    str(pathlib.Path(script_dir) / "lib" / "sh_to_dockerfile_run.py"),
-)
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
+    # Step A: build the new install block into a temp file.
+    # Inline RUN \ block (DOI-accepted pattern):
+    #   - No BuildKit heredoc (DOI parser cannot pre-scan them for build ordering).
+    #   - No COPY install.sh (DOI's bashbrew build context only includes files
+    #     present in the upstream directory; install.sh is not committed there).
+    [ -n "${copy_line}" ] && printf '%s\n\n' "${copy_line}" > "${nbf}"
+    _sh_to_dockerfile_run "${inst}" >> "${nbf}"
+    # Ensure exactly one trailing blank line (separator before the next instruction).
+    printf '\n' >> "${nbf}"
 
-# Inline RUN \ block (DOI-accepted pattern):
-#   - No BuildKit heredoc (DOI parser cannot pre-scan them for build ordering).
-#   - No COPY install.sh (DOI's bashbrew build context only includes the
-#     files present in the upstream directory; install.sh is not committed).
-prefix = (copy_line.rstrip() + "\n\n") if copy_line.strip() else ""
-# Ensure new_block ends with exactly one blank line (separator before next instruction).
-new_block = prefix + _mod.sh_to_dockerfile_run(pathlib.Path(inst_path).read_text())
-new_block = new_block.rstrip("\n") + "\n\n"
+    # Step B: strip prior local-pkg COPY lines; fresh ones come from copy_line above.
+    _sed_i '/^COPY server_/d' "${df}"
 
-text = df_path.read_text()
-# Strip prior local-pkg COPY lines; fresh ones come from copy_line above.
-lines = [ln for ln in text.splitlines(True) if not re.match(r"^COPY server_", ln)]
-text = "".join(lines)
+    # Step C: replace the install block in whichever form it currently appears.
+    #   Form 1 (current):  anchor + "# hadolint..." + "RUN \" + continuation lines
+    #   Form 2 (previous): anchor + "COPY install.sh" + "# hadolint..." + "RUN bash"
+    #   Form 3 (oldest):   anchor + BuildKit heredoc content until AEROSPIKE_INSTALL
+    awk -v nbf="${nbf}" -v src="${df}" '
+    function emit_new_block(    line) {
+        while ((getline line < nbf) > 0) print line
+        close(nbf)
+    }
+    BEGIN { state = "looking"; form = "" }
+    state == "done" { print; next }
+    state == "looking" && /^# Install Aerospike Server and Tools$/ {
+        state = "consuming"; form = ""; next
+    }
+    state == "consuming" {
+        if (form == "") {
+            if (/^# hadolint/)        { form = "run1";    next }
+            if (/^COPY install\.sh /) { form = "run2";    next }
+            if (/<</)                 { form = "heredoc"; next }
+            # Unrecognised line after anchor — emit block and keep line
+            emit_new_block(); state = "done"; print; next
+        }
+        if (form == "run1") {
+            if (/^RUN \\/) { next }        # RUN \ header
+            if (/^[ \t]/)  { next }        # continuation lines
+            if (/^$/)      { next }        # trailing blank lines after block
+            emit_new_block(); state = "done"; print; next
+        }
+        if (form == "run2") {
+            if (/^# hadolint/) { next }
+            if (/^RUN bash /)  { emit_new_block(); state = "done"; next }
+            emit_new_block(); state = "done"; print; next
+        }
+        if (form == "heredoc") {
+            if (/^AEROSPIKE_INSTALL$/) { emit_new_block(); state = "done"; next }
+            next
+        }
+    }
+    { print }
+    END {
+        if (state != "done") {
+            print src ": could not replace install block" > "/dev/stderr"
+            exit 1
+        }
+    }
+    ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
 
-# Match and replace the install block in whichever form it currently is:
-#   1. Inline RUN \ block (current form) — idempotent.
-#   2. Classic COPY install.sh + RUN bash (previous form).
-#   3. BuildKit heredoc (oldest form).
-PATTERNS = [
-    # 1. Inline RUN \ block — also consume any trailing blank lines to ensure
-    #    exactly one separator line is written by new_block.
-    r"(?ms)^# Install Aerospike Server and Tools\n"
-    r"# hadolint[^\n]*\n"
-    r"RUN \\\n"
-    r"(?:[ \t][^\n]*\n)+"
-    r"\n*",
-    # 2. Classic COPY + RUN bash
-    r"(?ms)^# Install Aerospike Server and Tools\n"
-    r"COPY install\.sh /tmp/install\.sh\n"
-    r"# hadolint[^\n]*\n"
-    r"RUN bash /tmp/install\.sh && rm -f /tmp/install\.sh\n",
-    # 3. BuildKit heredoc
-    r"(?ms)^# Install Aerospike Server and Tools\n.*?\nAEROSPIKE_INSTALL\n",
-]
-text2, n = text, 0
-for pat in PATTERNS:
-    text2, n = re.subn(pat, new_block, text, count=1)
-    if n == 1:
-        break
-if n != 1:
-    sys.stderr.write(f"{df_path}: could not replace install block (matched {n})\n")
-    sys.exit(1)
-# Remove BuildKit-only parser directive (DOI legacy builder does not use BuildKit).
-text2 = re.sub(r"^# syntax=docker/dockerfile:[^\n]*\n", "", text2)
-# Remove STOPSIGNAL SIGTERM (not present in DOI-accepted reference Dockerfiles).
-text2 = re.sub(r"^STOPSIGNAL SIGTERM\n\n?", "", text2, flags=re.MULTILINE)
-# Remove ARG AEROSPIKE_COMPAT_LIBS="0" (reference omits it when value is 0;
-# only keep it for 7.2/ubuntu24.04 where the value would be "1").
-text2 = re.sub(r'^ARG AEROSPIKE_COMPAT_LIBS="0"\n', "", text2, flags=re.MULTILINE)
-# Add ENV AEROSPIKE_LINUX_BASE if missing (DOI reference: after ARG EDITION, no
-# blank line between it and the next ARG).
-if "ENV AEROSPIKE_LINUX_BASE=" not in text2:
-    m_from = re.search(r"^FROM (\S+)", text2, flags=re.MULTILINE)
-    if m_from:
-        base_img = m_from.group(1)
-        # Consume the blank line that follows ARG EDITION (if any) so ENV and
-        # the first ARG link appear on consecutive lines (matching reference).
-        text2 = re.sub(
-            r"^(ARG AEROSPIKE_EDITION=\"[^\"\n]*\"\n)(\n?)",
-            lambda m: m.group(1) + f'\nENV AEROSPIKE_LINUX_BASE="{base_img}"\n',
-            text2, count=1, flags=re.MULTILINE,
-        )
-# Remove any blank line between ENV AEROSPIKE_LINUX_BASE and the next ARG line
-# (DOI reference: they appear on consecutive lines).
-text2 = re.sub(
-    r"^(ENV AEROSPIKE_LINUX_BASE=\"[^\"\n]*\")\n\n(ARG )",
-    r"\1\n\2",
-    text2, flags=re.MULTILINE,
-)
-# Ensure file starts with a single blank line (matching DOI reference format).
-text2 = text2.lstrip("\n")
-text2 = "\n" + text2
-df_path.write_text(text2)
-PY
+    # Step D: cleanup passes.
+    # Remove BuildKit-only parser directive (DOI legacy builder does not use it).
+    _sed_i '/^# syntax=docker\/dockerfile:/d' "${df}"
+    # Remove STOPSIGNAL SIGTERM + optional following blank line.
+    awk '/^STOPSIGNAL SIGTERM$/ {
+        if ((getline nl) > 0 && nl != "") print nl
+        next
+    } { print }' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+    # Remove ARG AEROSPIKE_COMPAT_LIBS="0" (kept only when value is "1").
+    _sed_i '/^ARG AEROSPIKE_COMPAT_LIBS="0"$/d' "${df}"
+
+    # Step E: inject ENV AEROSPIKE_LINUX_BASE after ARG AEROSPIKE_EDITION if missing.
+    if ! grep -qF 'ENV AEROSPIKE_LINUX_BASE=' "${df}"; then
+        local base_img
+        base_img=$(awk '/^FROM /{print $2; exit}' "${df}")
+        if [ -n "${base_img}" ]; then
+            awk -v base="${base_img}" '
+            /^ARG AEROSPIKE_EDITION=/ {
+                print
+                print ""
+                print "ENV AEROSPIKE_LINUX_BASE=\"" base "\""
+                next
+            }
+            { print }
+            ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+        fi
+    fi
+    # Remove blank line between ENV AEROSPIKE_LINUX_BASE and the next ARG line
+    # (DOI reference: they appear on consecutive lines).
+    awk '/^ENV AEROSPIKE_LINUX_BASE=/ {
+        print
+        if ((getline nl) > 0) {
+            if (nl == "") { getline nl }
+            print nl
+        }
+        next
+    } { print }' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+
+    # Step F: ensure file starts with exactly one blank line; strip trailing whitespace.
+    awk 'BEGIN{skip=1} skip && /^$/{next} {skip=0; print}' "${df}" \
+        | { printf '\n'; cat; } > "${tmp}" && mv "${tmp}" "${df}"
+    _sed_i 's/[[:space:]]*$//' "${df}"
 }
 
 function _sync_static_tini_to_target() {
@@ -140,66 +160,94 @@ function _sync_static_tini_to_target() {
 #   so one code path converts any prior shape to the current canonical one.
 function _dockerfile_ensure_vendored_tini() {
     local df=$1
-    python3 - "${df}" "${SCRIPT_DIR}/lib/dockerfile_fragment_tini.docker" <<'PY'
-import pathlib, re, sys
+    local frag_file="${SCRIPT_DIR}/lib/dockerfile_fragment_tini.docker"
 
-df_path = pathlib.Path(sys.argv[1])
-frag_path = pathlib.Path(sys.argv[2])
-frag = frag_path.read_text()
-if not frag.endswith("\n"):
-    frag += "\n"
-text = df_path.read_text()
+    # Read canonical fragment; ensure it ends with a newline.
+    local frag
+    frag=$(cat "${frag_file}")
+    [[ "${frag}" != *$'\n' ]] && frag+=$'\n'
 
-if "COPY static/tini/as-tini-static-amd64" in text:
-    # The tini block has gone through multiple shapes:
-    #   1. COPY-only (new form, since tini arch-selection moved to install.sh)
-    #   2. COPY + `RUN if command -v dpkg...rm -rf /opt/aerospike-tini` (previous)
-    #   3. COPY + `ARG TARGETARCH` + `RUN case...rm -rf /opt/aerospike-tini` (oldest)
-    # Match all forms; the RUN block is optional so the new COPY-only form also
-    # matches (idempotent replacement).
-    pattern = re.compile(
-        r"(?ms)"
-        # leading tini-related comment lines (contiguous `# ...`)
-        r"(?:^#[^\n]*\n)*"
-        # the COPY line
-        r"^COPY static/tini/as-tini-static-amd64[^\n]*\n"
-        # optional comment lines and optional ARG TARGETARCH (older forms)
-        r"(?:^#[^\n]*\n)*"
-        r"(?:^ARG TARGETARCH(?:=[^\n]*)?\n)?"
-        # optional RUN block (absent in the new COPY-only form)
-        r"(?:"
-        r"^RUN [^\n]*\n"
-        r"(?:^[ \t][^\n]*\n)*?"
-        r"^[ \t][^\n]*rm -rf /opt/aerospike-tini\n"
-        r")?"
-    )
-    text2, n = pattern.subn(frag, text, count=1)
-    if n != 1:
-        sys.stderr.write(
-            f"{df_path}: could not match existing tini block to replace "
-            "(file format unexpected)\n"
-        )
-        sys.exit(1)
-    df_path.write_text(text2)
-    raise SystemExit(0)
+    local tmp
+    tmp=$(mktemp)
+    # shellcheck disable=SC2064
+    trap "rm -f '${tmp}'" RETURN
 
-# Block missing: insert fragment after the SHELL line.
-lines = text.splitlines(keepends=True)
-out = []
-inserted = False
-for line in lines:
-    out.append(line)
-    if inserted:
-        continue
-    if line.startswith("SHELL [") and "]" in line:
-        out.append("\n")
-        out.append(frag)
-        inserted = True
-if not inserted:
-    sys.stderr.write(f"{df_path}: could not find SHELL line to insert vendored tini\n")
-    sys.exit(1)
-df_path.write_text("".join(out))
-PY
+    if grep -qF 'COPY static/tini/as-tini-static-amd64' "${df}"; then
+        # The tini block has gone through multiple shapes:
+        #   1. COPY-only (current form — tini arch-selection is now in install.sh)
+        #   2. COPY + RUN if command -v dpkg ... rm -rf /opt/aerospike-tini (previous)
+        #   3. COPY + ARG TARGETARCH + RUN case ... rm -rf /opt/aerospike-tini (oldest)
+        # Awk state machine: consume all tini-related lines, emit canonical fragment once.
+        awk -v frag="${frag}" -v src="${df}" '
+        function emit_frag() { printf "%s", frag }
+        BEGIN { state = "looking"; buf = ""; buf_n = 0 }
+
+        state == "looking" {
+            # Buffer contiguous comment lines — they might be the tini block header.
+            if (/^#/) { buf = buf $0 "\n"; buf_n++; next }
+            if (/^COPY static\/tini\/as-tini-static-amd64/) {
+                # Discard buffered comments (they are the tini block header) + this line.
+                buf = ""; buf_n = 0
+                state = "after_copy"
+                next
+            }
+            # Not a tini line: flush buffer and print this line.
+            if (buf_n > 0) { printf "%s", buf; buf = ""; buf_n = 0 }
+            print
+            next
+        }
+
+        state == "after_copy" {
+            if (/^#/)              { next }          # discard trailing tini comments
+            if (/^ARG TARGETARCH/) { next }          # discard (older form)
+            if (/^RUN /)           { state = "in_run"; next }
+            # Next non-comment, non-ARG, non-RUN line: no RUN block (current form).
+            emit_frag(); state = "done"; print; next
+        }
+
+        state == "in_run" {
+            if (/rm -rf \/opt\/aerospike-tini/) { state = "after_run"; next }
+            next  # discard RUN continuation lines
+        }
+
+        state == "after_run" {
+            if (/^[ \t]/) { next }   # still in RUN continuation
+            emit_frag(); state = "done"; print; next
+        }
+
+        state == "done" { print; next }
+
+        { print }
+
+        END {
+            if (buf_n > 0) printf "%s", buf   # flush any unmatched buffered comments
+            if (state == "after_copy" || state == "in_run" || state == "after_run") {
+                # EOF reached while consuming tini block — emit fragment now.
+                emit_frag()
+            }
+        }
+        ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+    else
+        # Block missing: insert canonical fragment after the SHELL [...] line.
+        awk -v frag="${frag}" -v src="${df}" '
+        BEGIN { inserted = 0 }
+        !inserted && /^SHELL \[/ && /\]/ {
+            print
+            print ""
+            printf "%s", frag
+            inserted = 1
+            next
+        }
+        { print }
+        END {
+            if (!inserted) {
+                print src ": could not find SHELL line to insert vendored tini" \
+                    > "/dev/stderr"
+                exit 1
+            }
+        }
+        ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+    fi
 }
 
 # resolve_packages distro edition version tools_version single_arch

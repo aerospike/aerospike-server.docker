@@ -6,11 +6,6 @@ bake-multi.hcl
 # Snyk scan output
 *.snyk
 
-# Python bytecode cache
-__pycache__/
-*.pyc
-*.pyo
-
 # Local test artifacts and backups
 artifacts/
 *.bak

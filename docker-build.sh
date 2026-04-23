@@ -24,6 +24,7 @@ source lib/log.sh
 source lib/support.sh
 source lib/version.sh
 source lib/fetch.sh
+source lib/sh_to_dockerfile_run.sh
 source lib/emit.sh
 source lib/update.sh
 source lib/generate.sh

@@ -2,7 +2,7 @@
 # Dockerfile generation: emit header + RUN heredoc (install.sh inlined) + footer.
 # The install logic now lives in scripts/deb/install.sh and scripts/rpm/install.sh.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh
+# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
 
 set -Eeuo pipefail
 
@@ -230,7 +230,7 @@ HEADER
         # Inline all install logic directly as a RUN \ block (DOI-accepted pattern).
         # DOI rejects BuildKit heredocs AND COPY of build-time scripts — the build
         # context only contains Dockerfile + runtime support files (no install.sh).
-        python3 "${SCRIPT_DIR}/lib/sh_to_dockerfile_run.py" "${install_script}"
+        _sh_to_dockerfile_run "${install_script}"
         echo ""
 
         # Footer
