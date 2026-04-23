@@ -3,6 +3,7 @@
 # The install logic now lives in scripts/deb/install.sh and scripts/rpm/install.sh.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
+# Fragments:    lib/dockerfile_fragment_tini.docker, lib/dockerfile_fragment_footer.docker
 
 set -Eeuo pipefail
 
@@ -233,32 +234,7 @@ HEADER
         _sh_to_dockerfile_run "${install_script}"
         echo ""
 
-        # Footer
-        cat <<FOOTER
-# Add the Aerospike configuration specific to this dockerfile
-COPY aerospike.template.conf /etc/aerospike/aerospike.template.conf
-
-# Mount the Aerospike data directory
-# VOLUME ["/opt/aerospike/data"]
-# Mount the Aerospike config directory
-# VOLUME ["/etc/aerospike/"]
-
-# Expose Aerospike ports
-#
-#   3000 – service port, for client connections
-#   3001 – fabric port, for cluster communication
-#   3002 – mesh port, for cluster heartbeat
-#
-EXPOSE 3000 3001 3002
-
-COPY entrypoint.sh /entrypoint.sh
-
-# Tini init set to restart ASD on SIGUSR1 and terminate ASD on SIGTERM
-ENTRYPOINT ["/usr/bin/as-tini-static", "-r", "SIGUSR1", "-t", "SIGTERM", "--", "/entrypoint.sh"]
-
-# Execute the run script in foreground mode
-CMD ["asd"]
-FOOTER
+        cat "${SCRIPT_DIR}/lib/dockerfile_fragment_footer.docker"
     } | sed 's/[[:space:]]*$//' | cat -s >"${target}/Dockerfile"
 
     # Ensure file ends with newline
