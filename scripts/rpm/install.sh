@@ -47,7 +47,10 @@ chmod +x /usr/bin/as-tini-static
 # ---------------------------------------------------------------------------
 # Fetch and unpack server package
 # ---------------------------------------------------------------------------
-microdnf install -y --setopt=install_weak_deps=0 tar gzip xz cpio shadow-utils
+# findutils: needed by aerospike-server %post scriptlets that invoke find(1).
+# shadow-utils: needed by rpm %pre/%post for useradd/groupadd.
+# tar/gzip/xz/cpio: package extraction; removed after install.
+microdnf install -y --setopt=install_weak_deps=0 findutils tar gzip xz cpio shadow-utils
 mkdir -p /tmp/aerospike/pkg
 curl -fL -o /tmp/aerospike/pkg.tgz "${pkgLink}"
 echo "${pkgSha}  */tmp/aerospike/pkg.tgz" | sha256sum --strict --check -
@@ -101,6 +104,7 @@ if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "fede
     fi
 fi
 rm -rf /tmp/aerospike
-microdnf remove -y tar gzip xz cpio
+# Remove build-only tools; some may have reverse deps — treat as best-effort.
+microdnf remove -y findutils tar gzip xz cpio 2>/dev/null || :
 microdnf clean all
 rm -rf /var/cache/yum /var/cache/dnf
