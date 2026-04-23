@@ -36,6 +36,10 @@ else
     echo >&2 "error: unsupported architecture '${ARCH}'"
     exit 1
 fi
+if [ -z "${pkgLink}" ]; then
+    echo >&2 "error: no package available for edition '${AEROSPIKE_EDITION}' on architecture '${ARCH}'"
+    exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Fetch and install tini
