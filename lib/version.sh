@@ -220,9 +220,13 @@ function find_tools_version() {
     local version=$1
     local url
 
-    # Local dir: no HTTP listing; skip so build uses native .rpm/.deb only (no tools)
     if is_local_artifacts_dir; then
-        echo ""
+        # Local dir: scan for any TGZ bundle whose name embeds _tools-<ver>_
+        local base_dir="${ARTIFACTS_DOMAIN}"
+        [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
+        find "${base_dir}" -type f -name "*${version}*_tools-*.tgz" 2>/dev/null |
+            grep -oE "_tools-[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+)?)?_" |
+            head -1 | sed 's/_tools-//; s/_$//'
         return
     fi
 
@@ -240,6 +244,38 @@ function find_tools_version() {
         head -1 | sed 's/_tools-//; s/_$//'
 }
 
+# Find local TGZ bundle for given parameters; echo absolute path or empty.
+function find_local_tgz_package() {
+    local base_dir=$1 artifact_distro=$2 edition=$3 version=$4 tools_version=$5 arch=$6
+
+    if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
+        echo ""
+        return
+    fi
+
+    [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
+    [ -d "${base_dir}" ] || { echo ""; return; }
+    base_dir=$(cd "${base_dir}" && pwd)
+
+    local tgz_name="aerospike-server-${edition}_${version}_tools-${tools_version}_${artifact_distro}_${arch}.tgz"
+    local search_dirs=(
+        "${base_dir}"
+        "${base_dir}/${version}"
+        "${base_dir}/aerospike-server-${edition}"
+        "${base_dir}/aerospike-server-${edition}/${version}"
+    )
+    local dir f
+    for dir in "${search_dirs[@]}"; do
+        [ -d "${dir}" ] || continue
+        f="${dir}/${tgz_name}"
+        [ -f "${f}" ] && echo "${f}" && return
+    done
+    # Recursive fallback (nested release layouts)
+    f=$(find "${base_dir}" -type f -name "${tgz_name}" 2>/dev/null | head -1)
+    [ -n "${f}" ] && echo "${f}" && return
+    echo ""
+}
+
 # Get the download link for a package (tgz bundle)
 function get_package_link() {
     local artifact_distro=$1
@@ -251,6 +287,12 @@ function get_package_link() {
     # Federal doesn't support arm64
     if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
         echo ""
+        return
+    fi
+
+    # Local dir: resolve the actual file path rather than building a computed URL
+    if is_local_artifacts_dir; then
+        find_local_tgz_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${arch}"
         return
     fi
 
@@ -341,13 +383,24 @@ function get_tools_package_link_native() {
     fi
 }
 
-# Fetch SHA256 for any package URL (link.sha256)
+# Fetch SHA256 for any package URL or local file path (reads link.sha256 sidecar).
 function fetch_sha_for_link() {
     local link=$1
     [ -z "${link}" ] && {
         echo ""
         return
     }
+    if [[ "${link}" != http* ]]; then
+        # Local file: read .sha256 sidecar if present, else compute the hash.
+        if [ -f "${link}.sha256" ]; then
+            cut -f1 -d' ' <"${link}.sha256"
+        elif [ -f "${link}" ]; then
+            sha256sum "${link}" 2>/dev/null | cut -f1 -d' '
+        else
+            echo ""
+        fi
+        return
+    fi
     fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' '
 }
 
