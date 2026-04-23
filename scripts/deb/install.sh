@@ -40,7 +40,7 @@ fi
 # Fetch and install tini
 # ---------------------------------------------------------------------------
 curl -fL -o /usr/bin/as-tini-static "${tiniUrl}"
-echo "${tiniSha}  */usr/bin/as-tini-static" | sha256sum --strict --check -
+echo "${tiniSha}  /usr/bin/as-tini-static" | sha256sum --check -
 chmod +x /usr/bin/as-tini-static
 
 # ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ chmod +x /usr/bin/as-tini-static
 # ---------------------------------------------------------------------------
 mkdir -p /tmp/aerospike
 curl -fL -o /tmp/aerospike/pkg.tgz "${pkgLink}"
-echo "${pkgSha}  */tmp/aerospike/pkg.tgz" | sha256sum --strict --check -
+echo "${pkgSha}  /tmp/aerospike/pkg.tgz" | sha256sum --check -
 tar -xzf /tmp/aerospike/pkg.tgz --strip-components=1 -C /tmp/aerospike
 
 # ---------------------------------------------------------------------------
