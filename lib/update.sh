@@ -16,15 +16,16 @@ _sed_i() {
 }
 
 # Refresh the embedded install script block in a Dockerfile (same layout as emit.sh).
-# inst  = path to the source install script (scripts/deb/install.sh or rpm).
+# inst       = path to the source install script.
+# use_native = "true" when using native .deb/.rpm (no TGZ bundle).
 # The script is NOT copied into the build context — DOI rejects COPY of
 # build-time-only scripts. Logic is inlined as a RUN \ block via the converter.
 # Package URL/SHA placeholders are substituted using caller-scoped variables:
-#   x86_link  x86_sha  arm_link  arm_sha  (DEB)
-#   x86_link  x86_sha  arm_link  arm_sha  (RPM — same names, different placeholder tokens)
+#   x86_link  x86_sha  arm_link  arm_sha  (set by resolve_packages)
 function _dockerfile_refresh_install_block() {
     local df=$1
     local inst=$2
+    local use_native=${3:-false}
 
     # Temp files; cleaned up on function return (including on error).
     local nbf tmp
@@ -40,7 +41,28 @@ function _dockerfile_refresh_install_block() {
     # Uses caller-scoped x86_link, x86_sha, arm_link, arm_sha (from resolve_packages).
     local pkg_type
     pkg_type=$(support_distro_to_pkg_type "$(basename "$(dirname "${df}")")")
-    if [ "${pkg_type}" = "deb" ]; then
+
+    if "${use_native}"; then
+        # Native scripts: __SERVER_URL_* placeholders; empty = COPY'd file (local build).
+        local _x86_url="" _x86_sha_val="" _arm_url="" _arm_sha_val=""
+        [[ "${x86_link:-}" == http* ]] && _x86_url="${x86_link}" && _x86_sha_val="${x86_sha:-}"
+        [[ "${arm_link:-}" == http* ]] && _arm_url="${arm_link}" && _arm_sha_val="${arm_sha:-}"
+        if [ "${pkg_type}" = "deb" ]; then
+            _sed_i \
+                -e "s|__SERVER_URL_AMD64__|${_x86_url}|g" \
+                -e "s|__SERVER_SHA_AMD64__|${_x86_sha_val}|g" \
+                -e "s|__SERVER_URL_ARM64__|${_arm_url}|g" \
+                -e "s|__SERVER_SHA_ARM64__|${_arm_sha_val}|g" \
+                "${nbf}"
+        else
+            _sed_i \
+                -e "s|__SERVER_URL_X86_64__|${_x86_url}|g" \
+                -e "s|__SERVER_SHA_X86_64__|${_x86_sha_val}|g" \
+                -e "s|__SERVER_URL_AARCH64__|${_arm_url}|g" \
+                -e "s|__SERVER_SHA_AARCH64__|${_arm_sha_val}|g" \
+                "${nbf}"
+        fi
+    elif [ "${pkg_type}" = "deb" ]; then
         _sed_i \
             -e "s|__PKG_URL_AMD64__|${x86_link:-}|g" \
             -e "s|__PKG_SHA_AMD64__|${x86_sha:-}|g" \
@@ -196,8 +218,8 @@ function _dockerfile_remove_vendored_tini() {
 }
 
 # resolve_packages distro edition version tools_version single_arch pkg_type
-# Outputs: x86_link x86_sha arm_link arm_sha pkg_format use_local_pkg
-# Sets the six variables above in the caller's scope.
+# Outputs: x86_link x86_sha arm_link arm_sha pkg_format use_native
+# Sets the variables above in the caller's scope via dynamic scoping.
 function resolve_packages() {
     local artifact_distro=$1 edition=$2 version=$3 tools_version=$4 single_arch=$5
     local pkg_type=$6
@@ -208,6 +230,8 @@ function resolve_packages() {
     arm_sha=""
     # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
     pkg_format="tgz"
+    # shellcheck disable=SC2034  # consumed by update_dockerfile via dynamic scoping
+    use_native=false
 
     if [ -n "${tools_version}" ]; then
         x86_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
@@ -220,8 +244,10 @@ function resolve_packages() {
         x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
         x86_sha=$(fetch_sha_for_link "${x86_link}")
         if [ -n "${x86_link}" ]; then
-            # shellcheck disable=SC2034  # consumed by caller via dynamic scoping
+            # shellcheck disable=SC2034  # consumed by caller and update_dockerfile
             pkg_format="${pkg_type}"
+            # shellcheck disable=SC2034  # consumed by update_dockerfile
+            use_native=true
             arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
             arm_sha=$(fetch_sha_for_link "${arm_link}")
         fi
@@ -259,20 +285,37 @@ function update_dockerfile() {
     chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
 
-    # Resolve install script source (never copied into build context — inlined).
+    # Resolve install script source.
+    # use_native is set by resolve_packages (caller-scoped) when no TGZ bundle found.
     local pkg_type install_script
     pkg_type=$(support_distro_to_pkg_type "$(basename "${target}")")
-    if [ "${pkg_type}" = "deb" ]; then
-        install_script="${SCRIPT_DIR}/scripts/deb/install.sh"
+    local _use_native="${use_native:-false}"
+    if "${_use_native}"; then
+        if [ "${pkg_type}" = "deb" ]; then
+            install_script="${SCRIPT_DIR}/scripts/deb/install-native.sh"
+        else
+            install_script="${SCRIPT_DIR}/scripts/rpm/install-native.sh"
+        fi
+        # Stage local package files into the build context (idempotent copy).
+        if [[ "${x86_link:-}" != http* ]] && [ -n "${x86_link:-}" ] && [ -f "${x86_link:-}" ]; then
+            cp "${x86_link}" "${target}/"
+        fi
+        if [[ "${arm_link:-}" != http* ]] && [ -n "${arm_link:-}" ] && [ -f "${arm_link:-}" ]; then
+            cp "${arm_link}" "${target}/"
+        fi
     else
-        install_script="${SCRIPT_DIR}/scripts/rpm/install.sh"
+        if [ "${pkg_type}" = "deb" ]; then
+            install_script="${SCRIPT_DIR}/scripts/deb/install.sh"
+        else
+            install_script="${SCRIPT_DIR}/scripts/rpm/install.sh"
+        fi
     fi
 
     # Remove vendored-tini COPY block (older Dockerfiles only; idempotent if absent).
     _dockerfile_remove_vendored_tini "${df}"
 
     # Re-inline install logic as RUN \ block; substitute package URL/SHA placeholders.
-    _dockerfile_refresh_install_block "${df}" "${install_script}"
+    _dockerfile_refresh_install_block "${df}" "${install_script}" "${_use_native}"
 
     # Clean trailing whitespace and ensure trailing newline.
     _sed_i 's/[[:space:]]*$//' "${df}"

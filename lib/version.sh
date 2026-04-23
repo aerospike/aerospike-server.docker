@@ -322,6 +322,13 @@ function get_server_package_link_native() {
         return
     fi
 
+    # Local dir: use find_local_server_package to locate the actual file (handles
+    # flat, versioned, edition-prefixed, and nested directory layouts).
+    if is_local_artifacts_dir; then
+        find_local_server_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${edition}" "${version}" "${arch}" "${pkg_type}"
+        return
+    fi
+
     local base_url path_prefix
     if is_direct_url || is_artifactory_repo; then
         base_url="${ARTIFACTS_DOMAIN}"
@@ -347,6 +354,48 @@ function get_server_package_link_native() {
     fi
 }
 
+# Find local tools package; echo path if found, else empty.
+function find_local_tools_package() {
+    local base_dir=$1 artifact_distro=$2 edition=$3 version=$4 tools_version=$5 arch=$6 pkg_type=$7
+
+    if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
+        echo ""
+        return
+    fi
+
+    [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
+    [ -d "${base_dir}" ] || { echo ""; return; }
+    base_dir=$(cd "${base_dir}" && pwd)
+
+    local deb_arch="${arch}"
+    [ "${arch}" = "x86_64" ] && deb_arch="amd64"
+    [ "${arch}" = "aarch64" ] && deb_arch="arm64"
+
+    local search_dirs=("${base_dir}" "${base_dir}/${version}" "${base_dir}/aerospike-server-${edition}" "${base_dir}/aerospike-server-${edition}/${version}")
+    local dir f
+
+    if [ "${pkg_type}" = "rpm" ]; then
+        for dir in "${search_dirs[@]}"; do
+            [ -d "${dir}" ] || continue
+            for f in "${dir}"/aerospike-tools-"${tools_version}"-*."${artifact_distro}"."${arch}".rpm; do
+                [ -f "${f}" ] && echo "${f}" && return
+            done
+        done
+        f=$(find "${base_dir}" -type f -name "aerospike-tools*${tools_version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | head -1)
+    else
+        for dir in "${search_dirs[@]}"; do
+            [ -d "${dir}" ] || continue
+            for f in "${dir}"/aerospike-tools_"${tools_version}"_"${deb_arch}".deb \
+                      "${dir}"/aerospike-tools_"${tools_version}"*_"${deb_arch}".deb; do
+                [ -f "${f}" ] && echo "${f}" && return
+            done
+        done
+        f=$(find "${base_dir}" -type f -name "aerospike-tools*${tools_version}*${deb_arch}*.deb" 2>/dev/null | head -1)
+    fi
+    [ -n "${f}" ] && echo "${f}" && return
+    echo ""
+}
+
 # Get tools package link for native format (rpm or deb)
 function get_tools_package_link_native() {
     local artifact_distro=$1
@@ -358,6 +407,12 @@ function get_tools_package_link_native() {
 
     if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
         echo ""
+        return
+    fi
+
+    # Local dir: search for the actual tools package file
+    if is_local_artifacts_dir; then
+        find_local_tools_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${arch}" "${pkg_type}"
         return
     fi
 

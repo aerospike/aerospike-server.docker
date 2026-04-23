@@ -30,6 +30,7 @@ function generate_dockerfile() {
     base_image=$(support_distro_to_base "${distro}")
 
     local x86_link="" x86_sha="" arm_link="" arm_sha=""
+    local use_native=false  # true when falling back to native .deb/.rpm (no TGZ bundle)
 
     # Derive single_arch when exactly one arch is filtered
     local single_arch=""
@@ -49,6 +50,7 @@ function generate_dockerfile() {
 
     # Fallback to native rpm/deb when tgz not available
     if [ -z "${x86_sha}" ]; then
+        use_native=true
         x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
         x86_sha=$(fetch_sha_for_link "${x86_link}")
         if [ -n "${x86_link}" ]; then
@@ -80,14 +82,31 @@ function generate_dockerfile() {
     chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
 
-    # Resolve the install script path (not copied into the build context —
-    # DOI does not support COPY of build-time-only scripts; logic is inlined
-    # directly in the Dockerfile as a RUN \ block via _sh_to_dockerfile_run).
+    # --- Resolve install script ---
+    # TGZ bundles use the standard install scripts (server + tools via curl).
+    # Native packages (.deb/.rpm only, no tools) use the -native variants.
+    # For local file paths, the package is staged in the build context via COPY;
+    # for remote HTTP URLs the native scripts download the file via curl.
     local install_script
-    if [ "${pkg_type}" = "deb" ]; then
-        install_script="${SCRIPT_DIR}/scripts/deb/install.sh"
+    if "${use_native}"; then
+        if [ "${pkg_type}" = "deb" ]; then
+            install_script="${SCRIPT_DIR}/scripts/deb/install-native.sh"
+        else
+            install_script="${SCRIPT_DIR}/scripts/rpm/install-native.sh"
+        fi
+        # Copy local package files into the build context so Dockerfile COPY works.
+        if [[ "${x86_link}" != http* ]] && [ -n "${x86_link}" ] && [ -f "${x86_link}" ]; then
+            cp "${x86_link}" "${target}/"
+        fi
+        if [[ "${arm_link}" != http* ]] && [ -n "${arm_link}" ] && [ -f "${arm_link}" ]; then
+            cp "${arm_link}" "${target}/"
+        fi
     else
-        install_script="${SCRIPT_DIR}/scripts/rpm/install.sh"
+        if [ "${pkg_type}" = "deb" ]; then
+            install_script="${SCRIPT_DIR}/scripts/deb/install.sh"
+        else
+            install_script="${SCRIPT_DIR}/scripts/rpm/install.sh"
+        fi
     fi
 
     local base_name_label="${base_image}"
@@ -116,10 +135,32 @@ RUN \
     fi
 
     # --- Placeholder substitution for package URLs/SHAs ---
-    # The install scripts use __PKG_URL_AMD64__ etc. as placeholders.
-    # For DEB: AMD64/ARM64 placeholders; for RPM: X86_64/AARCH64 placeholders.
+    # TGZ scripts use __PKG_URL_* / __PKG_SHA_* placeholders.
+    # Native scripts use __SERVER_URL_* / __SERVER_SHA_* placeholders.
+    # For local file builds, URL placeholders are substituted to empty strings so
+    # the install script skips the curl download (package is pre-staged via COPY).
     local -a subst_args=()
-    if [ "${pkg_type}" = "deb" ]; then
+    if "${use_native}"; then
+        # Native .deb/.rpm: empty URL = use COPY'd file; HTTP URL = curl download.
+        local _x86_url="" _x86_sha_val="" _arm_url="" _arm_sha_val=""
+        [[ "${x86_link}" == http* ]] && _x86_url="${x86_link}" && _x86_sha_val="${x86_sha}"
+        [[ "${arm_link}" == http* ]] && _arm_url="${arm_link}" && _arm_sha_val="${arm_sha}"
+        if [ "${pkg_type}" = "deb" ]; then
+            subst_args=(
+                -e "s|__SERVER_URL_AMD64__|${_x86_url}|g"
+                -e "s|__SERVER_SHA_AMD64__|${_x86_sha_val}|g"
+                -e "s|__SERVER_URL_ARM64__|${_arm_url}|g"
+                -e "s|__SERVER_SHA_ARM64__|${_arm_sha_val}|g"
+            )
+        else
+            subst_args=(
+                -e "s|__SERVER_URL_X86_64__|${_x86_url}|g"
+                -e "s|__SERVER_SHA_X86_64__|${_x86_sha_val}|g"
+                -e "s|__SERVER_URL_AARCH64__|${_arm_url}|g"
+                -e "s|__SERVER_SHA_AARCH64__|${_arm_sha_val}|g"
+            )
+        fi
+    elif [ "${pkg_type}" = "deb" ]; then
         subst_args=(
             -e "s|__PKG_URL_AMD64__|${x86_link}|g"
             -e "s|__PKG_SHA_AMD64__|${x86_sha}|g"
@@ -172,10 +213,25 @@ HEADER
         echo "${base_deps_run}"
         echo ""
 
-        # Inline all install logic directly as a RUN \ block (DOI-accepted pattern).
-        # DOI rejects BuildKit heredocs AND COPY of build-time scripts — the build
-        # context only contains Dockerfile + runtime support files (no install.sh).
-        # Package URLs/SHAs are hardcoded in the case/if block (no ARG indirection).
+        # For local native package builds, COPY the pre-staged package file into
+        # /tmp/aerospike/ before the install RUN block (the install script detects
+        # an empty serverUrl and skips the curl download, using the COPY'd file).
+        if "${use_native}"; then
+            local copy_glob=""
+            [ "${pkg_type}" = "deb" ] && copy_glob="*.deb"
+            [ "${pkg_type}" = "rpm" ] && copy_glob="*.rpm"
+            local has_local=false
+            [[ "${x86_link}" != http* ]] && [ -n "${x86_link}" ] && has_local=true
+            [[ "${arm_link}" != http* ]] && [ -n "${arm_link}" ] && has_local=true
+            if "${has_local}"; then
+                echo "COPY ${copy_glob} /tmp/aerospike/"
+                echo ""
+            fi
+        fi
+
+        # Inline all install logic directly as a RUN \ block.
+        # For DOI: package URLs/SHAs are hardcoded (no ARG indirection, no COPY of scripts).
+        # For native builds: serverUrl is empty when package is pre-staged via COPY above.
         _sh_to_dockerfile_run "${install_script}" | sed "${subst_args[@]}"
         echo ""
 
