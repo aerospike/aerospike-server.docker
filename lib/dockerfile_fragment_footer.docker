@@ -16,6 +16,8 @@ EXPOSE 3000 3001 3002
 
 COPY entrypoint.sh /entrypoint.sh
 
+STOPSIGNAL SIGTERM
+
 # Tini init set to restart ASD on SIGUSR1 and terminate ASD on SIGTERM
 ENTRYPOINT ["/usr/bin/as-tini-static", "-r", "SIGUSR1", "-t", "SIGTERM", "--", "/entrypoint.sh"]
 

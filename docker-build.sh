@@ -7,9 +7,9 @@
 # Dependencies: lib/{log,support,version,fetch,sh_to_dockerfile_run,emit,update,generate,bake}.sh
 # Flow: parse args -> generate_dockerfiles -> [generate_bake -> build]
 #
-# Default mode (no -g): in-place update of existing Dockerfiles (ARGs, SHAs, links).
+# Default mode (no -g): in-place update of existing Dockerfiles (version label, install block).
 # With -g/--generate: full Dockerfile regeneration from scratch.
-# Install logic lives in scripts/deb/install.sh and scripts/rpm/install.sh.
+# Install logic lives in scripts/deb/install.sh and scripts/rpm/install.sh (inlined into Dockerfile).
 #
 
 set -Eeuo pipefail
@@ -105,8 +105,8 @@ OUTPUT:
 
 MODES OF OPERATION:
     Without -g (default):
-        Updates existing Dockerfiles in-place: patches ARG values (links, SHAs,
-        version), refreshes support files (entrypoint.sh, install.sh, config).
+        Updates existing Dockerfiles in-place: patches version label, re-inlines
+        install block with fresh package URLs/SHAs, refreshes support files.
         If a Dockerfile doesn't exist yet, auto-falls back to full generation.
 
     With -g:

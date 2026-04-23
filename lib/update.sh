@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# In-place Dockerfile update: patch ARGs, LABELs, and local-pkg COPY lines
-# without regenerating the full Dockerfile.  Used by default (no -g flag).
+# In-place Dockerfile update: refresh install block and patch version label.
+# Used by default (no -g flag).
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
 
@@ -19,11 +19,12 @@ _sed_i() {
 # inst  = path to the source install script (scripts/deb/install.sh or rpm).
 # The script is NOT copied into the build context — DOI rejects COPY of
 # build-time-only scripts. Logic is inlined as a RUN \ block via the converter.
-# Optional COPY_LINE: e.g. "COPY server_amd64.deb ... /tmp/" for local pkgs.
+# Package URL/SHA placeholders are substituted using caller-scoped variables:
+#   x86_link  x86_sha  arm_link  arm_sha  (DEB)
+#   x86_link  x86_sha  arm_link  arm_sha  (RPM — same names, different placeholder tokens)
 function _dockerfile_refresh_install_block() {
     local df=$1
     local inst=$2
-    local copy_line=${3:-}
 
     # Temp files; cleaned up on function return (including on error).
     local nbf tmp
@@ -33,17 +34,30 @@ function _dockerfile_refresh_install_block() {
     trap "rm -f '${nbf}' '${tmp}'" RETURN
 
     # Step A: build the new install block into a temp file.
-    # Inline RUN \ block (DOI-accepted pattern):
-    #   - No BuildKit heredoc (DOI parser cannot pre-scan them for build ordering).
-    #   - No COPY install.sh (DOI's bashbrew build context only includes files
-    #     present in the upstream directory; install.sh is not committed there).
-    [ -n "${copy_line}" ] && printf '%s\n\n' "${copy_line}" > "${nbf}"
-    _sh_to_dockerfile_run "${inst}" >> "${nbf}"
+    _sh_to_dockerfile_run "${inst}" > "${nbf}"
+
+    # Step B: substitute package URL/SHA placeholders.
+    # Uses caller-scoped x86_link, x86_sha, arm_link, arm_sha (from resolve_packages).
+    local pkg_type
+    pkg_type=$(support_distro_to_pkg_type "$(basename "$(dirname "${df}")")")
+    if [ "${pkg_type}" = "deb" ]; then
+        _sed_i \
+            -e "s|__PKG_URL_AMD64__|${x86_link:-}|g" \
+            -e "s|__PKG_SHA_AMD64__|${x86_sha:-}|g" \
+            -e "s|__PKG_URL_ARM64__|${arm_link:-}|g" \
+            -e "s|__PKG_SHA_ARM64__|${arm_sha:-}|g" \
+            "${nbf}"
+    else
+        _sed_i \
+            -e "s|__PKG_URL_X86_64__|${x86_link:-}|g" \
+            -e "s|__PKG_SHA_X86_64__|${x86_sha:-}|g" \
+            -e "s|__PKG_URL_AARCH64__|${arm_link:-}|g" \
+            -e "s|__PKG_SHA_AARCH64__|${arm_sha:-}|g" \
+            "${nbf}"
+    fi
+
     # Ensure exactly one trailing blank line (separator before the next instruction).
     printf '\n' >> "${nbf}"
-
-    # Step B: strip prior local-pkg COPY lines; fresh ones come from copy_line above.
-    _sed_i '/^COPY server_/d' "${df}"
 
     # Step C: replace the install block in whichever form it currently appears.
     #   Form 1 (current):  anchor + "# hadolint..." + "RUN \" + continuation lines
@@ -95,13 +109,18 @@ function _dockerfile_refresh_install_block() {
     # Step D: cleanup passes.
     # Remove BuildKit-only parser directive (DOI legacy builder does not use it).
     _sed_i '/^# syntax=docker\/dockerfile:/d' "${df}"
-    # Remove STOPSIGNAL SIGTERM + optional following blank line.
-    awk '/^STOPSIGNAL SIGTERM$/ {
-        if ((getline nl) > 0 && nl != "") print nl
-        next
-    } { print }' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
-    # Remove ARG AEROSPIKE_COMPAT_LIBS="0" (kept only when value is "1").
-    _sed_i '/^ARG AEROSPIKE_COMPAT_LIBS="0"$/d' "${df}"
+    # Remove old ARG lines for package URLs/SHAs (replaced by hardcoded values in RUN block).
+    _sed_i '/^ARG AEROSPIKE_X86_64_LINK=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_SHA_X86_64=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_AARCH64_LINK=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_SHA_AARCH64=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_COMPAT_LIBS=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_LOCAL_PKG=/d' "${df}"
+    # Remove old local-pkg COPY lines (no longer in build context).
+    _sed_i '/^COPY server_/d' "${df}"
+    # Collapse multiple consecutive blank lines to one (left by removed ARG blocks).
+    awk 'prev=="" && /^$/ && blank { next } /^$/ { blank=1 } !/^$/ { blank=0 } { prev=$0; print }' \
+        "${df}" > "${tmp}" && mv "${tmp}" "${df}"
 
     # Step E: inject ENV AEROSPIKE_LINUX_BASE after ARG AEROSPIKE_EDITION if missing.
     if ! grep -qF 'ENV AEROSPIKE_LINUX_BASE=' "${df}"; then
@@ -119,8 +138,8 @@ function _dockerfile_refresh_install_block() {
             ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
         fi
     fi
-    # Remove blank lines between ENV AEROSPIKE_LINUX_BASE and the next ARG line
-    # (DOI reference: they appear on consecutive lines).
+    # Remove blank lines between ENV AEROSPIKE_LINUX_BASE and the next non-blank line
+    # (DOI reference: ENV and SHELL appear on consecutive lines).
     awk '/^ENV AEROSPIKE_LINUX_BASE=/ {
         print
         if ((getline nl) > 0) {
@@ -130,129 +149,50 @@ function _dockerfile_refresh_install_block() {
         next
     } { print }' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
 
-    # Step F: ensure file starts with exactly one blank line; strip trailing whitespace.
+    # Step F: ensure STOPSIGNAL SIGTERM is present before ENTRYPOINT.
+    if ! grep -qF 'STOPSIGNAL SIGTERM' "${df}"; then
+        awk '!found && /^ENTRYPOINT \[/ {
+            print "STOPSIGNAL SIGTERM"
+            print ""
+            found = 1
+        } { print }' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+    fi
+
+    # Step G: ensure file starts with exactly one blank line; strip trailing whitespace.
     awk 'BEGIN{skip=1} skip && /^$/{next} {skip=0; print}' "${df}" \
         | { printf '\n'; cat; } > "${tmp}" && mv "${tmp}" "${df}"
     _sed_i 's/[[:space:]]*$//' "${df}"
 }
 
-function _sync_static_tini_to_target() {
-    local target=$1
-    mkdir -p "${target}/static/tini"
-    cp "${SCRIPT_DIR}/static/tini/as-tini-static-amd64" "${SCRIPT_DIR}/static/tini/as-tini-static-arm64" "${target}/static/tini/"
-}
-
-# Ensure the vendored-tini block in the Dockerfile matches the canonical
-# fragment (lib/dockerfile_fragment_tini.docker). Handles three cases:
-#
-#   1. Block missing entirely   -> insert fragment after the SHELL line.
-#   2. Older-form block present -> replace whole block (leading comments +
-#      COPY + optional `ARG TARGETARCH` + any-form RUN continuation ending
-#      in `rm -rf /opt/aerospike-tini`) with the canonical fragment.
-#   3. Canonical form already present -> regex still matches and writes the
-#      same content back (no diff); safe idempotent replacement.
-#
-# Why the replacement style instead of point-patches:
-#   The tini install step has moved through three shapes (BuildKit-only
-#   `${TARGETARCH}`; `uname -m` fallback; now dpkg/rpm userspace detection)
-#   to satisfy Docker Official Images policy. The regex anchors on the
-#   stable endpoints (`COPY static/tini/...` and `rm -rf /opt/aerospike-tini`)
-#   so one code path converts any prior shape to the current canonical one.
-function _dockerfile_ensure_vendored_tini() {
+# Remove the vendored-tini COPY block from a Dockerfile (if present from older
+# Dockerfiles). Tini is now fetched at build time via curl in the install block.
+function _dockerfile_remove_vendored_tini() {
     local df=$1
-    local frag_file="${SCRIPT_DIR}/lib/dockerfile_fragment_tini.docker"
+    if ! grep -qF 'COPY static/tini/as-tini-static-amd64' "${df}"; then
+        return 0
+    fi
 
     local tmp
     tmp=$(mktemp)
     # shellcheck disable=SC2064
     trap "rm -f '${tmp}'" RETURN
 
-    if grep -qF 'COPY static/tini/as-tini-static-amd64' "${df}"; then
-        # The tini block has gone through multiple shapes:
-        #   1. COPY-only (current form — tini arch-selection is now in install.sh)
-        #   2. COPY + RUN if command -v dpkg ... rm -rf /opt/aerospike-tini (previous)
-        #   3. COPY + ARG TARGETARCH + RUN case ... rm -rf /opt/aerospike-tini (oldest)
-        # Awk state machine: consume all tini-related lines, emit canonical fragment once.
-        # The fragment is read inside awk BEGIN to avoid -v fragility with special chars.
-        awk -v frag_file="${frag_file}" -v src="${df}" '
-        function emit_frag() { printf "%s", frag }
-        BEGIN {
-            state = "looking"; buf = ""; buf_n = 0; frag = ""
-            while ((getline line < frag_file) > 0) frag = frag line "\n"
-            close(frag_file)
-        }
-
-        state == "looking" {
-            # Buffer contiguous comment lines — they might be the tini block header.
-            if (/^#/) { buf = buf $0 "\n"; buf_n++; next }
-            if (/^COPY static\/tini\/as-tini-static-amd64/) {
-                # Discard buffered comments (they are the tini block header) + this line.
-                buf = ""; buf_n = 0
-                state = "after_copy"
-                next
-            }
-            # Not a tini line: flush buffer and print this line.
-            if (buf_n > 0) { printf "%s", buf; buf = ""; buf_n = 0 }
-            print
-            next
-        }
-
-        state == "after_copy" {
-            if (/^#/)              { next }          # discard trailing tini comments
-            if (/^ARG TARGETARCH/) { next }          # discard (older form)
-            if (/^RUN /)           { state = "in_run"; next }
-            # Next non-comment, non-ARG, non-RUN line: no RUN block (current form).
-            emit_frag(); state = "done"; print; next
-        }
-
-        state == "in_run" {
-            if (/rm -rf \/opt\/aerospike-tini/) { state = "after_run"; next }
-            next  # discard RUN continuation lines
-        }
-
-        state == "after_run" {
-            if (/^[ \t]/) { next }   # still in RUN continuation
-            emit_frag(); state = "done"; print; next
-        }
-
-        state == "done" { print; next }
-
-        { print }
-
-        END {
-            if (buf_n > 0) printf "%s", buf   # flush any unmatched buffered comments
-            if (state == "after_copy" || state == "in_run" || state == "after_run") {
-                # EOF reached while consuming tini block — emit fragment now.
-                emit_frag()
-            }
-        }
-        ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
-    else
-        # Block missing: insert canonical fragment after the SHELL [...] line.
-        # Fragment is read inside awk BEGIN to avoid -v fragility with special chars.
-        awk -v frag_file="${frag_file}" -v src="${df}" '
-        BEGIN {
-            inserted = 0; frag = ""
-            while ((getline line < frag_file) > 0) frag = frag line "\n"
-            close(frag_file)
-        }
-        !inserted && /^SHELL \[/ && /\]/ {
-            print
-            print ""
-            printf "%s", frag
-            inserted = 1
-            next
-        }
-        { print }
-        END {
-            if (!inserted) {
-                print src ": could not find SHELL line to insert vendored tini" \
-                    > "/dev/stderr"
-                exit 1
-            }
-        }
-        ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
-    fi
+    # Buffer contiguous comment lines. If the next non-comment line is the
+    # tini COPY line, discard the buffer and the COPY line. Otherwise flush.
+    awk '
+    /^COPY static\/tini\/as-tini-static-amd64/ {
+        delete buf; buf_n = 0; next
+    }
+    /^#/ { buf[++buf_n] = $0; next }
+    {
+        for (i = 1; i <= buf_n; i++) print buf[i]
+        delete buf; buf_n = 0
+        print
+    }
+    END {
+        for (i = 1; i <= buf_n; i++) print buf[i]
+    }
+    ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
 }
 
 # resolve_packages distro edition version tools_version single_arch pkg_type
@@ -268,7 +208,6 @@ function resolve_packages() {
     arm_sha=""
     # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
     pkg_format="tgz"
-    use_local_pkg=""
 
     if [ -n "${tools_version}" ]; then
         x86_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
@@ -277,35 +216,14 @@ function resolve_packages() {
         arm_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
     fi
 
-    if is_local_artifacts_dir; then
-        local local_base="${ARTIFACTS_DOMAIN}"
-        [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-        [ -d "${local_base}" ] && local_base=$(
-            cd "${local_base}" || exit 1
-            pwd
-        )
-        local local_x86 local_arm
-        local_x86=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "x86_64" "${pkg_type}")
-        local_arm=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "aarch64" "${pkg_type}")
-        if [ -n "${local_x86}" ] || [ -n "${local_arm}" ]; then
+    if [ -z "${x86_sha}" ]; then
+        x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
+        x86_sha=$(fetch_sha_for_link "${x86_link}")
+        if [ -n "${x86_link}" ]; then
             # shellcheck disable=SC2034  # consumed by caller via dynamic scoping
             pkg_format="${pkg_type}"
-            [ -n "${local_x86}" ] && x86_link="${local_x86}"
-            [ -n "${local_arm}" ] && arm_link="${local_arm}"
-            use_local_pkg="1"
-        fi
-    fi
-
-    if [ -z "${use_local_pkg}" ] && [ -z "${x86_sha}" ]; then
-        if ! is_local_artifacts_dir; then
-            x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
-            x86_sha=$(fetch_sha_for_link "${x86_link}")
-            if [ -n "${x86_link}" ]; then
-                # shellcheck disable=SC2034  # consumed by caller via dynamic scoping
-                pkg_format="${pkg_type}"
-                arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
-                arm_sha=$(fetch_sha_for_link "${arm_link}")
-            fi
+            arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
+            arm_sha=$(fetch_sha_for_link "${arm_link}")
         fi
     fi
 
@@ -319,94 +237,22 @@ function resolve_packages() {
     fi
 }
 
-# prepare_local_packages target pkg_type x86_link arm_link
-# Copies local packages + .sha256 into the context dir, returns updated
-# x86_sha, arm_sha, and the COPY directive via copy_line (in caller scope).
-function prepare_local_packages() {
-    local target=$1 pkg_type=$2
-
-    copy_line=""
-    local copy_files=()
-
-    local need_sha=false
-    [ -n "${x86_link}" ] && [ ! -f "${x86_link}.sha256" ] && need_sha=true
-    [ -n "${arm_link}" ] && [ ! -f "${arm_link}.sha256" ] && need_sha=true
-    if [ "${need_sha}" = true ]; then
-        local local_base="${ARTIFACTS_DOMAIN}"
-        [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-        [ -d "${local_base}" ] && local_base=$(
-            cd "${local_base}" || exit 1
-            pwd
-        )
-        if [ -d "${local_base}" ]; then
-            log_info "    Creating missing .sha256 in ${local_base} (shasum-artifacts.sh)"
-            "${SCRIPT_DIR}/scripts/shasum-artifacts.sh" "${local_base}" >/dev/null 2>&1 || true
-        fi
-    fi
-
-    if [ "${pkg_type}" = "rpm" ]; then
-        if [ -n "${x86_link}" ]; then
-            cp "${x86_link}" "${target}/server_x86_64.rpm" && copy_files+=(server_x86_64.rpm)
-            [ -f "${x86_link}.sha256" ] && cp "${x86_link}.sha256" "${target}/server_x86_64.rpm.sha256" && copy_files+=(server_x86_64.rpm.sha256) && x86_sha=$(awk '{print $1}' "${x86_link}.sha256")
-        fi
-        if [ -n "${arm_link}" ]; then
-            cp "${arm_link}" "${target}/server_aarch64.rpm" && copy_files+=(server_aarch64.rpm)
-            [ -f "${arm_link}.sha256" ] && cp "${arm_link}.sha256" "${target}/server_aarch64.rpm.sha256" && copy_files+=(server_aarch64.rpm.sha256) && arm_sha=$(awk '{print $1}' "${arm_link}.sha256")
-        fi
-    else
-        if [ -n "${x86_link}" ]; then
-            cp "${x86_link}" "${target}/server_amd64.deb" && copy_files+=(server_amd64.deb)
-            [ -f "${x86_link}.sha256" ] && cp "${x86_link}.sha256" "${target}/server_amd64.deb.sha256" && copy_files+=(server_amd64.deb.sha256) && x86_sha=$(awk '{print $1}' "${x86_link}.sha256")
-        fi
-        if [ -n "${arm_link}" ]; then
-            cp "${arm_link}" "${target}/server_arm64.deb" && copy_files+=(server_arm64.deb)
-            [ -f "${arm_link}.sha256" ] && cp "${arm_link}.sha256" "${target}/server_arm64.deb.sha256" && copy_files+=(server_arm64.deb.sha256) && arm_sha=$(awk '{print $1}' "${arm_link}.sha256")
-        fi
-    fi
-
-    [ ${#copy_files[@]} -gt 0 ] && copy_line="COPY ${copy_files[*]} /tmp/"
-}
-
-# update_dockerfile target version needs_compat_libs copy_line single_arch
-# Performs sed-based in-place patching of version-specific values in an
-# existing Dockerfile.  Also manages the COPY local-pkg line and
-# AEROSPIKE_LOCAL_PKG ARG.
-# Relies on caller-scoped: x86_link x86_sha arm_link arm_sha use_local_pkg
+# update_dockerfile target version single_arch
+# Performs in-place update of an existing Dockerfile:
+#   - Patches the version label.
+#   - Removes stale ARG/COPY lines from prior formats.
+#   - Removes vendored-tini COPY block (tini is now fetched at build time).
+#   - Re-inlines the install logic as a RUN \ block with fresh URL/SHA values.
+#   - Ensures STOPSIGNAL SIGTERM is present.
+# Relies on caller-scoped: x86_link x86_sha arm_link arm_sha
 function update_dockerfile() {
-    local target=$1 version=$2 needs_compat_libs=$3 copy_line=$4 single_arch=$5
+    local target=$1 version=$2 single_arch=$3
     local df="${target}/Dockerfile"
 
     log_info "    Updating in-place: ${df}"
 
     # Patch version label
     _sed_i "s|org.opencontainers.image.version=\"[^\"]*\"|org.opencontainers.image.version=\"${version}\"|" "${df}"
-
-    # Patch ARG values
-    if [ "${single_arch}" != "arm64" ]; then
-        _sed_i "s|^ARG AEROSPIKE_X86_64_LINK=.*|ARG AEROSPIKE_X86_64_LINK=\"${x86_link}\"|" "${df}"
-        _sed_i "s|^ARG AEROSPIKE_SHA_X86_64=.*|ARG AEROSPIKE_SHA_X86_64=\"${x86_sha}\"|" "${df}"
-    fi
-    if [ "${single_arch}" != "amd64" ]; then
-        _sed_i "s|^ARG AEROSPIKE_AARCH64_LINK=.*|ARG AEROSPIKE_AARCH64_LINK=\"${arm_link}\"|" "${df}"
-        _sed_i "s|^ARG AEROSPIKE_SHA_AARCH64=.*|ARG AEROSPIKE_SHA_AARCH64=\"${arm_sha}\"|" "${df}"
-    fi
-    _sed_i "s|^ARG AEROSPIKE_COMPAT_LIBS=.*|ARG AEROSPIKE_COMPAT_LIBS=\"${needs_compat_libs}\"|" "${df}"
-
-    # Manage AEROSPIKE_LOCAL_PKG ARG
-    if [ -n "${use_local_pkg}" ]; then
-        if grep -q '^ARG AEROSPIKE_LOCAL_PKG=' "${df}"; then
-            _sed_i "s|^ARG AEROSPIKE_LOCAL_PKG=.*|ARG AEROSPIKE_LOCAL_PKG=\"1\"|" "${df}"
-        else
-            # Append after COMPAT_LIBS line (awk is portable; sed a\ is not on BSD)
-            local tmpfile
-            tmpfile=$(mktemp)
-            # shellcheck disable=SC2064
-            trap "rm -f '${tmpfile}'" RETURN
-            awk '/^ARG AEROSPIKE_COMPAT_LIBS=/{print; print "ARG AEROSPIKE_LOCAL_PKG=\"1\""; next}{print}' "${df}" >"${tmpfile}" && mv "${tmpfile}" "${df}"
-        fi
-    else
-        _sed_i '/^ARG AEROSPIKE_LOCAL_PKG=/d' "${df}"
-    fi
 
     # Refresh support files
     cp template/0/entrypoint.sh "${target}/"
@@ -422,15 +268,14 @@ function update_dockerfile() {
         install_script="${SCRIPT_DIR}/scripts/rpm/install.sh"
     fi
 
-    _sync_static_tini_to_target "${target}"
-    _dockerfile_ensure_vendored_tini "${df}"
+    # Remove vendored-tini COPY block (older Dockerfiles only; idempotent if absent).
+    _dockerfile_remove_vendored_tini "${df}"
 
-    # Re-inline install logic as RUN \ block; refresh local-pkg COPY prefix.
-    _dockerfile_refresh_install_block "${df}" "${install_script}" "${copy_line}"
+    # Re-inline install logic as RUN \ block; substitute package URL/SHA placeholders.
+    _dockerfile_refresh_install_block "${df}" "${install_script}"
 
-    # Clean trailing whitespace
+    # Clean trailing whitespace and ensure trailing newline.
     _sed_i 's/[[:space:]]*$//' "${df}"
-    # Ensure trailing newline
     if [ -n "$(tail -c1 "${df}" 2>/dev/null)" ]; then
         echo >>"${df}"
     fi

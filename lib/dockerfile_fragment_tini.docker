@@ -1,4 +1,0 @@
-# Aerospike tini fork (vendored under static/tini/); see static/tini/SOURCES.txt.
-# COPY avoids RUN-time fetch from GitHub (Docker Official / air-gapped / reproducible builds).
-# hadolint ignore=DL3042
-COPY static/tini/as-tini-static-amd64 static/tini/as-tini-static-arm64 /opt/aerospike-tini/
