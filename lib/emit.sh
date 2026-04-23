@@ -95,11 +95,28 @@ function generate_dockerfile() {
             install_script="${SCRIPT_DIR}/scripts/rpm/install-native.sh"
         fi
         # Copy local package files into the build context so Dockerfile COPY works.
+        # Also stage any tools package found alongside the server package so that
+        # apt-get / rpm can satisfy a hard Depends/Requires on aerospike-tools.
+        local _dir _tools_f
         if [[ "${x86_link}" != http* ]] && [ -n "${x86_link}" ] && [ -f "${x86_link}" ]; then
             cp "${x86_link}" "${target}/"
+            _dir=$(dirname "${x86_link}")
+            if [ "${pkg_type}" = "deb" ]; then
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*_amd64.deb" 2>/dev/null | sort -V | tail -1)
+            else
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*.x86_64.rpm" 2>/dev/null | sort -V | tail -1)
+            fi
+            [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
         fi
         if [[ "${arm_link}" != http* ]] && [ -n "${arm_link}" ] && [ -f "${arm_link}" ]; then
             cp "${arm_link}" "${target}/"
+            _dir=$(dirname "${arm_link}")
+            if [ "${pkg_type}" = "deb" ]; then
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*_arm64.deb" 2>/dev/null | sort -V | tail -1)
+            else
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*.aarch64.rpm" 2>/dev/null | sort -V | tail -1)
+            fi
+            [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
         fi
     else
         if [ "${pkg_type}" = "deb" ]; then

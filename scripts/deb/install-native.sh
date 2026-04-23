@@ -53,11 +53,23 @@ fi
 # ---------------------------------------------------------------------------
 # Install Aerospike server
 # ---------------------------------------------------------------------------
-# Use an arch-specific glob (_${ARCH}.deb) so that if both amd64 and arm64
-# packages are present in the build context (multi-arch local builds), only
-# the matching package is installed.
-apt-get install -y --no-install-recommends \
-    /tmp/aerospike/aerospike-server-*_"${ARCH}".deb
+# Collect all arch-matching packages in /tmp/aerospike/:
+#   - aerospike-server-*_${ARCH}.deb  (required)
+#   - aerospike-tools-*_${ARCH}.deb   (optional; staged when server declares a
+#                                      hard Depends on aerospike-tools)
+# Installing both together lets apt resolve the dependency inline.
+# (aerospike-tools may also declare a hard Depends on curl; in that case curl
+# stays installed after the autoremove at the end.)
+pkgs=()
+for f in /tmp/aerospike/aerospike-server-*_"${ARCH}".deb \
+         /tmp/aerospike/aerospike-tools-*_"${ARCH}".deb; do
+    if [ -f "${f}" ]; then pkgs+=("${f}"); fi
+done
+if [ "${#pkgs[@]}" -eq 0 ]; then
+    echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"
+    exit 1
+fi
+apt-get install -y --no-install-recommends "${pkgs[@]}"
 
 # ---------------------------------------------------------------------------
 # Post-install housekeeping

@@ -337,13 +337,31 @@ function update_dockerfile() {
         # Remove stale package files from previous native-mode builds before staging
         # new ones. Without this, old versions (or wrong-arch packages) accumulate and
         # COPY *.deb picks up all of them, causing apt/rpm to fail on wrong-arch files.
-        rm -f "${target}"/aerospike-server-*."${pkg_type}" 2>/dev/null || true
-        # Stage local package files into the build context.
+        rm -f "${target}"/aerospike-server-*."${pkg_type}" \
+              "${target}"/aerospike-tools-*."${pkg_type}" 2>/dev/null || true
+        # Stage server packages; also stage any tools package found alongside the
+        # server in the artifacts directory so that apt/rpm can satisfy a hard
+        # Depends/Requires on aerospike-tools.
+        local _dir _tools_f
         if [[ "${x86_link:-}" != http* ]] && [ -n "${x86_link:-}" ] && [ -f "${x86_link:-}" ]; then
             cp "${x86_link}" "${target}/"
+            _dir=$(dirname "${x86_link}")
+            if [ "${pkg_type}" = "deb" ]; then
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*_amd64.deb" 2>/dev/null | sort -V | tail -1)
+            else
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*.x86_64.rpm" 2>/dev/null | sort -V | tail -1)
+            fi
+            [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
         fi
         if [[ "${arm_link:-}" != http* ]] && [ -n "${arm_link:-}" ] && [ -f "${arm_link:-}" ]; then
             cp "${arm_link}" "${target}/"
+            _dir=$(dirname "${arm_link}")
+            if [ "${pkg_type}" = "deb" ]; then
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*_arm64.deb" 2>/dev/null | sort -V | tail -1)
+            else
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*.aarch64.rpm" 2>/dev/null | sort -V | tail -1)
+            fi
+            [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
         fi
     else
         if [ "${pkg_type}" = "deb" ]; then
