@@ -328,13 +328,17 @@ function update_dockerfile() {
     local pkg_type install_script
     pkg_type=$(support_distro_to_pkg_type "$(basename "${target}")")
     local _use_native="${use_native:-false}"
-    if "${_use_native}"; then
+        if "${_use_native}"; then
         if [ "${pkg_type}" = "deb" ]; then
             install_script="${SCRIPT_DIR}/scripts/deb/install-native.sh"
         else
             install_script="${SCRIPT_DIR}/scripts/rpm/install-native.sh"
         fi
-        # Stage local package files into the build context (idempotent copy).
+        # Remove stale package files from previous native-mode builds before staging
+        # new ones. Without this, old versions (or wrong-arch packages) accumulate and
+        # COPY *.deb picks up all of them, causing apt/rpm to fail on wrong-arch files.
+        rm -f "${target}"/aerospike-server-*."${pkg_type}" 2>/dev/null || true
+        # Stage local package files into the build context.
         if [[ "${x86_link:-}" != http* ]] && [ -n "${x86_link:-}" ] && [ -f "${x86_link:-}" ]; then
             cp "${x86_link}" "${target}/"
         fi

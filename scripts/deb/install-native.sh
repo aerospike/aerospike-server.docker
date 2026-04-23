@@ -53,8 +53,11 @@ fi
 # ---------------------------------------------------------------------------
 # Install Aerospike server
 # ---------------------------------------------------------------------------
+# Use an arch-specific glob (_${ARCH}.deb) so that if both amd64 and arm64
+# packages are present in the build context (multi-arch local builds), only
+# the matching package is installed.
 apt-get install -y --no-install-recommends \
-    /tmp/aerospike/aerospike-server-*.deb
+    /tmp/aerospike/aerospike-server-*_"${ARCH}".deb
 
 # ---------------------------------------------------------------------------
 # Post-install housekeeping

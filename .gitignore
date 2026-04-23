@@ -10,3 +10,8 @@ bake-multi.hcl
 artifacts/
 *.bak
 
+# Native packages staged into build contexts by -u (local artifacts) builds.
+# These are not source files and must not be committed.
+releases/**/*.deb
+releases/**/*.rpm
+

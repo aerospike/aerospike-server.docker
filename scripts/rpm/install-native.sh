@@ -63,7 +63,9 @@ fi
 if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
     microdnf install -y --setopt=install_weak_deps=0 openldap
 fi
-rpm -i --excludedocs /tmp/aerospike/aerospike-server-*.rpm
+# Use .${ARCH}.rpm glob so that only the matching arch is installed when both
+# amd64 and arm64 packages are present in the build context.
+rpm -i --excludedocs /tmp/aerospike/aerospike-server-*."${ARCH}".rpm
 rm -rf /opt/aerospike/bin
 
 # ---------------------------------------------------------------------------
