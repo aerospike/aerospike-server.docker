@@ -78,5 +78,8 @@ if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "fede
     fi
 fi
 rm -rf /tmp/aerospike
-apt-get purge -y --auto-remove curl
+# Mark curl as auto-installed so autoremove drops it if nothing else depends on it
+# (aerospike-tools may declare a hard Depends on curl; in that case curl stays).
+apt-mark auto curl
+apt-get autoremove -y --purge
 rm -rf /var/lib/apt/lists/*
