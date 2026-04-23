@@ -77,16 +77,10 @@ RUN \
     tar -xzf /tmp/aerospike/pkg.tgz --strip-components=1 -C /tmp/aerospike; \
   }; \
   { \
-    # Install Aerospike and enterprise dependencies.
-    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-        # LDAP package name differs across Ubuntu releases; install whichever is present. \
-        for _ldap_pkg in libldap2 libldap-2.5-0 libldap-2.4-2; do \
-            if apt-cache show "${_ldap_pkg}" >/dev/null 2>&1; then \
-                apt-get install -y --no-install-recommends "${_ldap_pkg}"; \
-                break; \
-            fi; \
-        done; \
-    fi; \
+    # Install Aerospike server and tools.
+    # apt-get install ./deb resolves all dependencies (including libldap for \
+    # enterprise/federal) from the Ubuntu repos automatically — no need to \
+    # pre-install them manually, which risks version conflicts. \
     apt-get install -y --no-install-recommends \
         /tmp/aerospike/aerospike-server-*.deb \
         /tmp/aerospike/aerospike-tools*.deb; \
