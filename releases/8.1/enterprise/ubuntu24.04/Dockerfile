@@ -2,7 +2,7 @@
 #
 # Aerospike Server Dockerfile
 #
-# http://github.com/aerospike/aerospike-server.docker
+# https://github.com/aerospike/aerospike-server.docker
 #
 
 FROM ubuntu:24.04

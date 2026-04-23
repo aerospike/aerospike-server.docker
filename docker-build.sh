@@ -4,7 +4,7 @@
 # Copyright 2014-2025 Aerospike, Inc. Licensed under the Apache License, Version 2.0.
 # See LICENSE in the project root.
 #
-# Dependencies: lib/{log,support,version,fetch,emit,update,generate,bake}.sh
+# Dependencies: lib/{log,support,version,fetch,sh_to_dockerfile_run,emit,update,generate,bake}.sh
 # Flow: parse args -> generate_dockerfiles -> [generate_bake -> build]
 #
 # Default mode (no -g): in-place update of existing Dockerfiles (ARGs, SHAs, links).

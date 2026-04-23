@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ubuntu/Debian: install Aerospike server + tools.
 # Single source of truth for all DEB-based Docker images.
-# Inlined into the Dockerfile as a `RUN \` block by lib/sh_to_dockerfile_run.py
+# Inlined into the Dockerfile as a `RUN \` block by lib/sh_to_dockerfile_run.sh
 # (Docker Official Images rejects both BuildKit heredocs and COPY of build-time
 # scripts; the accepted pattern is all logic inline in the Dockerfile).
 #

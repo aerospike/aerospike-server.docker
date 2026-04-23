@@ -2,7 +2,7 @@
 #
 # Aerospike Server Dockerfile
 #
-# http://github.com/aerospike/aerospike-server.docker
+# https://github.com/aerospike/aerospike-server.docker
 #
 
 FROM registry.access.redhat.com/ubi10/ubi-minimal:10.0

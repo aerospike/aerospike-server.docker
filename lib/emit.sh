@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Dockerfile generation: emit header + RUN heredoc (install.sh inlined) + footer.
-# The install logic now lives in scripts/deb/install.sh and scripts/rpm/install.sh.
+# Dockerfile generation: emit header + inlined RUN \ block + footer.
+# Install logic lives in scripts/deb/install.sh and scripts/rpm/install.sh and is
+# converted to a RUN \ continuation block by _sh_to_dockerfile_run (lib/sh_to_dockerfile_run.sh).
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
 # Fragments:    lib/dockerfile_fragment_tini.docker, lib/dockerfile_fragment_footer.docker
@@ -9,8 +10,9 @@ set -Eeuo pipefail
 
 # generate_dockerfile lineage distro edition version tools_version
 #
-# Emits a compact Dockerfile that runs the install script via RUN <<heredoc (BuildKit).
-# No COPY of install.sh (policy scanners). Logic is in scripts/{deb,rpm}/install.sh.
+# Emits a Dockerfile with the install logic inlined as a RUN \ block.
+# No COPY of install.sh: DOI's bashbrew build context only includes files committed
+# in the upstream directory; install.sh is not among them. Logic is in scripts/{deb,rpm}/install.sh.
 function generate_dockerfile() {
     local lineage=$1 distro=$2 edition=$3 version=$4 tools_version=$5
     local target="releases/${lineage}/${edition}/${distro}"
@@ -109,7 +111,7 @@ function generate_dockerfile() {
 
     # Resolve the install script path (not copied into the build context —
     # DOI does not support COPY of build-time-only scripts; logic is inlined
-    # directly in the Dockerfile as a RUN \ block via sh_to_dockerfile_run.py).
+    # directly in the Dockerfile as a RUN \ block via _sh_to_dockerfile_run).
     local install_script
     if [ "${pkg_type}" = "deb" ]; then
         install_script="${SCRIPT_DIR}/scripts/deb/install.sh"
@@ -188,7 +190,7 @@ ARG AEROSPIKE_SHA_AARCH64=\"${arm_sha}\""
 #
 # Aerospike Server Dockerfile
 #
-# http://github.com/aerospike/aerospike-server.docker
+# https://github.com/aerospike/aerospike-server.docker
 #
 
 FROM ${base_image}

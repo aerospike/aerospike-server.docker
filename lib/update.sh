@@ -119,12 +119,12 @@ function _dockerfile_refresh_install_block() {
             ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
         fi
     fi
-    # Remove blank line between ENV AEROSPIKE_LINUX_BASE and the next ARG line
+    # Remove blank lines between ENV AEROSPIKE_LINUX_BASE and the next ARG line
     # (DOI reference: they appear on consecutive lines).
     awk '/^ENV AEROSPIKE_LINUX_BASE=/ {
         print
         if ((getline nl) > 0) {
-            if (nl == "") { getline nl }
+            while (nl == "") { if ((getline nl) <= 0) break }
             print nl
         }
         next
@@ -162,11 +162,6 @@ function _dockerfile_ensure_vendored_tini() {
     local df=$1
     local frag_file="${SCRIPT_DIR}/lib/dockerfile_fragment_tini.docker"
 
-    # Read canonical fragment; ensure it ends with a newline.
-    local frag
-    frag=$(cat "${frag_file}")
-    [[ "${frag}" != *$'\n' ]] && frag+=$'\n'
-
     local tmp
     tmp=$(mktemp)
     # shellcheck disable=SC2064
@@ -178,9 +173,14 @@ function _dockerfile_ensure_vendored_tini() {
         #   2. COPY + RUN if command -v dpkg ... rm -rf /opt/aerospike-tini (previous)
         #   3. COPY + ARG TARGETARCH + RUN case ... rm -rf /opt/aerospike-tini (oldest)
         # Awk state machine: consume all tini-related lines, emit canonical fragment once.
-        awk -v frag="${frag}" -v src="${df}" '
+        # The fragment is read inside awk BEGIN to avoid -v fragility with special chars.
+        awk -v frag_file="${frag_file}" -v src="${df}" '
         function emit_frag() { printf "%s", frag }
-        BEGIN { state = "looking"; buf = ""; buf_n = 0 }
+        BEGIN {
+            state = "looking"; buf = ""; buf_n = 0; frag = ""
+            while ((getline line < frag_file) > 0) frag = frag line "\n"
+            close(frag_file)
+        }
 
         state == "looking" {
             # Buffer contiguous comment lines — they might be the tini block header.
@@ -229,8 +229,13 @@ function _dockerfile_ensure_vendored_tini() {
         ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
     else
         # Block missing: insert canonical fragment after the SHELL [...] line.
-        awk -v frag="${frag}" -v src="${df}" '
-        BEGIN { inserted = 0 }
+        # Fragment is read inside awk BEGIN to avoid -v fragility with special chars.
+        awk -v frag_file="${frag_file}" -v src="${df}" '
+        BEGIN {
+            inserted = 0; frag = ""
+            while ((getline line < frag_file) > 0) frag = frag line "\n"
+            close(frag_file)
+        }
         !inserted && /^SHELL \[/ && /\]/ {
             print
             print ""
@@ -250,7 +255,7 @@ function _dockerfile_ensure_vendored_tini() {
     fi
 }
 
-# resolve_packages distro edition version tools_version single_arch
+# resolve_packages distro edition version tools_version single_arch pkg_type
 # Outputs: x86_link x86_sha arm_link arm_sha pkg_format use_local_pkg
 # Sets the six variables above in the caller's scope.
 function resolve_packages() {
@@ -395,6 +400,8 @@ function update_dockerfile() {
             # Append after COMPAT_LIBS line (awk is portable; sed a\ is not on BSD)
             local tmpfile
             tmpfile=$(mktemp)
+            # shellcheck disable=SC2064
+            trap "rm -f '${tmpfile}'" RETURN
             awk '/^ARG AEROSPIKE_COMPAT_LIBS=/{print; print "ARG AEROSPIKE_LOCAL_PKG=\"1\""; next}{print}' "${df}" >"${tmpfile}" && mv "${tmpfile}" "${df}"
         fi
     else
