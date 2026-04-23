@@ -81,10 +81,11 @@ function find_local_server_package() {
                 [ -f "${f}" ] && echo "${f}" && return
             done
         done
-        # Glob: any server rpm matching edition + distro + arch
+        # Glob: server rpm matching edition + VERSION + distro + arch (version-aware
+        # to avoid picking up stale packages from a previous -u run).
         for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
+            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
             [ -n "${found}" ] && echo "${found}" && return
         done
     else
@@ -95,36 +96,38 @@ function find_local_server_package() {
                 [ -f "${f}" ] && echo "${f}" && return
             done
         done
-        # Glob: any server deb matching edition + distro + arch
+        # Glob: server deb matching edition + VERSION + distro + arch (version-aware
+        # to avoid picking up stale packages from a previous -u run).
         for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
+            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
             [ -n "${found}" ] && echo "${found}" && return
         done
     fi
 
-    # Last resort: any file with edition, distro, AND arch in name
+    # Last resort: any file with edition, VERSION, distro, AND arch in name.
+    # Version is required here too so stale packages from prior runs are never used.
     for dir in "${search_dirs[@]}"; do
         [ -d "${dir}" ] || continue
         if [ "${pkg_type}" = "rpm" ]; then
             for f in "${dir}"/*.rpm; do
                 [ -f "${f}" ] || continue
-                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${arch}"* ]] && echo "${f}" && return
+                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${version}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${arch}"* ]] && echo "${f}" && return
             done
         else
             for f in "${dir}"/*.deb; do
                 [ -f "${f}" ] || continue
-                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${deb_arch}"* ]] && echo "${f}" && return
+                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${version}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${deb_arch}"* ]] && echo "${f}" && return
             done
         fi
     done
 
-    # Recursive: search nested layouts (e.g. releases/7.1/.../pkg)
+    # Recursive: search nested layouts (e.g. releases/7.1/.../pkg), version-aware.
     if [ -d "${base_dir}" ]; then
         if [ "${pkg_type}" = "rpm" ]; then
-            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
+            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
         else
-            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
+            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
         fi
         [ -n "${found}" ] && echo "${found}" && return
     fi
