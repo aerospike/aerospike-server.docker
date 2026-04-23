@@ -212,7 +212,7 @@ function find_latest_version_for_lineage() {
 
     fetch "version" "${url}" 2>/dev/null |
         grep -oE "\"${lineage}\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+(-g[a-f0-9]+)?)?)?/?\"" |
-        tr -d '"/' | sort -V | tail -1
+        tr -d '"/' | sort -V | tail -1 || true
 }
 
 # Find the tools version for a server version (same for all editions/distros)
@@ -222,11 +222,13 @@ function find_tools_version() {
 
     if is_local_artifacts_dir; then
         # Local dir: scan for any TGZ bundle whose name embeds _tools-<ver>_
+        # grep exits 1 when there are no matches; || true prevents pipefail from
+        # propagating that into a set -e exit in the caller.
         local base_dir="${ARTIFACTS_DOMAIN}"
         [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
         find "${base_dir}" -type f -name "*${version}*_tools-*.tgz" 2>/dev/null |
             grep -oE "_tools-[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+)?)?_" |
-            head -1 | sed 's/_tools-//; s/_$//'
+            head -1 | sed 's/_tools-//; s/_$//' || true
         return
     fi
 
@@ -239,9 +241,9 @@ function find_tools_version() {
     local page
     page=$(fetch "tools" "${url}" 2>/dev/null)
 
-    # Extract tools version from any available package
+    # Extract tools version from any available package (|| true: grep exits 1 on no match)
     echo "${page}" | grep -oE "_tools-[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+)?)?_" |
-        head -1 | sed 's/_tools-//; s/_$//'
+        head -1 | sed 's/_tools-//; s/_$//' || true
 }
 
 # Find local TGZ bundle for given parameters; echo absolute path or empty.
