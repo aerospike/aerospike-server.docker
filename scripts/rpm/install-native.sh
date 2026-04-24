@@ -77,7 +77,6 @@ if [ "${#pkgs[@]}" -eq 0 ]; then
     exit 1
 fi
 rpm -i --excludedocs "${pkgs[@]}"
-rm -rf /opt/aerospike/bin
 
 # ---------------------------------------------------------------------------
 # Post-install housekeeping
@@ -93,6 +92,5 @@ if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "fede
     fi
 fi
 rm -rf /tmp/aerospike
-microdnf remove -y findutils 2>/dev/null || :
 microdnf clean all
 rm -rf /var/cache/yum /var/cache/dnf

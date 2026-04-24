@@ -46,51 +46,29 @@ chmod +x /usr/bin/as-tini-static
 # ---------------------------------------------------------------------------
 # Fetch and unpack server package
 # ---------------------------------------------------------------------------
-# findutils: needed by aerospike-server %post scriptlets that invoke find(1).
-# shadow-utils: needed by rpm %pre/%post for useradd/groupadd.
-# tar/gzip/xz/cpio: package extraction; removed after install.
-microdnf install -y --setopt=install_weak_deps=0 findutils tar gzip xz cpio shadow-utils
-mkdir -p /tmp/aerospike/pkg
+# findutils: provides find(1) invoked by aerospike-server %post scriptlets.
+# shadow-utils: provides groupadd/useradd invoked by %pre/%post scriptlets;
+#               retained in the image (needed by many runtime exec workflows).
+# tar/gzip: extract the TGZ bundle; removed in cleanup.
+microdnf install -y --setopt=install_weak_deps=0 findutils shadow-utils tar gzip
+mkdir -p /tmp/aerospike
 curl -fL -o /tmp/aerospike/pkg.tgz "${pkgLink}"
 echo "${pkgSha} */tmp/aerospike/pkg.tgz" | sha256sum --strict --check -
 tar -xzf /tmp/aerospike/pkg.tgz --strip-components=1 -C /tmp/aerospike
 rm /tmp/aerospike/pkg.tgz
 
 # ---------------------------------------------------------------------------
-# Install Aerospike server
+# Install Aerospike server and tools
 # ---------------------------------------------------------------------------
+# Install both packages together with rpm -i so the package manager resolves
+# dependency ordering and %post scriptlets run in the correct sequence.
+# openldap: required by enterprise/federal server at runtime for LDAP auth.
 if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
     microdnf install -y --setopt=install_weak_deps=0 openldap
 fi
-rpm -i --excludedocs /tmp/aerospike/aerospike-server-*.rpm
-rm -rf /opt/aerospike/bin
-
-# ---------------------------------------------------------------------------
-# Install tools
-# ---------------------------------------------------------------------------
-rpm2cpio /tmp/aerospike/aerospike-tools*.rpm | cpio -idm -D /tmp/aerospike/pkg
-if [ -d /tmp/aerospike/pkg/opt/aerospike/bin/ ]; then
-    find /tmp/aerospike/pkg/opt/aerospike/bin/ -exec chown root:root {} +
-fi
-mkdir -p /etc/aerospike
-if [ -f /tmp/aerospike/pkg/etc/aerospike/astools.conf ]; then
-    mv /tmp/aerospike/pkg/etc/aerospike/astools.conf /etc/aerospike/
-fi
-if [ -d '/tmp/aerospike/pkg/opt/aerospike/bin/asadm' ]; then
-    mv /tmp/aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/
-else
-    mkdir -p /usr/lib/asadm
-    mv /tmp/aerospike/pkg/opt/aerospike/bin/asadm /usr/lib/asadm/
-fi
-if [ -e /usr/lib/asadm/asadm ]; then
-    ln -snf /usr/lib/asadm/asadm /usr/bin/asadm
-fi
-if [ -f '/tmp/aerospike/pkg/opt/aerospike/bin/asinfo' ]; then
-    mv /tmp/aerospike/pkg/opt/aerospike/bin/asinfo /usr/lib/asadm/
-fi
-if [ -e /usr/lib/asadm/asinfo ]; then
-    ln -snf /usr/lib/asadm/asinfo /usr/bin/asinfo
-fi
+rpm -i --excludedocs \
+    /tmp/aerospike/aerospike-server-*.rpm \
+    /tmp/aerospike/aerospike-tools*.rpm
 
 # ---------------------------------------------------------------------------
 # Post-install housekeeping
@@ -99,11 +77,11 @@ mkdir -p /licenses /var/log/aerospike /var/run/aerospike
 cp /tmp/aerospike/LICENSE /licenses/
 if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
     if [ -f /tmp/aerospike/features.conf ]; then
+        mkdir -p /etc/aerospike
         cp /tmp/aerospike/features.conf /etc/aerospike/features.conf
     fi
 fi
 rm -rf /tmp/aerospike
-# Remove build-only tools; some may have reverse deps — treat as best-effort.
-microdnf remove -y findutils tar gzip xz cpio 2>/dev/null || :
+microdnf remove -y tar gzip
 microdnf clean all
 rm -rf /var/cache/yum /var/cache/dnf
