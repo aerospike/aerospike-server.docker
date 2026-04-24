@@ -62,7 +62,7 @@ fi
 # stays installed after the autoremove at the end.)
 pkgs=()
 for f in /tmp/aerospike/aerospike-server-*_"${ARCH}".deb \
-         /tmp/aerospike/aerospike-tools-*_"${ARCH}".deb; do
+    /tmp/aerospike/aerospike-tools-*_"${ARCH}".deb; do
     if [ -f "${f}" ]; then pkgs+=("${f}"); fi
 done
 if [ "${#pkgs[@]}" -eq 0 ]; then

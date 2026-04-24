@@ -69,7 +69,7 @@ fi
 #                                      hard Requires on aerospike-tools)
 pkgs=()
 for f in /tmp/aerospike/aerospike-server-*."${ARCH}".rpm \
-         /tmp/aerospike/aerospike-tools-*."${ARCH}".rpm; do
+    /tmp/aerospike/aerospike-tools-*."${ARCH}".rpm; do
     if [ -f "${f}" ]; then pkgs+=("${f}"); fi
 done
 if [ "${#pkgs[@]}" -eq 0 ]; then

@@ -35,7 +35,7 @@ function _dockerfile_refresh_install_block() {
     trap "rm -f '${nbf}' '${tmp}'" RETURN
 
     # Step A: build the new install block into a temp file.
-    _sh_to_dockerfile_run "${inst}" > "${nbf}"
+    _sh_to_dockerfile_run "${inst}" >"${nbf}"
 
     # Step B: substitute package URL/SHA placeholders.
     # Uses caller-scoped x86_link, x86_sha, arm_link, arm_sha (from resolve_packages).
@@ -79,7 +79,7 @@ function _dockerfile_refresh_install_block() {
     fi
 
     # Ensure exactly one trailing blank line (separator before the next instruction).
-    printf '\n' >> "${nbf}"
+    printf '\n' >>"${nbf}"
 
     # Step C: replace the install block in whichever form it currently appears.
     #   Form 1 (current):  anchor + "# hadolint..." + "RUN \" + continuation lines
@@ -126,7 +126,7 @@ function _dockerfile_refresh_install_block() {
             exit 1
         }
     }
-    ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+    ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
 
     # Step D: cleanup passes.
     # Remove BuildKit-only parser directive (DOI legacy builder does not use it).
@@ -142,7 +142,7 @@ function _dockerfile_refresh_install_block() {
     _sed_i '/^COPY server_/d' "${df}"
     # Collapse multiple consecutive blank lines to one (left by removed ARG blocks).
     awk 'prev=="" && /^$/ && blank { next } /^$/ { blank=1 } !/^$/ { blank=0 } { prev=$0; print }' \
-        "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+        "${df}" >"${tmp}" && mv "${tmp}" "${df}"
 
     # Step E: inject ENV AEROSPIKE_LINUX_BASE after ARG AEROSPIKE_EDITION if missing.
     if ! grep -qF 'ENV AEROSPIKE_LINUX_BASE=' "${df}"; then
@@ -157,7 +157,7 @@ function _dockerfile_refresh_install_block() {
                 next
             }
             { print }
-            ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+            ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
         fi
     fi
     # Remove blank lines between ENV AEROSPIKE_LINUX_BASE and the next non-blank line
@@ -169,7 +169,7 @@ function _dockerfile_refresh_install_block() {
             print nl
         }
         next
-    } { print }' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+    } { print }' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
 
     # Step F: ensure STOPSIGNAL SIGTERM is present before ENTRYPOINT.
     if ! grep -qF 'STOPSIGNAL SIGTERM' "${df}"; then
@@ -177,12 +177,15 @@ function _dockerfile_refresh_install_block() {
             print "STOPSIGNAL SIGTERM"
             print ""
             found = 1
-        } { print }' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+        } { print }' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
     fi
 
     # Step G: ensure file starts with exactly one blank line; strip trailing whitespace.
-    awk 'BEGIN{skip=1} skip && /^$/{next} {skip=0; print}' "${df}" \
-        | { printf '\n'; cat; } > "${tmp}" && mv "${tmp}" "${df}"
+    awk 'BEGIN{skip=1} skip && /^$/{next} {skip=0; print}' "${df}" |
+        {
+            printf '\n'
+            cat
+        } >"${tmp}" && mv "${tmp}" "${df}"
     _sed_i 's/[[:space:]]*$//' "${df}"
 }
 
@@ -214,13 +217,13 @@ function _dockerfile_sync_native_copy() {
             inserted = 1
         }
         { print }
-        ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+        ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
     else
         # TGZ mode or remote-URL native: remove any native-copy line.
         _sed_i '/^COPY \*\.\(deb\|rpm\) \/tmp\/aerospike\//d' "${df}"
         # Collapse any resulting double blank line.
         awk 'prev=="" && /^$/ && blank { next } /^$/ { blank=1 } !/^$/ { blank=0 } { prev=$0; print }' \
-            "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+            "${df}" >"${tmp}" && mv "${tmp}" "${df}"
     fi
 }
 
@@ -252,7 +255,7 @@ function _dockerfile_remove_vendored_tini() {
     END {
         for (i = 1; i <= buf_n; i++) print buf[i]
     }
-    ' "${df}" > "${tmp}" && mv "${tmp}" "${df}"
+    ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
 }
 
 # resolve_packages distro edition version tools_version single_arch pkg_type
@@ -328,7 +331,7 @@ function update_dockerfile() {
     local pkg_type install_script
     pkg_type=$(support_distro_to_pkg_type "$(basename "${target}")")
     local _use_native="${use_native:-false}"
-        if "${_use_native}"; then
+    if "${_use_native}"; then
         if [ "${pkg_type}" = "deb" ]; then
             install_script="${SCRIPT_DIR}/scripts/deb/install-native.sh"
         else
@@ -338,7 +341,7 @@ function update_dockerfile() {
         # new ones. Without this, old versions (or wrong-arch packages) accumulate and
         # COPY *.deb picks up all of them, causing apt/rpm to fail on wrong-arch files.
         rm -f "${target}"/aerospike-server-*."${pkg_type}" \
-              "${target}"/aerospike-tools-*."${pkg_type}" 2>/dev/null || true
+            "${target}"/aerospike-tools-*."${pkg_type}" 2>/dev/null || true
         # Stage server packages; also stage any tools package found alongside the
         # server in the artifacts directory so that apt/rpm can satisfy a hard
         # Depends/Requires on aerospike-tools.

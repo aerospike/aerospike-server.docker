@@ -30,7 +30,7 @@ function generate_dockerfile() {
     base_image=$(support_distro_to_base "${distro}")
 
     local x86_link="" x86_sha="" arm_link="" arm_sha=""
-    local use_native=false  # true when falling back to native .deb/.rpm (no TGZ bundle)
+    local use_native=false # true when falling back to native .deb/.rpm (no TGZ bundle)
 
     # Derive single_arch when exactly one arch is filtered
     local single_arch=""

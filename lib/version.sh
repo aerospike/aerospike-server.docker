@@ -259,7 +259,10 @@ function find_local_tgz_package() {
     fi
 
     [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
-    [ -d "${base_dir}" ] || { echo ""; return; }
+    [ -d "${base_dir}" ] || {
+        echo ""
+        return
+    }
     base_dir=$(cd "${base_dir}" && pwd)
 
     local tgz_name="aerospike-server-${edition}_${version}_tools-${tools_version}_${artifact_distro}_${arch}.tgz"
@@ -369,7 +372,10 @@ function find_local_tools_package() {
     fi
 
     [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
-    [ -d "${base_dir}" ] || { echo ""; return; }
+    [ -d "${base_dir}" ] || {
+        echo ""
+        return
+    }
     base_dir=$(cd "${base_dir}" && pwd)
 
     local deb_arch="${arch}"
@@ -391,7 +397,7 @@ function find_local_tools_package() {
         for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
             for f in "${dir}"/aerospike-tools_"${tools_version}"_"${deb_arch}".deb \
-                      "${dir}"/aerospike-tools_"${tools_version}"*_"${deb_arch}".deb; do
+                "${dir}"/aerospike-tools_"${tools_version}"*_"${deb_arch}".deb; do
                 [ -f "${f}" ] && echo "${f}" && return
             done
         done
