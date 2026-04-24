@@ -42,7 +42,7 @@ fi
 # Fetch and install tini
 # ---------------------------------------------------------------------------
 curl -fL -o /usr/bin/as-tini-static "${tiniUrl}"
-echo "${tiniSha}  /usr/bin/as-tini-static" | sha256sum --check -
+echo "${tiniSha} */usr/bin/as-tini-static" | sha256sum --strict --check -
 chmod +x /usr/bin/as-tini-static
 
 # ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ microdnf install -y --setopt=install_weak_deps=0 findutils shadow-utils
 mkdir -p /tmp/aerospike
 if [ -n "${serverUrl}" ]; then
     curl -fL -o /tmp/aerospike/aerospike-server.rpm "${serverUrl}"
-    echo "${serverSha}  /tmp/aerospike/aerospike-server.rpm" | sha256sum --check -
+    echo "${serverSha} */tmp/aerospike/aerospike-server.rpm" | sha256sum --strict --check -
 fi
 
 # ---------------------------------------------------------------------------

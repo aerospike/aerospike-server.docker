@@ -38,7 +38,7 @@ fi
 # Fetch and install tini
 # ---------------------------------------------------------------------------
 curl -fL -o /usr/bin/as-tini-static "${tiniUrl}"
-echo "${tiniSha}  /usr/bin/as-tini-static" | sha256sum --check -
+echo "${tiniSha} */usr/bin/as-tini-static" | sha256sum --strict --check -
 chmod +x /usr/bin/as-tini-static
 
 # ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ chmod +x /usr/bin/as-tini-static
 mkdir -p /tmp/aerospike
 if [ -n "${serverUrl}" ]; then
     curl -fL -o /tmp/aerospike/aerospike-server.deb "${serverUrl}"
-    echo "${serverSha}  /tmp/aerospike/aerospike-server.deb" | sha256sum --check -
+    echo "${serverSha} */tmp/aerospike/aerospike-server.deb" | sha256sum --strict --check -
 fi
 
 # ---------------------------------------------------------------------------

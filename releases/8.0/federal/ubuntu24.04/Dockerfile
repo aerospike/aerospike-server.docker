@@ -58,22 +58,18 @@ RUN \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
     fi; \
-    if [ -z "${pkgLink}" ]; then \
-        echo >&2 "error: no package available for edition '${AEROSPIKE_EDITION}' on architecture '${ARCH}'"; \
-        exit 1; \
-    fi; \
   }; \
   { \
     # Fetch and install tini.
     curl -fL -o /usr/bin/as-tini-static "${tiniUrl}"; \
-    echo "${tiniSha}  /usr/bin/as-tini-static" | sha256sum --check -; \
+    echo "${tiniSha} */usr/bin/as-tini-static" | sha256sum --strict --check -; \
     chmod +x /usr/bin/as-tini-static; \
   }; \
   { \
     # Fetch and unpack server package.
     mkdir -p /tmp/aerospike; \
     curl -fL -o /tmp/aerospike/pkg.tgz "${pkgLink}"; \
-    echo "${pkgSha}  /tmp/aerospike/pkg.tgz" | sha256sum --check -; \
+    echo "${pkgSha} */tmp/aerospike/pkg.tgz" | sha256sum --strict --check -; \
     tar -xzf /tmp/aerospike/pkg.tgz --strip-components=1 -C /tmp/aerospike; \
   }; \
   { \
