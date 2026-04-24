@@ -81,10 +81,11 @@ function find_local_server_package() {
                 [ -f "${f}" ] && echo "${f}" && return
             done
         done
-        # Glob: any server rpm matching edition + distro + arch
+        # Glob: server rpm matching edition + VERSION + distro + arch (version-aware
+        # to avoid picking up stale packages from a previous -u run).
         for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
+            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
             [ -n "${found}" ] && echo "${found}" && return
         done
     else
@@ -95,36 +96,38 @@ function find_local_server_package() {
                 [ -f "${f}" ] && echo "${f}" && return
             done
         done
-        # Glob: any server deb matching edition + distro + arch
+        # Glob: server deb matching edition + VERSION + distro + arch (version-aware
+        # to avoid picking up stale packages from a previous -u run).
         for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
+            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
             [ -n "${found}" ] && echo "${found}" && return
         done
     fi
 
-    # Last resort: any file with edition, distro, AND arch in name
+    # Last resort: any file with edition, VERSION, distro, AND arch in name.
+    # Version is required here too so stale packages from prior runs are never used.
     for dir in "${search_dirs[@]}"; do
         [ -d "${dir}" ] || continue
         if [ "${pkg_type}" = "rpm" ]; then
             for f in "${dir}"/*.rpm; do
                 [ -f "${f}" ] || continue
-                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${arch}"* ]] && echo "${f}" && return
+                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${version}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${arch}"* ]] && echo "${f}" && return
             done
         else
             for f in "${dir}"/*.deb; do
                 [ -f "${f}" ] || continue
-                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${deb_arch}"* ]] && echo "${f}" && return
+                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${version}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${deb_arch}"* ]] && echo "${f}" && return
             done
         fi
     done
 
-    # Recursive: search nested layouts (e.g. releases/7.1/.../pkg)
+    # Recursive: search nested layouts (e.g. releases/7.1/.../pkg), version-aware.
     if [ -d "${base_dir}" ]; then
         if [ "${pkg_type}" = "rpm" ]; then
-            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
+            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
         else
-            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
+            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
         fi
         [ -n "${found}" ] && echo "${found}" && return
     fi
@@ -212,7 +215,7 @@ function find_latest_version_for_lineage() {
 
     fetch "version" "${url}" 2>/dev/null |
         grep -oE "\"${lineage}\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+(-g[a-f0-9]+)?)?)?/?\"" |
-        tr -d '"/' | sort -V | tail -1
+        tr -d '"/' | sort -V | tail -1 || true
 }
 
 # Find the tools version for a server version (same for all editions/distros)
@@ -220,9 +223,15 @@ function find_tools_version() {
     local version=$1
     local url
 
-    # Local dir: no HTTP listing; skip so build uses native .rpm/.deb only (no tools)
     if is_local_artifacts_dir; then
-        echo ""
+        # Local dir: scan for any TGZ bundle whose name embeds _tools-<ver>_
+        # grep exits 1 when there are no matches; || true prevents pipefail from
+        # propagating that into a set -e exit in the caller.
+        local base_dir="${ARTIFACTS_DOMAIN}"
+        [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
+        find "${base_dir}" -type f -name "*${version}*_tools-*.tgz" 2>/dev/null |
+            grep -oE "_tools-[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+)?)?_" |
+            head -1 | sed 's/_tools-//; s/_$//' || true
         return
     fi
 
@@ -235,9 +244,44 @@ function find_tools_version() {
     local page
     page=$(fetch "tools" "${url}" 2>/dev/null)
 
-    # Extract tools version from any available package
+    # Extract tools version from any available package (|| true: grep exits 1 on no match)
     echo "${page}" | grep -oE "_tools-[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+)?)?_" |
-        head -1 | sed 's/_tools-//; s/_$//'
+        head -1 | sed 's/_tools-//; s/_$//' || true
+}
+
+# Find local TGZ bundle for given parameters; echo absolute path or empty.
+function find_local_tgz_package() {
+    local base_dir=$1 artifact_distro=$2 edition=$3 version=$4 tools_version=$5 arch=$6
+
+    if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
+        echo ""
+        return
+    fi
+
+    [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
+    [ -d "${base_dir}" ] || {
+        echo ""
+        return
+    }
+    base_dir=$(cd "${base_dir}" && pwd)
+
+    local tgz_name="aerospike-server-${edition}_${version}_tools-${tools_version}_${artifact_distro}_${arch}.tgz"
+    local search_dirs=(
+        "${base_dir}"
+        "${base_dir}/${version}"
+        "${base_dir}/aerospike-server-${edition}"
+        "${base_dir}/aerospike-server-${edition}/${version}"
+    )
+    local dir f
+    for dir in "${search_dirs[@]}"; do
+        [ -d "${dir}" ] || continue
+        f="${dir}/${tgz_name}"
+        [ -f "${f}" ] && echo "${f}" && return
+    done
+    # Recursive fallback (nested release layouts)
+    f=$(find "${base_dir}" -type f -name "${tgz_name}" 2>/dev/null | head -1)
+    [ -n "${f}" ] && echo "${f}" && return
+    echo ""
 }
 
 # Get the download link for a package (tgz bundle)
@@ -251,6 +295,12 @@ function get_package_link() {
     # Federal doesn't support arm64
     if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
         echo ""
+        return
+    fi
+
+    # Local dir: resolve the actual file path rather than building a computed URL
+    if is_local_artifacts_dir; then
+        find_local_tgz_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${arch}"
         return
     fi
 
@@ -280,6 +330,13 @@ function get_server_package_link_native() {
         return
     fi
 
+    # Local dir: use find_local_server_package to locate the actual file (handles
+    # flat, versioned, edition-prefixed, and nested directory layouts).
+    if is_local_artifacts_dir; then
+        find_local_server_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${edition}" "${version}" "${arch}" "${pkg_type}"
+        return
+    fi
+
     local base_url path_prefix
     if is_direct_url || is_artifactory_repo; then
         base_url="${ARTIFACTS_DOMAIN}"
@@ -305,6 +362,51 @@ function get_server_package_link_native() {
     fi
 }
 
+# Find local tools package; echo path if found, else empty.
+function find_local_tools_package() {
+    local base_dir=$1 artifact_distro=$2 edition=$3 version=$4 tools_version=$5 arch=$6 pkg_type=$7
+
+    if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
+        echo ""
+        return
+    fi
+
+    [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
+    [ -d "${base_dir}" ] || {
+        echo ""
+        return
+    }
+    base_dir=$(cd "${base_dir}" && pwd)
+
+    local deb_arch="${arch}"
+    [ "${arch}" = "x86_64" ] && deb_arch="amd64"
+    [ "${arch}" = "aarch64" ] && deb_arch="arm64"
+
+    local search_dirs=("${base_dir}" "${base_dir}/${version}" "${base_dir}/aerospike-server-${edition}" "${base_dir}/aerospike-server-${edition}/${version}")
+    local dir f
+
+    if [ "${pkg_type}" = "rpm" ]; then
+        for dir in "${search_dirs[@]}"; do
+            [ -d "${dir}" ] || continue
+            for f in "${dir}"/aerospike-tools-"${tools_version}"-*."${artifact_distro}"."${arch}".rpm; do
+                [ -f "${f}" ] && echo "${f}" && return
+            done
+        done
+        f=$(find "${base_dir}" -type f -name "aerospike-tools*${tools_version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | head -1)
+    else
+        for dir in "${search_dirs[@]}"; do
+            [ -d "${dir}" ] || continue
+            for f in "${dir}"/aerospike-tools_"${tools_version}"_"${deb_arch}".deb \
+                "${dir}"/aerospike-tools_"${tools_version}"*_"${deb_arch}".deb; do
+                [ -f "${f}" ] && echo "${f}" && return
+            done
+        done
+        f=$(find "${base_dir}" -type f -name "aerospike-tools*${tools_version}*${deb_arch}*.deb" 2>/dev/null | head -1)
+    fi
+    [ -n "${f}" ] && echo "${f}" && return
+    echo ""
+}
+
 # Get tools package link for native format (rpm or deb)
 function get_tools_package_link_native() {
     local artifact_distro=$1
@@ -316,6 +418,12 @@ function get_tools_package_link_native() {
 
     if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
         echo ""
+        return
+    fi
+
+    # Local dir: search for the actual tools package file
+    if is_local_artifacts_dir; then
+        find_local_tools_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${arch}" "${pkg_type}"
         return
     fi
 
@@ -341,13 +449,24 @@ function get_tools_package_link_native() {
     fi
 }
 
-# Fetch SHA256 for any package URL (link.sha256)
+# Fetch SHA256 for any package URL or local file path (reads link.sha256 sidecar).
 function fetch_sha_for_link() {
     local link=$1
     [ -z "${link}" ] && {
         echo ""
         return
     }
+    if [[ "${link}" != http* ]]; then
+        # Local file: read .sha256 sidecar if present, else compute the hash.
+        if [ -f "${link}.sha256" ]; then
+            cut -f1 -d' ' <"${link}.sha256"
+        elif [ -f "${link}" ]; then
+            sha256sum "${link}" 2>/dev/null | cut -f1 -d' '
+        else
+            echo ""
+        fi
+        return
+    fi
     fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' '
 }
 

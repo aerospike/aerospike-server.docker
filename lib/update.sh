@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# In-place Dockerfile update: patch ARGs, LABELs, and local-pkg COPY lines
-# without regenerating the full Dockerfile.  Used by default (no -g flag).
+# In-place Dockerfile update: refresh install block and patch version label.
+# Used by default (no -g flag).
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh
+# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
 
 set -Eeuo pipefail
 
@@ -16,136 +16,251 @@ _sed_i() {
 }
 
 # Refresh the embedded install script block in a Dockerfile (same layout as emit.sh).
-# Optional COPY_LINE: e.g. "COPY server_amd64.deb ... /tmp/" inserted before the install section.
+# inst       = path to the source install script.
+# use_native = "true" when using native .deb/.rpm (no TGZ bundle).
+# The script is NOT copied into the build context — DOI rejects COPY of
+# build-time-only scripts. Logic is inlined as a RUN \ block via the converter.
+# Package URL/SHA placeholders are substituted using caller-scoped variables:
+#   x86_link  x86_sha  arm_link  arm_sha  (set by resolve_packages)
 function _dockerfile_refresh_install_block() {
     local df=$1
     local inst=$2
-    local copy_line=${3:-}
-    python3 - "$df" "$inst" "${copy_line}" <<'PY'
-import pathlib, re, sys
+    local use_native=${3:-false}
 
-df_path = pathlib.Path(sys.argv[1])
-inst_path = pathlib.Path(sys.argv[2])
-copy_line = sys.argv[3] if len(sys.argv) > 3 else ""
-script = inst_path.read_text()
-if not script.endswith("\n"):
-    script += "\n"
-prefix = (copy_line.rstrip() + "\n\n") if copy_line.strip() else ""
-new_block = (
-    prefix
-    + "# Install Aerospike Server and Tools\n"
-    + "# hadolint ignore=DL3003,DL3008,DL3041,SC2015\n"
-    + "RUN bash <<'AEROSPIKE_INSTALL'\n"
-    + script
-    + "AEROSPIKE_INSTALL\n"
-)
-text = df_path.read_text()
-# Strip prior local-pkg COPY lines; fresh ones come from copy_line above.
-lines = [ln for ln in text.splitlines(True) if not re.match(r"^COPY server_", ln)]
-text = "".join(lines)
-text2, n_old = re.subn(
-    r"(?ms)^# Install Aerospike Server and Tools\n"
-    r"COPY install\.sh /tmp/install\.sh\n"
-    r"# hadolint[^\n]*\n"
-    r"RUN bash /tmp/install\.sh && rm -f /tmp/install\.sh\n",
-    new_block,
-    text,
-    count=1,
-)
-if n_old == 0:
-    text2, n_new = re.subn(
-        r"(?ms)^# Install Aerospike Server and Tools\n.*?\nAEROSPIKE_INSTALL\n",
-        new_block,
-        text,
-        count=1,
-    )
-    if n_new != 1:
-        sys.stderr.write(f"{df_path}: could not replace install block (matched {n_new})\n")
-        sys.exit(1)
-if not text2.startswith("# syntax=docker/dockerfile:1"):
-    text2 = "# syntax=docker/dockerfile:1\n" + text2
-df_path.write_text(text2)
-PY
+    # Temp files; cleaned up on function return (including on error).
+    local nbf tmp
+    nbf=$(mktemp)
+    tmp=$(mktemp)
+    # shellcheck disable=SC2064
+    trap "rm -f '${nbf}' '${tmp}'" RETURN
+
+    # Step A: build the new install block into a temp file.
+    _sh_to_dockerfile_run "${inst}" >"${nbf}"
+
+    # Step B: substitute package URL/SHA placeholders.
+    # Uses caller-scoped x86_link, x86_sha, arm_link, arm_sha (from resolve_packages).
+    local pkg_type
+    pkg_type=$(support_distro_to_pkg_type "$(basename "$(dirname "${df}")")")
+
+    if "${use_native}"; then
+        # Native scripts: __SERVER_URL_* placeholders; empty = COPY'd file (local build).
+        local _x86_url="" _x86_sha_val="" _arm_url="" _arm_sha_val=""
+        [[ "${x86_link:-}" == http* ]] && _x86_url="${x86_link}" && _x86_sha_val="${x86_sha:-}"
+        [[ "${arm_link:-}" == http* ]] && _arm_url="${arm_link}" && _arm_sha_val="${arm_sha:-}"
+        if [ "${pkg_type}" = "deb" ]; then
+            _sed_i \
+                -e "s|__SERVER_URL_AMD64__|${_x86_url}|g" \
+                -e "s|__SERVER_SHA_AMD64__|${_x86_sha_val}|g" \
+                -e "s|__SERVER_URL_ARM64__|${_arm_url}|g" \
+                -e "s|__SERVER_SHA_ARM64__|${_arm_sha_val}|g" \
+                "${nbf}"
+        else
+            _sed_i \
+                -e "s|__SERVER_URL_X86_64__|${_x86_url}|g" \
+                -e "s|__SERVER_SHA_X86_64__|${_x86_sha_val}|g" \
+                -e "s|__SERVER_URL_AARCH64__|${_arm_url}|g" \
+                -e "s|__SERVER_SHA_AARCH64__|${_arm_sha_val}|g" \
+                "${nbf}"
+        fi
+    elif [ "${pkg_type}" = "deb" ]; then
+        _sed_i \
+            -e "s|__PKG_URL_AMD64__|${x86_link:-}|g" \
+            -e "s|__PKG_SHA_AMD64__|${x86_sha:-}|g" \
+            -e "s|__PKG_URL_ARM64__|${arm_link:-}|g" \
+            -e "s|__PKG_SHA_ARM64__|${arm_sha:-}|g" \
+            "${nbf}"
+    else
+        _sed_i \
+            -e "s|__PKG_URL_X86_64__|${x86_link:-}|g" \
+            -e "s|__PKG_SHA_X86_64__|${x86_sha:-}|g" \
+            -e "s|__PKG_URL_AARCH64__|${arm_link:-}|g" \
+            -e "s|__PKG_SHA_AARCH64__|${arm_sha:-}|g" \
+            "${nbf}"
+    fi
+
+    # Ensure exactly one trailing blank line (separator before the next instruction).
+    printf '\n' >>"${nbf}"
+
+    # Step C: replace the install block in whichever form it currently appears.
+    #   Form 1 (current):  anchor + "# hadolint..." + "RUN \" + continuation lines
+    #   Form 2 (previous): anchor + "COPY install.sh" + "# hadolint..." + "RUN bash"
+    #   Form 3 (oldest):   anchor + BuildKit heredoc content until AEROSPIKE_INSTALL
+    awk -v nbf="${nbf}" -v src="${df}" '
+    function emit_new_block(    line) {
+        while ((getline line < nbf) > 0) print line
+        close(nbf)
+    }
+    BEGIN { state = "looking"; form = "" }
+    state == "done" { print; next }
+    state == "looking" && /^# Install Aerospike Server and Tools$/ {
+        state = "consuming"; form = ""; next
+    }
+    state == "consuming" {
+        if (form == "") {
+            if (/^# hadolint/)        { form = "run1";    next }
+            if (/^COPY install\.sh /) { form = "run2";    next }
+            if (/<</)                 { form = "heredoc"; next }
+            # Unrecognised line after anchor — emit block and keep line
+            emit_new_block(); state = "done"; print; next
+        }
+        if (form == "run1") {
+            if (/^RUN \\/) { next }        # RUN \ header
+            if (/^[ \t]/)  { next }        # continuation lines
+            if (/^$/)      { next }        # trailing blank lines after block
+            emit_new_block(); state = "done"; print; next
+        }
+        if (form == "run2") {
+            if (/^# hadolint/) { next }
+            if (/^RUN bash /)  { emit_new_block(); state = "done"; next }
+            emit_new_block(); state = "done"; print; next
+        }
+        if (form == "heredoc") {
+            if (/^AEROSPIKE_INSTALL$/) { emit_new_block(); state = "done"; next }
+            next
+        }
+    }
+    { print }
+    END {
+        if (state != "done") {
+            print src ": could not replace install block" > "/dev/stderr"
+            exit 1
+        }
+    }
+    ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+
+    # Step D: cleanup passes.
+    # Remove BuildKit-only parser directive (DOI legacy builder does not use it).
+    _sed_i '/^# syntax=docker\/dockerfile:/d' "${df}"
+    # Remove old ARG lines for package URLs/SHAs (replaced by hardcoded values in RUN block).
+    _sed_i '/^ARG AEROSPIKE_X86_64_LINK=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_SHA_X86_64=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_AARCH64_LINK=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_SHA_AARCH64=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_COMPAT_LIBS=/d' "${df}"
+    _sed_i '/^ARG AEROSPIKE_LOCAL_PKG=/d' "${df}"
+    # Remove old local-pkg COPY lines (no longer in build context).
+    _sed_i '/^COPY server_/d' "${df}"
+    # Collapse multiple consecutive blank lines to one (left by removed ARG blocks).
+    awk 'prev=="" && /^$/ && blank { next } /^$/ { blank=1 } !/^$/ { blank=0 } { prev=$0; print }' \
+        "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+
+    # Step E: inject ENV AEROSPIKE_LINUX_BASE after ARG AEROSPIKE_EDITION if missing.
+    if ! grep -qF 'ENV AEROSPIKE_LINUX_BASE=' "${df}"; then
+        local base_img
+        base_img=$(awk '/^FROM /{print $2; exit}' "${df}")
+        if [ -n "${base_img}" ]; then
+            awk -v base="${base_img}" '
+            /^ARG AEROSPIKE_EDITION=/ {
+                print
+                print ""
+                print "ENV AEROSPIKE_LINUX_BASE=\"" base "\""
+                next
+            }
+            { print }
+            ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+        fi
+    fi
+    # Remove blank lines between ENV AEROSPIKE_LINUX_BASE and the next non-blank line
+    # (DOI reference: ENV and SHELL appear on consecutive lines).
+    awk '/^ENV AEROSPIKE_LINUX_BASE=/ {
+        print
+        if ((getline nl) > 0) {
+            while (nl == "") { if ((getline nl) <= 0) break }
+            print nl
+        }
+        next
+    } { print }' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+
+    # Step F: ensure STOPSIGNAL SIGTERM is present before ENTRYPOINT.
+    if ! grep -qF 'STOPSIGNAL SIGTERM' "${df}"; then
+        awk '!found && /^ENTRYPOINT \[/ {
+            print "STOPSIGNAL SIGTERM"
+            print ""
+            found = 1
+        } { print }' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+    fi
+
+    # Step G: ensure file starts with exactly one blank line; strip trailing whitespace.
+    awk 'BEGIN{skip=1} skip && /^$/{next} {skip=0; print}' "${df}" |
+        {
+            printf '\n'
+            cat
+        } >"${tmp}" && mv "${tmp}" "${df}"
+    _sed_i 's/[[:space:]]*$//' "${df}"
 }
 
-function _sync_static_tini_to_target() {
-    local target=$1
-    mkdir -p "${target}/static/tini"
-    cp "${SCRIPT_DIR}/static/tini/as-tini-static-amd64" "${SCRIPT_DIR}/static/tini/as-tini-static-arm64" "${target}/static/tini/"
+# Sync the native-package COPY instruction in a Dockerfile.
+#   copy_glob  non-empty (e.g. "*.deb") → ensure exactly one "COPY <glob> /tmp/aerospike/" line
+#              exists immediately before the "# Install Aerospike Server" anchor.
+#   copy_glob  empty → remove any such COPY line (TGZ mode or remote-URL native mode).
+# Idempotent: safe to call on both new and already-updated Dockerfiles.
+function _dockerfile_sync_native_copy() {
+    local df=$1 copy_glob=$2
+    local tmp
+    tmp=$(mktemp)
+    # shellcheck disable=SC2064
+    trap "rm -f '${tmp}'" RETURN
+
+    if [ -n "${copy_glob}" ]; then
+        local copy_line="COPY ${copy_glob} /tmp/aerospike/"
+        # If the exact line already exists, nothing to do.
+        if grep -qF "${copy_line}" "${df}"; then
+            return 0
+        fi
+        # Remove any stale COPY *.deb / COPY *.rpm line first (different glob or edition).
+        _sed_i '/^COPY \*\.\(deb\|rpm\) \/tmp\/aerospike\//d' "${df}"
+        # Insert the COPY line (+ blank line) immediately before the install anchor.
+        awk -v cline="${copy_line}" '
+        /^# Install Aerospike/ && !inserted {
+            print cline
+            print ""
+            inserted = 1
+        }
+        { print }
+        ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+    else
+        # TGZ mode or remote-URL native: remove any native-copy line.
+        _sed_i '/^COPY \*\.\(deb\|rpm\) \/tmp\/aerospike\//d' "${df}"
+        # Collapse any resulting double blank line.
+        awk 'prev=="" && /^$/ && blank { next } /^$/ { blank=1 } !/^$/ { blank=0 } { prev=$0; print }' \
+            "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+    fi
 }
 
-# Ensure the vendored-tini block in the Dockerfile matches the canonical
-# fragment (lib/dockerfile_fragment_tini.docker). Three cases:
-#   1. Block missing entirely  -> insert fragment after SHELL.
-#   2. Old-form block present  -> replace whole block (comments + COPY +
-#      optional `ARG TARGETARCH` + RUN cp) with the fragment. Old form
-#      relies on BuildKit to auto-populate ${TARGETARCH}, which the legacy
-#      builder used by Docker Official Images (DOI) does not, breaking
-#      under `set -u`. The new fragment falls back to `uname -m`.
-#   3. New-form block already present -> no-op (idempotent).
-function _dockerfile_ensure_vendored_tini() {
+# Remove the vendored-tini COPY block from a Dockerfile (if present from older
+# Dockerfiles). Tini is now fetched at build time via curl in the install block.
+function _dockerfile_remove_vendored_tini() {
     local df=$1
-    python3 - "${df}" "${SCRIPT_DIR}/lib/dockerfile_fragment_tini.docker" <<'PY'
-import pathlib, re, sys
+    if ! grep -qF 'COPY static/tini/as-tini-static-amd64' "${df}"; then
+        return 0
+    fi
 
-df_path = pathlib.Path(sys.argv[1])
-frag_path = pathlib.Path(sys.argv[2])
-frag = frag_path.read_text()
-if not frag.endswith("\n"):
-    frag += "\n"
-text = df_path.read_text()
+    local tmp
+    tmp=$(mktemp)
+    # shellcheck disable=SC2064
+    trap "rm -f '${tmp}'" RETURN
 
-# Case 3: already in the new (DOI-safe) form.
-if 'as-tini-static-${arch}' in text:
-    raise SystemExit(0)
-
-# Case 2: replace the entire old tini block with the canonical fragment.
-if "COPY static/tini/as-tini-static-amd64" in text:
-    pattern = re.compile(
-        r"(?ms)"
-        # leading tini-related comment lines (any contiguous run of `# ...` lines)
-        r"(?:^#[^\n]*\n)*"
-        # the COPY line
-        r"^COPY static/tini/as-tini-static-amd64[^\n]*\n"
-        # optional bare `ARG TARGETARCH` (old form had no default)
-        r"(?:^ARG TARGETARCH[^\n]*\n)?"
-        # RUN cp ... start line
-        r"^RUN cp \"/opt/aerospike-tini/as-tini-static-\$\{TARGETARCH\}\"[^\n]*\n"
-        # any number of leading-whitespace continuation lines
-        r"(?:^[ \t][^\n]*\n)*"
-    )
-    text2, n = pattern.subn(frag, text, count=1)
-    if n != 1:
-        sys.stderr.write(
-            f"{df_path}: could not match existing tini block to replace "
-            "(file format unexpected)\n"
-        )
-        sys.exit(1)
-    df_path.write_text(text2)
-    raise SystemExit(0)
-
-# Case 1: insert the fragment after the SHELL line.
-lines = text.splitlines(keepends=True)
-out = []
-inserted = False
-for line in lines:
-    out.append(line)
-    if inserted:
-        continue
-    if line.startswith("SHELL [") and "]" in line:
-        out.append("\n")
-        out.append(frag)
-        inserted = True
-if not inserted:
-    sys.stderr.write(f"{df_path}: could not find SHELL line to insert vendored tini\n")
-    sys.exit(1)
-df_path.write_text("".join(out))
-PY
+    # Buffer contiguous comment lines. If the next non-comment line is the
+    # tini COPY line, discard the buffer and the COPY line. Otherwise flush.
+    awk '
+    /^COPY static\/tini\/as-tini-static-amd64/ {
+        delete buf; buf_n = 0; next
+    }
+    /^#/ { buf[++buf_n] = $0; next }
+    {
+        for (i = 1; i <= buf_n; i++) print buf[i]
+        delete buf; buf_n = 0
+        print
+    }
+    END {
+        for (i = 1; i <= buf_n; i++) print buf[i]
+    }
+    ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
 }
 
-# resolve_packages distro edition version tools_version single_arch
-# Outputs: x86_link x86_sha arm_link arm_sha pkg_format use_local_pkg
-# Sets the six variables above in the caller's scope.
+# resolve_packages distro edition version tools_version single_arch pkg_type
+# Outputs: x86_link x86_sha arm_link arm_sha pkg_format use_native
+# Sets the variables above in the caller's scope via dynamic scoping.
 function resolve_packages() {
     local artifact_distro=$1 edition=$2 version=$3 tools_version=$4 single_arch=$5
     local pkg_type=$6
@@ -156,7 +271,8 @@ function resolve_packages() {
     arm_sha=""
     # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
     pkg_format="tgz"
-    use_local_pkg=""
+    # shellcheck disable=SC2034  # consumed by update_dockerfile via dynamic scoping
+    use_native=false
 
     if [ -n "${tools_version}" ]; then
         x86_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
@@ -165,35 +281,16 @@ function resolve_packages() {
         arm_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
     fi
 
-    if is_local_artifacts_dir; then
-        local local_base="${ARTIFACTS_DOMAIN}"
-        [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-        [ -d "${local_base}" ] && local_base=$(
-            cd "${local_base}" || exit 1
-            pwd
-        )
-        local local_x86 local_arm
-        local_x86=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "x86_64" "${pkg_type}")
-        local_arm=$(find_local_server_package "${local_base}" "${artifact_distro}" "${edition}" "${version}" "aarch64" "${pkg_type}")
-        if [ -n "${local_x86}" ] || [ -n "${local_arm}" ]; then
-            # shellcheck disable=SC2034  # consumed by caller via dynamic scoping
+    if [ -z "${x86_sha}" ]; then
+        x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
+        x86_sha=$(fetch_sha_for_link "${x86_link}")
+        if [ -n "${x86_link}" ]; then
+            # shellcheck disable=SC2034  # consumed by caller and update_dockerfile
             pkg_format="${pkg_type}"
-            [ -n "${local_x86}" ] && x86_link="${local_x86}"
-            [ -n "${local_arm}" ] && arm_link="${local_arm}"
-            use_local_pkg="1"
-        fi
-    fi
-
-    if [ -z "${use_local_pkg}" ] && [ -z "${x86_sha}" ]; then
-        if ! is_local_artifacts_dir; then
-            x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
-            x86_sha=$(fetch_sha_for_link "${x86_link}")
-            if [ -n "${x86_link}" ]; then
-                # shellcheck disable=SC2034  # consumed by caller via dynamic scoping
-                pkg_format="${pkg_type}"
-                arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
-                arm_sha=$(fetch_sha_for_link "${arm_link}")
-            fi
+            # shellcheck disable=SC2034  # consumed by update_dockerfile
+            use_native=true
+            arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
+            arm_sha=$(fetch_sha_for_link "${arm_link}")
         fi
     fi
 
@@ -207,61 +304,16 @@ function resolve_packages() {
     fi
 }
 
-# prepare_local_packages target pkg_type x86_link arm_link
-# Copies local packages + .sha256 into the context dir, returns updated
-# x86_sha, arm_sha, and the COPY directive via copy_line (in caller scope).
-function prepare_local_packages() {
-    local target=$1 pkg_type=$2
-
-    copy_line=""
-    local copy_files=()
-
-    local need_sha=false
-    [ -n "${x86_link}" ] && [ ! -f "${x86_link}.sha256" ] && need_sha=true
-    [ -n "${arm_link}" ] && [ ! -f "${arm_link}.sha256" ] && need_sha=true
-    if [ "${need_sha}" = true ]; then
-        local local_base="${ARTIFACTS_DOMAIN}"
-        [[ "${local_base}" != /* ]] && [[ "${local_base}" != http* ]] && local_base="${SCRIPT_DIR}/${local_base}"
-        [ -d "${local_base}" ] && local_base=$(
-            cd "${local_base}" || exit 1
-            pwd
-        )
-        if [ -d "${local_base}" ]; then
-            log_info "    Creating missing .sha256 in ${local_base} (shasum-artifacts.sh)"
-            "${SCRIPT_DIR}/scripts/shasum-artifacts.sh" "${local_base}" >/dev/null 2>&1 || true
-        fi
-    fi
-
-    if [ "${pkg_type}" = "rpm" ]; then
-        if [ -n "${x86_link}" ]; then
-            cp "${x86_link}" "${target}/server_x86_64.rpm" && copy_files+=(server_x86_64.rpm)
-            [ -f "${x86_link}.sha256" ] && cp "${x86_link}.sha256" "${target}/server_x86_64.rpm.sha256" && copy_files+=(server_x86_64.rpm.sha256) && x86_sha=$(awk '{print $1}' "${x86_link}.sha256")
-        fi
-        if [ -n "${arm_link}" ]; then
-            cp "${arm_link}" "${target}/server_aarch64.rpm" && copy_files+=(server_aarch64.rpm)
-            [ -f "${arm_link}.sha256" ] && cp "${arm_link}.sha256" "${target}/server_aarch64.rpm.sha256" && copy_files+=(server_aarch64.rpm.sha256) && arm_sha=$(awk '{print $1}' "${arm_link}.sha256")
-        fi
-    else
-        if [ -n "${x86_link}" ]; then
-            cp "${x86_link}" "${target}/server_amd64.deb" && copy_files+=(server_amd64.deb)
-            [ -f "${x86_link}.sha256" ] && cp "${x86_link}.sha256" "${target}/server_amd64.deb.sha256" && copy_files+=(server_amd64.deb.sha256) && x86_sha=$(awk '{print $1}' "${x86_link}.sha256")
-        fi
-        if [ -n "${arm_link}" ]; then
-            cp "${arm_link}" "${target}/server_arm64.deb" && copy_files+=(server_arm64.deb)
-            [ -f "${arm_link}.sha256" ] && cp "${arm_link}.sha256" "${target}/server_arm64.deb.sha256" && copy_files+=(server_arm64.deb.sha256) && arm_sha=$(awk '{print $1}' "${arm_link}.sha256")
-        fi
-    fi
-
-    [ ${#copy_files[@]} -gt 0 ] && copy_line="COPY ${copy_files[*]} /tmp/"
-}
-
-# update_dockerfile target version needs_compat_libs copy_line single_arch
-# Performs sed-based in-place patching of version-specific values in an
-# existing Dockerfile.  Also manages the COPY local-pkg line and
-# AEROSPIKE_LOCAL_PKG ARG.
-# Relies on caller-scoped: x86_link x86_sha arm_link arm_sha use_local_pkg
+# update_dockerfile target version single_arch
+# Performs in-place update of an existing Dockerfile:
+#   - Patches the version label.
+#   - Removes stale ARG/COPY lines from prior formats.
+#   - Removes vendored-tini COPY block (tini is now fetched at build time).
+#   - Re-inlines the install logic as a RUN \ block with fresh URL/SHA values.
+#   - Ensures STOPSIGNAL SIGTERM is present.
+# Relies on caller-scoped: x86_link x86_sha arm_link arm_sha
 function update_dockerfile() {
-    local target=$1 version=$2 needs_compat_libs=$3 copy_line=$4 single_arch=$5
+    local target=$1 version=$2 single_arch=$3
     local df="${target}/Dockerfile"
 
     log_info "    Updating in-place: ${df}"
@@ -269,55 +321,78 @@ function update_dockerfile() {
     # Patch version label
     _sed_i "s|org.opencontainers.image.version=\"[^\"]*\"|org.opencontainers.image.version=\"${version}\"|" "${df}"
 
-    # Patch ARG values
-    if [ "${single_arch}" != "arm64" ]; then
-        _sed_i "s|^ARG AEROSPIKE_X86_64_LINK=.*|ARG AEROSPIKE_X86_64_LINK=\"${x86_link}\"|" "${df}"
-        _sed_i "s|^ARG AEROSPIKE_SHA_X86_64=.*|ARG AEROSPIKE_SHA_X86_64=\"${x86_sha}\"|" "${df}"
-    fi
-    if [ "${single_arch}" != "amd64" ]; then
-        _sed_i "s|^ARG AEROSPIKE_AARCH64_LINK=.*|ARG AEROSPIKE_AARCH64_LINK=\"${arm_link}\"|" "${df}"
-        _sed_i "s|^ARG AEROSPIKE_SHA_AARCH64=.*|ARG AEROSPIKE_SHA_AARCH64=\"${arm_sha}\"|" "${df}"
-    fi
-    _sed_i "s|^ARG AEROSPIKE_COMPAT_LIBS=.*|ARG AEROSPIKE_COMPAT_LIBS=\"${needs_compat_libs}\"|" "${df}"
-
-    # Manage AEROSPIKE_LOCAL_PKG ARG
-    if [ -n "${use_local_pkg}" ]; then
-        if grep -q '^ARG AEROSPIKE_LOCAL_PKG=' "${df}"; then
-            _sed_i "s|^ARG AEROSPIKE_LOCAL_PKG=.*|ARG AEROSPIKE_LOCAL_PKG=\"1\"|" "${df}"
-        else
-            # Append after COMPAT_LIBS line (awk is portable; sed a\ is not on BSD)
-            local tmpfile
-            tmpfile=$(mktemp)
-            awk '/^ARG AEROSPIKE_COMPAT_LIBS=/{print; print "ARG AEROSPIKE_LOCAL_PKG=\"1\""; next}{print}' "${df}" >"${tmpfile}" && mv "${tmpfile}" "${df}"
-        fi
-    else
-        _sed_i '/^ARG AEROSPIKE_LOCAL_PKG=/d' "${df}"
-    fi
-
     # Refresh support files
     cp template/0/entrypoint.sh "${target}/"
     chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
 
-    # Refresh install script
-    local pkg_type
+    # Resolve install script source.
+    # use_native is set by resolve_packages (caller-scoped) when no TGZ bundle found.
+    local pkg_type install_script
     pkg_type=$(support_distro_to_pkg_type "$(basename "${target}")")
-    if [ "${pkg_type}" = "deb" ]; then
-        cp scripts/deb/install.sh "${target}/install.sh"
+    local _use_native="${use_native:-false}"
+    if "${_use_native}"; then
+        if [ "${pkg_type}" = "deb" ]; then
+            install_script="${SCRIPT_DIR}/scripts/deb/install-native.sh"
+        else
+            install_script="${SCRIPT_DIR}/scripts/rpm/install-native.sh"
+        fi
+        # Remove stale package files from previous native-mode builds before staging
+        # new ones. Without this, old versions (or wrong-arch packages) accumulate and
+        # COPY *.deb picks up all of them, causing apt/rpm to fail on wrong-arch files.
+        rm -f "${target}"/aerospike-server-*."${pkg_type}" \
+            "${target}"/aerospike-tools-*."${pkg_type}" 2>/dev/null || true
+        # Stage server packages; also stage any tools package found alongside the
+        # server in the artifacts directory so that apt/rpm can satisfy a hard
+        # Depends/Requires on aerospike-tools.
+        local _dir _tools_f
+        if [[ "${x86_link:-}" != http* ]] && [ -n "${x86_link:-}" ] && [ -f "${x86_link:-}" ]; then
+            cp "${x86_link}" "${target}/"
+            _dir=$(dirname "${x86_link}")
+            if [ "${pkg_type}" = "deb" ]; then
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*_amd64.deb" 2>/dev/null | sort -V | tail -1)
+            else
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*.x86_64.rpm" 2>/dev/null | sort -V | tail -1)
+            fi
+            [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
+        fi
+        if [[ "${arm_link:-}" != http* ]] && [ -n "${arm_link:-}" ] && [ -f "${arm_link:-}" ]; then
+            cp "${arm_link}" "${target}/"
+            _dir=$(dirname "${arm_link}")
+            if [ "${pkg_type}" = "deb" ]; then
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*_arm64.deb" 2>/dev/null | sort -V | tail -1)
+            else
+                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*.aarch64.rpm" 2>/dev/null | sort -V | tail -1)
+            fi
+            [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
+        fi
     else
-        cp scripts/rpm/install.sh "${target}/install.sh"
+        if [ "${pkg_type}" = "deb" ]; then
+            install_script="${SCRIPT_DIR}/scripts/deb/install.sh"
+        else
+            install_script="${SCRIPT_DIR}/scripts/rpm/install.sh"
+        fi
     fi
-    chmod +x "${target}/install.sh"
 
-    _sync_static_tini_to_target "${target}"
-    _dockerfile_ensure_vendored_tini "${df}"
+    # Remove vendored-tini COPY block (older Dockerfiles only; idempotent if absent).
+    _dockerfile_remove_vendored_tini "${df}"
 
-    # Re-embed install.sh (RUN heredoc); refresh local-pkg COPY prefix via copy_line.
-    _dockerfile_refresh_install_block "${df}" "${target}/install.sh" "${copy_line}"
+    # Sync the COPY instruction for local native package builds:
+    # - use_native + local files  → insert/keep   COPY *.{deb,rpm} /tmp/aerospike/
+    # - use_native + remote URLs  → no COPY needed (curl downloads the file)
+    # - TGZ mode                  → remove any stale COPY *.deb/rpm line
+    local _copy_glob=""
+    if "${_use_native}"; then
+        [[ "${x86_link:-}" != http* ]] && [ -n "${x86_link:-}" ] && _copy_glob="*.${pkg_type}"
+        [[ "${arm_link:-}" != http* ]] && [ -n "${arm_link:-}" ] && _copy_glob="*.${pkg_type}"
+    fi
+    _dockerfile_sync_native_copy "${df}" "${_copy_glob}"
 
-    # Clean trailing whitespace
+    # Re-inline install logic as RUN \ block; substitute package URL/SHA placeholders.
+    _dockerfile_refresh_install_block "${df}" "${install_script}" "${_use_native}"
+
+    # Clean trailing whitespace and ensure trailing newline.
     _sed_i 's/[[:space:]]*$//' "${df}"
-    # Ensure trailing newline
     if [ -n "$(tail -c1 "${df}" 2>/dev/null)" ]; then
         echo >>"${df}"
     fi

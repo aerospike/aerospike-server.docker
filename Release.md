@@ -32,8 +32,10 @@ The previous build system had separate directories for each edition with duplica
 	releases/<lineage>/<edition>/<distro>/
 	  ├── Dockerfile
 	  ├── entrypoint.sh
-	  ├── install.sh          # Copied from scripts/deb or scripts/rpm at generate time
-	  └── aerospike.template.conf
+	  ├── aerospike.template.conf
+	  └── static/tini/
+	        ├── as-tini-static-amd64
+	        └── as-tini-static-arm64
 
 Example: `releases/8.1/enterprise/ubuntu24.04/`
 
@@ -181,9 +183,6 @@ Updated README.md with:
 -	**Multiple registries in push mode**  
 	Push mode supports multiple `-r` registries (e.g. `-r reg1 -r reg2`). Each registry receives the same set of tags (lineage, version, version-timestamp, version-distro).
 
--	**Generated `install.sh` in releases/**  
-	Each generated `releases/<lineage>/<edition>/<distro>/` directory now includes `install.sh`, copied from `scripts/deb/install.sh` or `scripts/rpm/install.sh` at generate time. When using a local artifacts dir, server packages (`server_amd64.deb`/`server_arm64.deb` or `server_x86_64.rpm`/`server_aarch64.rpm`) are also copied into the build context.
-
 -	**Build without tools**  
 	When no tools version is found for a given version/lineage, the build continues using native `.rpm`/`.deb` only (server package, no tools from tgz). A warning is printed.
 
@@ -227,8 +226,8 @@ Updated README.md with:
 -	**scripts/shasum-artifacts.sh**  
 	New script to create `.sha256` files for all packages in an artifacts directory. Recursively finds `*.deb`, `*.rpm`, `*.tgz`, `*.tar.gz` and writes `filename.sha256` with one line `hash  filename` (compatible with `sha256sum -c` and with the build’s `link.sha256` usage). Usage: `./scripts/shasum-artifacts.sh` (default dir `artifacts`) or `./scripts/shasum-artifacts.sh <dir>` (relative to repo root or absolute).
 
--	**Generated Dockerfile (Docker Hub compliance)**  
-	Generated Dockerfiles now: (1) start with `# syntax=docker/dockerfile:1` for BuildKit/Docker Hub; (2) have empty lines stripped via `sed`; (3) are written with a trailing newline. Ensures compatibility with Docker Hub and common validators.
+-	**Generated Dockerfile (Docker Official Images compliance)**  
+	Generated Dockerfiles: (1) do **not** include `# syntax=docker/dockerfile:1` — that BuildKit parser directive is explicitly omitted for Docker Official Images (DOI), whose legacy builder does not use BuildKit; (2) start with a single blank line followed by the standard Aerospike comment header and `FROM`; (3) use two `RUN` blocks — a base-deps block (`ca-certificates`, `procps`) and a main install block; (4) inline all install logic as a `RUN \` continuation block (no heredocs, no `COPY install.sh`) — DOI's parser cannot pre-scan BuildKit heredocs, and `install.sh` is not part of the bashbrew build context; (5) hardcode package URLs and SHA256 values directly in the `if/elif` block (no `ARG` indirection) — per DOI reviewer guidance, ARGs add complexity and every version bump requires full regeneration (`-g`) regardless; (6) fetch tini at build time via `curl` + SHA256 verification (no vendored binaries in the build context); (7) use `dpkg --print-architecture` or `rpm --eval '%{_arch}'` for userspace architecture detection (not `uname -m`, which reports the kernel/host arch); (8) include `STOPSIGNAL SIGTERM`; (9) have trailing whitespace stripped and are written with a trailing newline.
 
 -	**scripts/deb/install.sh — distro-aware compat libs**
 

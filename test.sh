@@ -41,7 +41,8 @@ OPTIONS:
                          Ignored when -i or -p is used.
     -c, --clean          Remove each image after its test passes (container + image)
     -s, --snyk           Run Snyk container scan on each image after tests pass
-                         Requires snyk CLI in PATH. Results saved to snyk-*.log
+                         Requires snyk CLI in PATH. Results saved to
+                         aerospike-server[-edition]-version[-distro]-arch-ts.snyk
     -h, --help           Show this help message
 
 TESTS PERFORMED:
@@ -344,7 +345,7 @@ function cleanup() {
 
 function run_snyk_scan() {
     local image=$1 arch=$2 dockerfile=${3:-}
-    local edition=${4:-} version=${5:-}
+    local edition=${4:-} version=${5:-} distro=${6:-}
     if [ "${SNYK_SCAN}" != "true" ]; then
         return 0
     fi
@@ -357,6 +358,7 @@ function run_snyk_scan() {
     local name="aerospike-server"
     [ -n "${edition}" ] && [ "${edition}" != "community" ] && name+="-${edition}"
     [ -n "${version}" ] && name+="-${version}"
+    [ -n "${distro}" ] && name+="-${distro}"
     local scan_log="${name}-${arch}-${ts}.snyk"
     local snyk_cmd=(snyk container test "${image}" "--platform=linux/${arch}")
     [ -n "${dockerfile}" ] && [ -f "${dockerfile}" ] && snyk_cmd+=("--file=${dockerfile}")
@@ -499,7 +501,7 @@ function test_from_releases() {
                 cleanup
                 run_docker
                 check_container "${version}" "${edition}" "${arch}"
-                run_snyk_scan "${IMAGE_TAG}" "${arch}" "releases/${lineage}/${edition}/${distro}/Dockerfile" "${edition}" "${version}"
+                run_snyk_scan "${IMAGE_TAG}" "${arch}" "releases/${lineage}/${edition}/${distro}/Dockerfile" "${edition}" "${version}" "${distro}"
                 cleanup full
 
                 tested=$((tested + 1))

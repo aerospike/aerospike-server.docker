@@ -2,7 +2,7 @@
 # Orchestrate Dockerfile generation: version discovery -> per-lineage loop.
 # Routes between full generation (-g / missing Dockerfile) and in-place update.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/emit.sh, lib/update.sh
+# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh, lib/emit.sh, lib/update.sh
 
 set -Eeuo pipefail
 
@@ -131,29 +131,18 @@ function generate_dockerfiles() {
                         [ "${single_arch}" = "aarch64" ] && single_arch="arm64"
                     fi
 
-                    # shellcheck disable=SC2034  # set by resolve_packages, consumed by generate/update_dockerfile
-                    local x86_link x86_sha arm_link arm_sha pkg_format use_local_pkg
+                    # shellcheck disable=SC2034  # set by resolve_packages, consumed by update_dockerfile
+                    local x86_link x86_sha arm_link arm_sha pkg_format
                     resolve_packages "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${single_arch}" "${pkg_type}"
 
-                    if [ -z "${x86_sha}" ] && [ -z "${use_local_pkg}" ] && { [ "${pkg_format}" = "tgz" ] || [ -z "${x86_link}" ]; }; then
+                    if [ -z "${x86_sha}" ] && [ -z "${x86_link}" ]; then
                         log_warn "    Skipping ${edition}/${distro} - package not available"
                         continue
                     fi
 
                     [ "${pkg_format}" != "tgz" ] && log_info "    Using native ${pkg_format} (tgz not found)"
-                    [ -n "${use_local_pkg}" ] && log_info "    Using local packages from ${ARTIFACTS_DOMAIN}"
 
-                    local copy_line=""
-                    if [ -n "${use_local_pkg}" ] && [ "${pkg_format}" != "tgz" ]; then
-                        prepare_local_packages "${target}" "${pkg_type}"
-                    fi
-
-                    local needs_compat_libs="0"
-                    if [[ "${distro}" == ubuntu24.04 ]] && [[ "${lineage}" == "7.2" ]]; then
-                        needs_compat_libs="1"
-                    fi
-
-                    update_dockerfile "${target}" "${version}" "${needs_compat_libs}" "${copy_line}" "${single_arch}"
+                    update_dockerfile "${target}" "${version}" "${single_arch}"
                 fi
             done
         done
