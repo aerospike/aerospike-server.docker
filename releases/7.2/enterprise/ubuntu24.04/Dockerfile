@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.2.0.17" \
+      org.opencontainers.image.version="7.2.0.18" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -47,13 +47,13 @@ RUN \
     if [ "${ARCH}" = "amd64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.2.0.17/aerospike-server-enterprise_7.2.0.17_tools-13.0.0_ubuntu24.04_x86_64.tgz'; \
-        pkgSha='1e511c32ce3cc277b005342eb1d50f4599ffa446b9a36959a1a7160baf5c36e9'; \
+        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.2.0.18/aerospike-server-enterprise_7.2.0.18_tools-13.0.0_ubuntu24.04_x86_64.tgz'; \
+        pkgSha='da82cf86b907e1b39819c680923d4fbdac5f4beaf2ccd399c59de90a5293a4c8'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.2.0.17/aerospike-server-enterprise_7.2.0.17_tools-13.0.0_ubuntu24.04_aarch64.tgz'; \
-        pkgSha='c89a59e6599bdeff75215170d62ddb52a796090f189fd4e3c1196edc9a812c75'; \
+        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.2.0.18/aerospike-server-enterprise_7.2.0.18_tools-13.0.0_ubuntu24.04_aarch64.tgz'; \
+        pkgSha='0eeac30096daf3bfa39b9b1dc1c27caa85da4ee431b0ccd15082ebda24484b19'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
