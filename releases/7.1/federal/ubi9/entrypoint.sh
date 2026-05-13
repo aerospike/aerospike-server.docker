@@ -77,7 +77,7 @@ if [ "$1" = 'asd' ]; then
 
     echo "link ${NETLINK} state $(cat /sys/class/net/"${NETLINK}"/operstate) in ${NETLINK_COUNT}"
     # asd should always run in the foreground.
-    set -- "$@" --foreground
+    set -- "$@" --fgdaemon
 fi
 
 exec "$@"
