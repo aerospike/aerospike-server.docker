@@ -24,7 +24,6 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 ARG AEROSPIKE_EDITION="federal"
 
 ENV AEROSPIKE_LINUX_BASE="registry.access.redhat.com/ubi9/ubi-minimal:9.7"
-
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # hadolint ignore=DL3041
