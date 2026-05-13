@@ -24,7 +24,6 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 ARG AEROSPIKE_EDITION="community"
 
 ENV AEROSPIKE_LINUX_BASE="ubuntu:22.04"
-
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # hadolint ignore=DL3008
