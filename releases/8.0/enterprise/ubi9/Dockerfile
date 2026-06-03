@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
       org.opencontainers.image.base.name="registry.access.redhat.com/ubi9/ubi-minimal:9.7" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.0.0.16" \
+      org.opencontainers.image.version="8.0.0.17" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -24,6 +24,7 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 ARG AEROSPIKE_EDITION="enterprise"
 
 ENV AEROSPIKE_LINUX_BASE="registry.access.redhat.com/ubi9/ubi-minimal:9.7"
+
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # hadolint ignore=DL3041
@@ -50,13 +51,13 @@ RUN \
     if [ "${ARCH}" = "x86_64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/8.0.0.16/aerospike-server-enterprise_8.0.0.16_tools-13.0.0_el9_x86_64.tgz'; \
-        pkgSha='1f48711c4f0410d08722102b943e15402c72dd7a30c9f0ad9fcc69a1a4be3d45'; \
+        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/8.0.0.17/aerospike-server-enterprise_8.0.0.17_tools-13.0.1_el9_x86_64.tgz'; \
+        pkgSha='89461c3cefeb152b564ffee93b38252f8312ac5c154278283a24b6e8166a4a4b'; \
     elif [ "${ARCH}" = "aarch64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/8.0.0.16/aerospike-server-enterprise_8.0.0.16_tools-13.0.0_el9_aarch64.tgz'; \
-        pkgSha='dc457a8390a4f5200b092b64ed51de97edd4a500b086f8f560710647cddc80d0'; \
+        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/8.0.0.17/aerospike-server-enterprise_8.0.0.17_tools-13.0.1_el9_aarch64.tgz'; \
+        pkgSha='20fa081701572023b6de94a758ffd6f5500811d7e01e5ba802751fe2539d521f'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
