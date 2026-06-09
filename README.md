@@ -54,6 +54,18 @@ Running Enterprise Edition with default evaluation feature key (versions 6.1+).
 docker run -d --name aerospike -p 3000-3002:3000-3002 container.aerospike.com/aerospike/aerospike-server-enterprise
 ```
 
+**Server 5.7 (Enterprise)** does not use the 6.1+ single-node evaluation mode. Bind-mount a directory that contains your evaluation (or license) feature file and set `FEATURE_KEY_FILE` to its path **inside** the container. The image template already adds `feature-key-file ${FEATURE_KEY_FILE}` to `aerospike.conf` when this variable is non-empty. (5.7 images in this repo are **community** and **enterprise** only, **amd64** only; there is **no federal** or **arm64** package line for 5.7 on the CDN.)
+
+```sh
+docker run -td --name aerospike \
+  -v "$(pwd)/config/:/asfeat/" \
+  -e "FEATURE_KEY_FILE=/asfeat/eval_features.conf" \
+  -p 3000-3002:3000-3002 \
+  YOUR_IMAGE_TAG
+```
+
+Use `--platform linux/amd64` when your image is amd64-only. For local functional tests, `./test.sh` applies the same mount automatically when **`./config/eval_features.conf`** exists (override with `AEROSPIKE_FEATURES_HOST_DIR` and `AEROSPIKE_EVAL_FEATURES_FILE`).
+
 Running Enterprise Edition with a feature key file in a mapped directory:
 
 ```sh
@@ -350,6 +362,7 @@ These images are based on Ubuntu or Red Hat UBI depending on the variant:
 
 | Lineage | Distros            | Editions                       |
 |---------|--------------------|--------------------------------|
+| 5.7     | ubuntu20.04      | community, enterprise (amd64 only) |
 | 7.1     | ubuntu22.04, ubi9  | community, enterprise, federal |
 | 7.2     | ubuntu24.04, ubi9  | community, enterprise, federal |
 | 8.0     | ubuntu24.04, ubi9  | community, enterprise, federal |

@@ -10,6 +10,9 @@
 
 set -Eeuo pipefail
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)
+cd "${SCRIPT_DIR}" || exit 1
+
 source lib/log.sh
 source lib/support.sh
 source lib/version.sh
@@ -44,6 +47,12 @@ OPTIONS:
                          Requires snyk CLI in PATH. Results saved to
                          aerospike-server[-edition]-version[-distro]-arch-ts.snyk
     -h, --help           Show this help message
+
+    Enterprise 5.7.x: asd requires an evaluation or license feature file.
+    test.sh adds a volume and FEATURE_KEY_FILE when a key file is present:
+      AEROSPIKE_FEATURES_HOST_DIR   Host directory to mount at /asfeat (default: ./config)
+      AEROSPIKE_EVAL_FEATURES_FILE  Filename inside that dir (default: eval_features.conf)
+    Example: evaluation key at ./config/eval_features.conf (repo default), then ./test.sh 5.7 -e enterprise
 
 TESTS PERFORMED:
     1. Container starts successfully
@@ -85,6 +94,9 @@ EXAMPLES:
 
     # Test specific version (uses releases/ directory)
     $0 8.1.1.0-start-108 -e enterprise -d ubuntu24.04
+
+    # 5.7 enterprise: evaluation key at config/eval_features.conf (see README), then:
+    $0 5.7 -e enterprise -d ubuntu20.04
 
 PREREQUISITES:
     For testing from releases/:
@@ -209,13 +221,48 @@ function get_image_tag_from_bake() {
     sed -n "/target \"${tag_base}\"/,/^}/p" "${bake_file}" | sed -n 's/.*tags=\["\([^"]*\)".*/\1/p' | head -1
 }
 
+# True when docker run should mount an eval feature key (5.7 enterprise only; no federal/arm64 builds).
+function _docker_run_needs_57_eval_key() {
+    local edition_guess="${TEST_EDITION:-}${EDITION:-}"
+    local is_ent=false
+    [[ "${edition_guess}" =~ ^enterprise$ ]] && is_ent=true
+    [[ "${IMAGE_TAG:-}" == *aerospike-server-enterprise* ]] && is_ent=true
+    [ "${is_ent}" = true ] || return 1
+
+    if [[ "${TEST_LINEAGE:-}" == "5.7" ]]; then
+        return 0
+    fi
+    if [[ "${TEST_IMAGE_VERSION:-}" =~ ^5\.7\.[0-9] ]]; then
+        return 0
+    fi
+    return 1
+}
+
 function run_docker() {
     log_info "Starting container..."
+    local -a run_cmd=(docker run -td --name "${CONTAINER}" -e "DEFAULT_TTL=30d")
     if [ -n "${PLATFORM}" ]; then
-        docker run -td --name "${CONTAINER}" -e "DEFAULT_TTL=30d" --platform="${PLATFORM}" "${IMAGE_TAG}"
-    else
-        docker run -td --name "${CONTAINER}" -e "DEFAULT_TTL=30d" "${IMAGE_TAG}"
+        run_cmd+=(--platform="${PLATFORM}")
     fi
+
+    if _docker_run_needs_57_eval_key; then
+        local host_dir="${AEROSPIKE_FEATURES_HOST_DIR:-./config}"
+        local key_name="${AEROSPIKE_EVAL_FEATURES_FILE:-eval_features.conf}"
+        if [ -d "${host_dir}" ]; then
+            host_dir=$(cd "${host_dir}" && pwd)
+        elif [ -d "$(dirname "${host_dir}")" ]; then
+            host_dir=$(cd "$(dirname "${host_dir}")" && pwd)/$(basename "${host_dir}")
+        fi
+        if [ -f "${host_dir}/${key_name}" ]; then
+            run_cmd+=(-v "${host_dir}:/asfeat" -e "FEATURE_KEY_FILE=/asfeat/${key_name}")
+            log_info "5.7 license: mounting ${host_dir}/${key_name} as FEATURE_KEY_FILE=/asfeat/${key_name}"
+        else
+            log_warn "5.7 enterprise: no ${host_dir}/${key_name} — mount an eval key (see README \"Server 5.7\"). Set AEROSPIKE_FEATURES_HOST_DIR / AEROSPIKE_EVAL_FEATURES_FILE if the file lives elsewhere."
+        fi
+    fi
+
+    run_cmd+=("${IMAGE_TAG}")
+    "${run_cmd[@]}"
 }
 
 function try() {
@@ -245,7 +292,8 @@ function check_container() {
 
     # Check asinfo exists before using it (used for "asd running" check when procps not in image)
     local have_asinfo=false
-    if docker exec -t "${CONTAINER}" bash -c 'command -v asinfo' >/dev/null 2>&1; then
+    # No -t: allocating a TTY breaks `docker exec` from scripts/CI without a terminal.
+    if docker exec "${CONTAINER}" bash -c 'command -v asinfo >/dev/null 2>&1 || test -x /usr/bin/asinfo' >/dev/null 2>&1; then
         log_success "asinfo found"
         have_asinfo=true
     else
@@ -255,14 +303,14 @@ function check_container() {
     # Verify asd is running: prefer asinfo -v status (works without procps); else pgrep; else TCP port 3000
     local asd_ok=false
     if [ "${have_asinfo}" = "true" ]; then
-        if try 15 docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' 2>/dev/null | grep -qE "^ok"; then
+        if try 15 docker exec "${CONTAINER}" bash -c 'asinfo -v status' 2>/dev/null | grep -qE "^ok"; then
             asd_ok=true
         fi
     fi
-    if [ "${asd_ok}" = false ] && try 15 docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd' >/dev/null 2>&1; then
+    if [ "${asd_ok}" = false ] && try 15 docker exec "${CONTAINER}" bash -c 'pgrep -x asd' >/dev/null 2>&1; then
         asd_ok=true
     fi
-    if [ "${asd_ok}" = false ] && try 15 docker exec -t "${CONTAINER}" bash -c 'echo >/dev/tcp/127.0.0.1/3000' 2>/dev/null; then
+    if [ "${asd_ok}" = false ] && try 15 docker exec "${CONTAINER}" bash -c 'echo >/dev/tcp/127.0.0.1/3000' 2>/dev/null; then
         asd_ok=true
     fi
     if [ "${asd_ok}" = false ]; then
@@ -273,7 +321,7 @@ function check_container() {
     log_success "asd running"
 
     if [ "${have_asinfo}" = "true" ]; then
-        if ! docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' 2>/dev/null | grep -qE "^ok"; then
+        if ! docker exec "${CONTAINER}" bash -c 'asinfo -v status' 2>/dev/null | grep -qE "^ok"; then
             log_failure "asinfo not responding"
             exit 1
         fi
@@ -284,7 +332,7 @@ function check_container() {
         base_version=$(echo "${version}" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' || true)
         if [ -n "${base_version}" ]; then
             local build
-            build=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v build' 2>/dev/null | tr -d '\r' || true)
+            build=$(docker exec "${CONTAINER}" bash -c 'asinfo -v build' 2>/dev/null | tr -d '\r' || true)
             if [[ "${build}" == ${base_version}* ]]; then
                 log_success "Version: ${build}"
             else
@@ -294,7 +342,7 @@ function check_container() {
 
         # Check edition
         local actual_edition
-        actual_edition=$(docker exec -t "${CONTAINER}" bash -c 'asinfo -v edition' 2>/dev/null | tr -d '\r' || true)
+        actual_edition=$(docker exec "${CONTAINER}" bash -c 'asinfo -v edition' 2>/dev/null | tr -d '\r' || true)
 
         if [ -n "${expected_edition}" ]; then
             # Edition was specified - verify it matches
@@ -313,12 +361,12 @@ function check_container() {
             log_success "Architecture: ${expected_arch}"
         else
             local container_arch
-            container_arch=$(docker exec -t "${CONTAINER}" uname -m 2>/dev/null | tr -d '\r\n' || echo "?")
+            container_arch=$(docker exec "${CONTAINER}" uname -m 2>/dev/null | tr -d '\r\n' || echo "?")
             log_success "Architecture: ${container_arch}"
         fi
 
         # Check namespace
-        if docker exec -t "${CONTAINER}" bash -c 'asinfo -v namespaces' 2>/dev/null | grep -q "test"; then
+        if docker exec "${CONTAINER}" bash -c 'asinfo -v namespaces' 2>/dev/null | grep -q "test"; then
             log_success "Namespace 'test' exists"
         fi
     else
@@ -327,7 +375,7 @@ function check_container() {
             log_success "Architecture: ${expected_arch}"
         else
             local container_arch
-            container_arch=$(docker exec -t "${CONTAINER}" uname -m 2>/dev/null | tr -d '\r\n' || echo "?")
+            container_arch=$(docker exec "${CONTAINER}" uname -m 2>/dev/null | tr -d '\r\n' || echo "?")
             log_success "Architecture: ${container_arch}"
         fi
     fi
@@ -393,6 +441,9 @@ function _snyk_summary() {
 function test_specific_image() {
     IMAGE_TAG="${SPECIFIC_IMAGE}"
     CONTAINER="aerospike-test-$$"
+    TEST_LINEAGE=""
+    TEST_EDITION="${EDITION:-}"
+    TEST_IMAGE_VERSION=$(echo "${IMAGE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
 
     local arch_display="${PLATFORM#*/}"
     [ -z "${arch_display}" ] && arch_display="(host)"
@@ -435,7 +486,12 @@ function test_from_releases() {
     log_info "  Architecture(s): ${arch_list}"
     echo ""
 
-    local editions=${EDITION:-$(support_editions)}
+    local editions
+    if [ -n "${EDITION}" ]; then
+        editions="${EDITION}"
+    else
+        editions=$(support_editions_for_lineage "${lineage}")
+    fi
     local distros
     distros=$(support_distros_matching "${lineage}" "${DISTRIBUTION:-}")
     local tested=0
@@ -496,6 +552,9 @@ function test_from_releases() {
                 fi
 
                 PLATFORM="${plat}"
+                TEST_LINEAGE="${lineage}"
+                TEST_EDITION="${edition}"
+                TEST_IMAGE_VERSION=""
                 trap 'cleanup full' EXIT
                 # Remove any previous container only
                 cleanup

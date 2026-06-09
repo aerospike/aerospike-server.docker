@@ -10,7 +10,7 @@ source lib/log.sh
 # Supported release lineages (order preserved for build/test iteration)
 RELEASES="5.7 7.1 7.2 8.0 8.1"
 
-# Supported editions
+# Supported editions (global); per-lineage list may omit editions with no artifacts (see support_editions_for_lineage).
 EDITIONS="community enterprise federal"
 
 function support_releases() {
@@ -19,6 +19,19 @@ function support_releases() {
 
 function support_editions() {
     echo "${EDITIONS}"
+}
+
+# Editions with published packages for this lineage (5.7: no federal; amd64-only ubuntu tarball).
+function support_editions_for_lineage() {
+    local lineage=${1:-}
+    case "${lineage}" in
+    5.7)
+        echo "community enterprise"
+        ;;
+    *)
+        echo "${EDITIONS}"
+        ;;
+    esac
 }
 
 # Get supported distros for a release lineage (single source of truth per lineage).
@@ -113,13 +126,13 @@ function support_platforms() {
     local edition=${1:-}
     local lineage=${2:-}
     local distro=${3:-}
-    # Federal only supports amd64
-    if [ "${edition}" = "federal" ]; then
+    # 5.7: only linux/amd64 artifacts are published (no arm64 .tgz).
+    if [ "${lineage}" = "5.7" ]; then
         echo "linux/amd64"
         return
     fi
-    # 5.7 ubuntu20.04: artifact .tgz is amd64-only (no arm64 bundle on CDN).
-    if [ "${lineage}" = "5.7" ] && [ "${distro}" = "ubuntu20.04" ]; then
+    # Federal only supports amd64
+    if [ "${edition}" = "federal" ]; then
         echo "linux/amd64"
         return
     fi

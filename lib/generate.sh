@@ -113,7 +113,7 @@ function generate_dockerfiles() {
         log_info "Processing ${lineage} (${version})"
 
         # shellcheck disable=SC2086
-        for edition in $(support_editions); do
+        for edition in $(support_editions_for_lineage "${lineage}"); do
             if [ ${#EDITION_FILTERS[@]} -gt 0 ]; then
                 local match=false
                 for ef in "${EDITION_FILTERS[@]}"; do

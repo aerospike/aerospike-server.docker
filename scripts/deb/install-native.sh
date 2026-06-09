@@ -71,6 +71,14 @@ if [ "${#pkgs[@]}" -eq 0 ]; then
 fi
 apt-get install -y --no-install-recommends "${pkgs[@]}"
 
+# OpenLDAP client libs for enterprise/federal asd (see install.sh).
+if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
+    apt-get install -y --no-install-recommends libldap-2.4-2 \
+        || apt-get install -y --no-install-recommends libldap-2.5-0
+    apt-mark manual libldap-2.4-2 2>/dev/null || true
+    apt-mark manual libldap-2.5-0 2>/dev/null || true
+fi
+
 # ---------------------------------------------------------------------------
 # Post-install housekeeping
 # ---------------------------------------------------------------------------
@@ -84,6 +92,10 @@ if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "fede
     fi
 fi
 rm -rf /tmp/aerospike
+apt-get install -y --no-install-recommends libcurl4 \
+    || apt-get install -y --no-install-recommends libcurl4t64
+apt-mark manual libcurl4 2>/dev/null || true
+apt-mark manual libcurl4t64 2>/dev/null || true
 apt-mark auto curl
 apt-get autoremove -y --purge
 rm -rf /var/lib/apt/lists/*

@@ -56,12 +56,20 @@ tar -xzf /tmp/aerospike/pkg.tgz --strip-components=1 -C /tmp/aerospike
 # TGZ contents: newer bundles use underscore server debs; legacy 5.7 uses dotted
 # names (e.g. aerospike-server-enterprise-5.7.0.32.ubuntu20.04.x86_64.deb) plus
 # bundled aerospike-tools*.deb. The globs below match both layouts.
-# apt-get install ./deb resolves all dependencies (including libldap for
-# enterprise/federal) from the Ubuntu repos automatically — no need to
-# pre-install them manually, which risks version conflicts.
+# apt-get install ./deb pulls many deps; OpenLDAP and libcurl are pinned below because
+# some legacy server .debs omit Depends that asd still needs after autoremove.
 apt-get install -y --no-install-recommends \
     /tmp/aerospike/aerospike-server-*.deb \
     /tmp/aerospike/aerospike-tools*.deb
+
+# OpenLDAP client libs (liblber, etc.): required at runtime for enterprise/federal asd.
+# Some legacy server .debs omit a strict Depends; keep libs after autoremove.
+if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
+    apt-get install -y --no-install-recommends libldap-2.4-2 \
+        || apt-get install -y --no-install-recommends libldap-2.5-0
+    apt-mark manual libldap-2.4-2 2>/dev/null || true
+    apt-mark manual libldap-2.5-0 2>/dev/null || true
+fi
 
 # ---------------------------------------------------------------------------
 # Post-install housekeeping
@@ -74,6 +82,12 @@ if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "fede
     fi
 fi
 rm -rf /tmp/aerospike
+# libcurl: asd links libcurl.so.4; marking curl(1) auto + autoremove can remove libcurl
+# when server .deb omits Depends (common on legacy packages). Keep the SONAME provider.
+apt-get install -y --no-install-recommends libcurl4 \
+    || apt-get install -y --no-install-recommends libcurl4t64
+apt-mark manual libcurl4 2>/dev/null || true
+apt-mark manual libcurl4t64 2>/dev/null || true
 # Mark curl as auto-installed so autoremove drops it if nothing else depends on it
 # (aerospike-tools may declare a hard Depends on curl; in that case curl stays).
 apt-mark auto curl

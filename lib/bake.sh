@@ -61,7 +61,7 @@ function generate_bake() {
         [ "${num_distros}" -eq 1 ] && omit_distro_in_tag=1
 
         # shellcheck disable=SC2086
-        for edition in $(support_editions); do
+        for edition in $(support_editions_for_lineage "${lineage}"); do
             if [ ${#EDITION_FILTERS[@]} -gt 0 ]; then
                 local match=false
                 for ef in "${EDITION_FILTERS[@]}"; do

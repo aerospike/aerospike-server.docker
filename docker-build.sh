@@ -96,7 +96,7 @@ VERSION/LINEAGE:
     8.1.1.0-start-16-gea126d3      Development build with git hash
 
 DISTRO SUPPORT BY LINEAGE (default: all distros below; primary UBI is ubi9):
-    5.7:       ubuntu20.04
+    5.7:       ubuntu20.04 (editions: community, enterprise; amd64 only; no federal)
     7.1:       ubuntu22.04, ubi9
     7.2, 8.0:  ubuntu24.04, ubi9
     8.1+:      ubuntu24.04, ubi10
@@ -119,6 +119,9 @@ MODES OF OPERATION:
 EXAMPLES:
     # --- Basic: resolve latest patch for a lineage, update Dockerfiles, build ---
     $0 -t 5.7 -e enterprise -d ubuntu20.04
+    # Run 5.7 Enterprise: needs feature key (see README "Server 5.7"); e.g. config/eval_features.conf then:
+    #   docker run -td --name as57 -v "\$(pwd)/config:/asfeat" -e FEATURE_KEY_FILE=/asfeat/eval_features.conf \\
+    #     -p 3000-3002:3000-3002 aerospike/aerospike-server-enterprise:<tag>
     $0 -t 8.1
     $0 -t 8.1 -e enterprise -d ubuntu24.04
     $0 -t 8.1 -e enterprise community -d ubuntu24.04 ubi9

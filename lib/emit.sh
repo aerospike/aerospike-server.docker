@@ -80,9 +80,9 @@ function generate_dockerfile() {
         return 1
     fi
 
-    # 5.7 ubuntu20.04: CDN ships one amd64-oriented .tgz (no linux/arm64 bundle).
-    if [ "${lineage}" = "5.7" ] && [ "${distro}" = "ubuntu20.04" ] && [ "${single_arch}" = "arm64" ]; then
-        log_warn "    Skipping - 5.7 ubuntu20.04 server .tgz is amd64-only; use -a amd64 (or omit -a)"
+    # 5.7: only amd64 server bundles exist (no arm64).
+    if [ "${lineage}" = "5.7" ] && [ "${single_arch}" = "arm64" ]; then
+        log_warn "    Skipping - 5.7 server .tgz is amd64-only; use -a amd64 (or omit -a)"
         return 1
     fi
 
