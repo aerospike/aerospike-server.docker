@@ -2,9 +2,11 @@
 # Orchestrate Dockerfile generation: version discovery -> per-lineage loop.
 # Routes between full generation (-g / missing Dockerfile) and in-place update.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh, lib/emit.sh, lib/update.sh
+# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/version.sh, lib/sh_to_dockerfile_run.sh, lib/emit.sh, lib/update.sh
 
 set -Eeuo pipefail
+
+source lib/version.sh
 
 # generate_dockerfiles version_or_lineage full_generate
 #   version_or_lineage: "8.1", "8.1.1.0", or "" (all lineages)
@@ -32,7 +34,11 @@ function generate_dockerfiles() {
         TOOLS_MAP["${lineage}"]="${tools_version:-}"
         LINEAGES_TO_BUILD=("${lineage}")
         if [ -z "${tools_version}" ]; then
-            log_warn "${version} -> tools NOT FOUND (will try native .rpm/.deb only, no tools)"
+            if is_legacy_hyphen_tgz_version "${version}"; then
+                log_info "  ${version} (lineage: ${lineage}; legacy .tgz bundles tools — no separate tools line in index)"
+            else
+                log_warn "${version} -> tools NOT FOUND (will try native .rpm/.deb only, no tools)"
+            fi
         else
             log_info "  ${version} (lineage: ${lineage}, tools: ${tools_version})"
         fi
@@ -49,7 +55,11 @@ function generate_dockerfiles() {
         TOOLS_MAP["${lineage}"]="${tools_version:-}"
         LINEAGES_TO_BUILD=("${lineage}")
         if [ -z "${tools_version}" ]; then
-            log_warn "${lineage} -> ${version} (tools NOT FOUND; will try native .rpm/.deb only, no tools)"
+            if is_legacy_hyphen_tgz_version "${version}"; then
+                log_info "  ${lineage} -> ${version} (legacy .tgz bundles tools — no separate tools line in index)"
+            else
+                log_warn "${lineage} -> ${version} (tools NOT FOUND; will try native .rpm/.deb only, no tools)"
+            fi
         else
             log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
         fi
@@ -67,7 +77,11 @@ function generate_dockerfiles() {
             TOOLS_MAP["${lineage}"]="${tools_version:-}"
             LINEAGES_TO_BUILD+=("${lineage}")
             if [ -z "${tools_version}" ]; then
-                log_warn "${lineage} -> ${version} (tools NOT FOUND; will try native .rpm/.deb only)"
+                if is_legacy_hyphen_tgz_version "${version}"; then
+                    log_info "  ${lineage} -> ${version} (legacy .tgz bundles tools — no separate tools line in index)"
+                else
+                    log_warn "${lineage} -> ${version} (tools NOT FOUND; will try native .rpm/.deb only)"
+                fi
             else
                 log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
             fi

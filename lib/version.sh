@@ -20,6 +20,14 @@ function get_lineage_from_version() {
     echo "$1" | grep -oE '^[0-9]+\.[0-9]+'
 }
 
+# 5.7.x server bundles use a legacy layout on the download site:
+#   Tarball: aerospike-server-<edition>-<version>-<distro>.tgz (e.g. ...-5.7.0.32-ubuntu20.04.tgz)
+#   Inside: server .deb uses dots, e.g. aerospike-server-enterprise-5.7.0.32.ubuntu20.04.x86_64.deb
+#   Tools .deb(s) are bundled in the same tarball (no separate _tools-<ver>_ in the .tgz name).
+function is_legacy_hyphen_tgz_version() {
+    [[ "${1:-}" =~ ^5\.7\. ]]
+}
+
 # Check if URL is a direct edition URL (contains aerospike-server-<edition>)
 function is_direct_url() {
     [[ "${ARTIFACTS_DOMAIN}" =~ aerospike-server-(community|enterprise|federal) ]]
@@ -257,6 +265,11 @@ function find_local_tgz_package() {
         echo ""
         return
     fi
+    # Legacy 5.7 tarball is distro-wide (amd64 bundle); no per-arch filename for aarch64.
+    if is_legacy_hyphen_tgz_version "${version}" && [ "${arch}" = "aarch64" ]; then
+        echo ""
+        return
+    fi
 
     [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
     [ -d "${base_dir}" ] || {
@@ -265,7 +278,12 @@ function find_local_tgz_package() {
     }
     base_dir=$(cd "${base_dir}" && pwd)
 
-    local tgz_name="aerospike-server-${edition}_${version}_tools-${tools_version}_${artifact_distro}_${arch}.tgz"
+    local tgz_name
+    if is_legacy_hyphen_tgz_version "${version}"; then
+        tgz_name="aerospike-server-${edition}-${version}-${artifact_distro}.tgz"
+    else
+        tgz_name="aerospike-server-${edition}_${version}_tools-${tools_version}_${artifact_distro}_${arch}.tgz"
+    fi
     local search_dirs=(
         "${base_dir}"
         "${base_dir}/${version}"
@@ -309,6 +327,16 @@ function get_package_link() {
         base_url="${ARTIFACTS_DOMAIN}"
     else
         base_url="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}"
+    fi
+
+    # Legacy 5.7 layout: single tarball per distro (no per-arch .tgz on the download site).
+    if is_legacy_hyphen_tgz_version "${version}"; then
+        if [ "${arch}" = "aarch64" ]; then
+            echo ""
+            return
+        fi
+        echo "${base_url}/${version}/aerospike-server-${edition}-${version}-${artifact_distro}.tgz"
+        return
     fi
 
     echo "${base_url}/${version}/aerospike-server-${edition}_${version}_tools-${tools_version}_${artifact_distro}_${arch}.tgz"

@@ -5,15 +5,15 @@
 # https://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:22.04
+FROM ubuntu:20.04
 
-LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
+LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:22.04" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:20.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.1.0.25" \
+      org.opencontainers.image.version="5.7.0.32" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,9 +21,9 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="enterprise"
+ARG AEROSPIKE_EDITION="federal"
 
-ENV AEROSPIKE_LINUX_BASE="ubuntu:22.04"
+ENV AEROSPIKE_LINUX_BASE="ubuntu:20.04"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -47,13 +47,13 @@ RUN \
     if [ "${ARCH}" = "amd64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.1.0.25/aerospike-server-enterprise_7.1.0.25_tools-13.0.1_ubuntu22.04_x86_64.tgz'; \
-        pkgSha='638fa961f8c85f29240b77c8a0fc01b18e8469773a395e951b49709f91e4a09c'; \
+        serverUrl='https://download.aerospike.com/artifacts/aerospike-server-federal/5.7.0.32/aerospike-server-federal_5.7.0.32ubuntu20.04_amd64.deb'; \
+        serverSha=''; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.1.0.25/aerospike-server-enterprise_7.1.0.25_tools-13.0.1_ubuntu22.04_aarch64.tgz'; \
-        pkgSha='e6364b72b561717e60f0b7aa7f34f1f2f5a1fe73cf7535228e6b34b363e924a0'; \
+        serverUrl=''; \
+        serverSha=''; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
@@ -66,36 +66,45 @@ RUN \
     chmod +x /usr/bin/as-tini-static; \
   }; \
   { \
-    # Fetch and unpack server package.
+    # Download server package (remote builds only; local builds use COPY).
     mkdir -p /tmp/aerospike; \
-    curl -fL -o /tmp/aerospike/pkg.tgz "${pkgLink}"; \
-    echo "${pkgSha} */tmp/aerospike/pkg.tgz" | sha256sum --strict --check -; \
-    tar -xzf /tmp/aerospike/pkg.tgz --strip-components=1 -C /tmp/aerospike; \
+    if [ -n "${serverUrl}" ]; then \
+        curl -fL -o /tmp/aerospike/aerospike-server.deb "${serverUrl}"; \
+        echo "${serverSha} */tmp/aerospike/aerospike-server.deb" | sha256sum --strict --check -; \
+    fi; \
   }; \
   { \
-    # Install Aerospike server and tools.
-    # TGZ contents: newer bundles use underscore server debs; legacy 5.7 uses dotted \
-    # names (e.g. aerospike-server-enterprise-5.7.0.32.ubuntu20.04.x86_64.deb) plus \
-    # bundled aerospike-tools*.deb. The globs below match both layouts. \
-    # apt-get install ./deb resolves all dependencies (including libldap for \
-    # enterprise/federal) from the Ubuntu repos automatically — no need to \
-    # pre-install them manually, which risks version conflicts. \
-    apt-get install -y --no-install-recommends \
-        /tmp/aerospike/aerospike-server-*.deb \
-        /tmp/aerospike/aerospike-tools*.deb; \
+    # Install Aerospike server.
+    # Collect all arch-matching packages in /tmp/aerospike/: \
+    #   - aerospike-server-*_${ARCH}.deb  (required) \
+    #   - aerospike-tools-*_${ARCH}.deb   (optional; staged when server declares a \
+    #                                      hard Depends on aerospike-tools) \
+    # Installing both together lets apt resolve the dependency inline. \
+    # (aerospike-tools may also declare a hard Depends on curl; in that case curl \
+    # stays installed after the autoremove at the end.) \
+    pkgs=(); \
+    for f in /tmp/aerospike/aerospike-server-*_"${ARCH}".deb \
+        /tmp/aerospike/aerospike-tools-*_"${ARCH}".deb; do \
+        if [ -f "${f}" ]; then pkgs+=("${f}"); fi; \
+    done; \
+    if [ "${#pkgs[@]}" -eq 0 ]; then \
+        echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"; \
+        exit 1; \
+    fi; \
+    apt-get install -y --no-install-recommends "${pkgs[@]}"; \
   }; \
   { \
     # Post-install housekeeping.
     mkdir -p /etc/aerospike /licenses /var/log/aerospike /var/run/aerospike; \
-    cp /tmp/aerospike/LICENSE /licenses/; \
+    if [ -f /tmp/aerospike/LICENSE ]; then \
+        cp /tmp/aerospike/LICENSE /licenses/; \
+    fi; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
         if [ -f /tmp/aerospike/features.conf ]; then \
             cp /tmp/aerospike/features.conf /etc/aerospike/features.conf; \
         fi; \
     fi; \
     rm -rf /tmp/aerospike; \
-    # Mark curl as auto-installed so autoremove drops it if nothing else depends on it \
-    # (aerospike-tools may declare a hard Depends on curl; in that case curl stays). \
     apt-mark auto curl; \
     apt-get autoremove -y --purge; \
     rm -rf /var/lib/apt/lists/*; \

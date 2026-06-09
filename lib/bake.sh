@@ -81,7 +81,7 @@ function generate_bake() {
                 local distro_slug=${distro//./-}
                 local tag_base platforms
                 tag_base="${lineage//./-}_${edition}_${distro//./-}"
-                platforms=$(support_platforms_matching "${edition}" "${ARCH_FILTERS[*]:-}")
+                platforms=$(support_platforms_matching "${edition}" "${ARCH_FILTERS[*]:-}" "${lineage}" "${distro}")
                 [ -z "${platforms}" ] && continue
                 local image_name="aerospike-server"
                 [ "${edition}" != "community" ] && image_name+="-${edition}"

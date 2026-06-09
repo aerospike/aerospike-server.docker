@@ -32,7 +32,7 @@ OPTIONS:
     -e, --edition ED     Edition filter: community, enterprise, federal
                          With -i: optional, used to verify edition matches
                          Without -i: filters which images to test
-    -d, --distro DIST    Distro filter: ubuntu22.04, ubuntu24.04, ubi9, ubi10
+    -d, --distro DIST    Distro filter: ubuntu20.04, ubuntu22.04, ubuntu24.04, ubi9, ubi10
                          Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
     -p, --platform PLAT  Platform: linux/amd64, linux/arm64 (single; overrides -a)
                          Default: auto-detect from host architecture

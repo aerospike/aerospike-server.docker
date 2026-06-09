@@ -74,6 +74,9 @@ RUN \
   }; \
   { \
     # Install Aerospike server and tools.
+    # TGZ contents: newer bundles use underscore server debs; legacy 5.7 uses dotted \
+    # names (e.g. aerospike-server-enterprise-5.7.0.32.ubuntu20.04.x86_64.deb) plus \
+    # bundled aerospike-tools*.deb. The globs below match both layouts. \
     # apt-get install ./deb resolves all dependencies (including libldap for \
     # enterprise/federal) from the Ubuntu repos automatically — no need to \
     # pre-install them manually, which risks version conflicts. \

@@ -58,7 +58,7 @@ OPTIONS:
     -e, --edition ED    Filter edition(s): community, enterprise, federal
                         Can specify multiple: -e enterprise community
                         Default: all editions
-    -d, --distro DIST   Filter distro(s): ubuntu22.04, ubuntu24.04, ubi9, ubi10
+    -d, --distro DIST   Filter distro(s): ubuntu20.04, ubuntu22.04, ubuntu24.04, ubi9, ubi10
                         Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
                         Can specify multiple: -d ubuntu24.04 ubi9
                         Default: all distros supported by lineage
@@ -80,14 +80,15 @@ OPTIONS:
     --tag-latest        Always add extra tags: :latest or :latest-<distro_slug> on push targets,
                         and :latest-<arch> or :latest-<distro_slug>-<arch> on test targets.
     --auto-latest       Add those same extra tags only when the resolved build version equals
-                        the newest GA across all support lineages (7.1, 7.2, 8.0, 8.1). Queries
+                        the newest GA across all support lineages (5.7, 7.1, 7.2, 8.0, 8.1). Queries
                         artifact listings; use with -t or -p. Ignored if --tag-latest is set.
     --no-latest         Disable both (default). Use to override BAKE_TAG_LATEST_AUTO / FORCE env.
 
     -h, --help          Show this help message
 
 VERSION/LINEAGE:
-    (none)                         Build all supported lineages (7.1, 7.2, 8.0, 8.1)
+    (none)                         Build all supported lineages (5.7, 7.1, 7.2, 8.0, 8.1)
+    5.7                            Lineage - auto-detects latest 5.7.x version
     8.1                            Lineage - auto-detects latest 8.1.x version
     8.1.1.0                        Specific release version
     8.1.1.0-rc2                    Release candidate
@@ -95,6 +96,7 @@ VERSION/LINEAGE:
     8.1.1.0-start-16-gea126d3      Development build with git hash
 
 DISTRO SUPPORT BY LINEAGE (default: all distros below; primary UBI is ubi9):
+    5.7:       ubuntu20.04
     7.1:       ubuntu22.04, ubi9
     7.2, 8.0:  ubuntu24.04, ubi9
     8.1+:      ubuntu24.04, ubi10
@@ -116,6 +118,7 @@ MODES OF OPERATION:
 
 EXAMPLES:
     # --- Basic: resolve latest patch for a lineage, update Dockerfiles, build ---
+    $0 -t 5.7 -e enterprise -d ubuntu20.04
     $0 -t 8.1
     $0 -t 8.1 -e enterprise -d ubuntu24.04
     $0 -t 8.1 -e enterprise community -d ubuntu24.04 ubi9
@@ -130,7 +133,7 @@ EXAMPLES:
     # Always add e.g. ...:latest or ...:latest-ubuntu24-04 on push, ...:latest-amd64 on test
     $0 -p 8.1 --tag-latest
     $0 -t 8.1 -e community -d ubuntu24.04 --tag-latest
-    # Add ...:latest* only if the built version equals newest GA across 7.1–8.1 (queries artifacts)
+    # Add ...:latest* only if the built version equals newest GA across 5.7–8.1 (queries artifacts)
     $0 -t 8.1 --auto-latest
     $0 -p 8.1 --auto-latest
     # Explicitly disable (default); overrides BAKE_TAG_LATEST_* env if set

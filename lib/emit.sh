@@ -5,10 +5,12 @@
 # Package URL/SHA placeholders in the install scripts are substituted with actual
 # values fetched from the artifact server at generation time (no ARG indirection).
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
+# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/version.sh, lib/sh_to_dockerfile_run.sh
 # Fragments:    lib/dockerfile_fragment_footer.docker
 
 set -Eeuo pipefail
+
+source lib/version.sh
 
 # generate_dockerfile lineage distro edition version tools_version
 #
@@ -41,7 +43,9 @@ function generate_dockerfile() {
     fi
 
     # --- Resolve package links and SHAs ---
-    if [ -n "${tools_version}" ]; then
+    # 5.7.x: legacy .tgz on the CDN (no _tools- in filename) still bundles server+tools .debs;
+    # try TGZ even when find_tools_version returns empty.
+    if [ -n "${tools_version}" ] || is_legacy_hyphen_tgz_version "${version}"; then
         x86_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
         x86_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
         arm_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
@@ -73,6 +77,12 @@ function generate_dockerfile() {
     # Skip when no package available
     if [ -z "${x86_sha}" ] && [ -z "${x86_link}" ]; then
         log_warn "    Skipping - package not available"
+        return 1
+    fi
+
+    # 5.7 ubuntu20.04: CDN ships one amd64-oriented .tgz (no linux/arm64 bundle).
+    if [ "${lineage}" = "5.7" ] && [ "${distro}" = "ubuntu20.04" ] && [ "${single_arch}" = "arm64" ]; then
+        log_warn "    Skipping - 5.7 ubuntu20.04 server .tgz is amd64-only; use -a amd64 (or omit -a)"
         return 1
     fi
 

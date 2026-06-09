@@ -2,9 +2,11 @@
 # In-place Dockerfile update: refresh install block and patch version label.
 # Used by default (no -g flag).
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
+# Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/version.sh, lib/sh_to_dockerfile_run.sh
 
 set -Eeuo pipefail
+
+source lib/version.sh
 
 # Portable in-place sed (BSD sed on macOS vs GNU sed on Linux)
 _sed_i() {
@@ -274,7 +276,7 @@ function resolve_packages() {
     # shellcheck disable=SC2034  # consumed by update_dockerfile via dynamic scoping
     use_native=false
 
-    if [ -n "${tools_version}" ]; then
+    if [ -n "${tools_version}" ] || is_legacy_hyphen_tgz_version "${version}"; then
         x86_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
         x86_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64")
         arm_link=$(get_package_link "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")

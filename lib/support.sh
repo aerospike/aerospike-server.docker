@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Support matrix and distro/edition helpers for Aerospike Docker images.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh. Canonical lineage order (linear): 7.1, 7.2, 8.0, 8.1
+# Dependencies: lib/log.sh. Canonical lineage order (linear): 5.7, 7.1, 7.2, 8.0, 8.1
 
 set -Eeuo pipefail
 
 source lib/log.sh
 
 # Supported release lineages (order preserved for build/test iteration)
-RELEASES="7.1 7.2 8.0 8.1"
+RELEASES="5.7 7.1 7.2 8.0 8.1"
 
 # Supported editions
 EDITIONS="community enterprise federal"
@@ -26,6 +26,9 @@ function support_distros() {
     local lineage=${1:-}
 
     case "${lineage}" in
+    5.7)
+        echo "ubuntu20.04"
+        ;;
     7.1)
         echo "ubuntu22.04 ubi9"
         ;;
@@ -68,6 +71,7 @@ function support_distros_matching() {
 
 function support_distro_to_base() {
     case "$1" in
+    ubuntu20.04) echo "ubuntu:20.04" ;;
     ubuntu22.04) echo "ubuntu:22.04" ;;
     ubuntu24.04) echo "ubuntu:24.04" ;;
     ubi9) echo "registry.access.redhat.com/ubi9/ubi-minimal:9.7" ;;
@@ -93,6 +97,7 @@ function support_distro_to_pkg_type() {
 
 function support_distro_to_artifact_name() {
     case "$1" in
+    ubuntu20.04) echo "ubuntu20.04" ;;
     ubuntu22.04) echo "ubuntu22.04" ;;
     ubuntu24.04) echo "ubuntu24.04" ;;
     ubi9) echo "el9" ;;
@@ -106,12 +111,19 @@ function support_distro_to_artifact_name() {
 
 function support_platforms() {
     local edition=${1:-}
+    local lineage=${2:-}
+    local distro=${3:-}
     # Federal only supports amd64
     if [ "${edition}" = "federal" ]; then
         echo "linux/amd64"
-    else
-        echo "linux/amd64 linux/arm64"
+        return
     fi
+    # 5.7 ubuntu20.04: artifact .tgz is amd64-only (no arm64 bundle on CDN).
+    if [ "${lineage}" = "5.7" ] && [ "${distro}" = "ubuntu20.04" ]; then
+        echo "linux/amd64"
+        return
+    fi
+    echo "linux/amd64 linux/arm64"
 }
 
 # Filter platforms by arch filter(s). arch_filter can be amd64, x86_64, arm64, aarch64 (multiple allowed).
@@ -119,8 +131,10 @@ function support_platforms() {
 function support_platforms_matching() {
     local edition=$1
     local filter_tokens=$2
+    local lineage=${3:-}
+    local distro=${4:-}
     local all_platforms
-    all_platforms=$(support_platforms "${edition}")
+    all_platforms=$(support_platforms "${edition}" "${lineage}" "${distro}")
     if [ -z "${filter_tokens}" ]; then
         echo "${all_platforms}"
         return
