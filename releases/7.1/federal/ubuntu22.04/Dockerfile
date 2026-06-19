@@ -36,6 +36,16 @@ RUN \
   ; \
   rm -rf /var/lib/apt/lists/*
 
+# Upgrade openssl/libssl3 and libgnutls30 to patched versions
+RUN \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
+    libgnutls30=3.7.3-4ubuntu1.9 \
+    libssl3=3.0.2-0ubuntu1.25 \
+    openssl=3.0.2-0ubuntu1.25 \
+  ; \
+  rm -rf /var/lib/apt/lists/*
+
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3003,DL3008,DL3041,SC2015
 RUN \
