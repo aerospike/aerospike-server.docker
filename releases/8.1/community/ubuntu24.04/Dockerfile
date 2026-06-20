@@ -44,7 +44,6 @@ RUN \
     openssl=3.0.13-0ubuntu3.11 \
   ; \
   rm -rf /var/lib/apt/lists/*
-
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3003,DL3008,DL3041,SC2015
 RUN \
