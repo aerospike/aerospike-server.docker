@@ -8,7 +8,7 @@ set -Eeuo pipefail
 source lib/log.sh
 
 # Supported release lineages (order preserved for build/test iteration)
-RELEASES="7.1 7.2 8.0 8.1"
+RELEASES="7.2 8.0 8.1"
 
 # Supported editions
 EDITIONS="community enterprise federal"
@@ -157,6 +157,39 @@ function support_platform_to_arch() {
     *)
         log_warn "unexpected platform '$1'"
         exit 1
+        ;;
+    esac
+}
+
+# Returns the OpenSSL/TLS security upgrade RUN block for Ubuntu distros (no trailing newline).
+# Returns empty string for non-Ubuntu distros (ubi9, ubi10).
+# This is the single source of truth for pinned versions — update here when a new patch lands.
+function support_get_openssl_upgrade_block() {
+    local distro=$1
+    case "${distro}" in
+    ubuntu24.04)
+        printf '%s' \
+'# Upgrade openssl/libssl3t64 and libgnutls30t64 to patched versions
+RUN \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
+    libgnutls30t64=3.8.3-1.1ubuntu3.6 \
+    libssl3t64=3.0.13-0ubuntu3.11 \
+    openssl=3.0.13-0ubuntu3.11 \
+  ; \
+  rm -rf /var/lib/apt/lists/*'
+        ;;
+    ubuntu22.04)
+        printf '%s' \
+'# Upgrade openssl/libssl3 and libgnutls30 to patched versions
+RUN \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
+    libgnutls30=3.7.3-4ubuntu1.9 \
+    libssl3=3.0.2-0ubuntu1.25 \
+    openssl=3.0.2-0ubuntu1.25 \
+  ; \
+  rm -rf /var/lib/apt/lists/*'
         ;;
     esac
 }
