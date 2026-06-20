@@ -169,7 +169,7 @@ function support_get_openssl_upgrade_block() {
     case "${distro}" in
     ubuntu24.04)
         printf '%s' \
-'# Upgrade openssl/libssl3t64 and libgnutls30t64 to patched versions
+            '# Upgrade openssl/libssl3t64 and libgnutls30t64 to patched versions
 RUN \
   apt-get update; \
   apt-get install -y --no-install-recommends \
@@ -181,7 +181,7 @@ RUN \
         ;;
     ubuntu22.04)
         printf '%s' \
-'# Upgrade openssl/libssl3 and libgnutls30 to patched versions
+            '# Upgrade openssl/libssl3 and libgnutls30 to patched versions
 RUN \
   apt-get update; \
   apt-get install -y --no-install-recommends \
