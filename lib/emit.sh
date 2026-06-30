@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Dockerfile generation: emit header + base-deps RUN block + OpenSSL upgrade RUN block
-# (Ubuntu only) + inlined install RUN block + footer.
+# Dockerfile generation: emit header + base-deps RUN block + inlined install RUN block + footer.
 # Install logic lives in scripts/deb/install.sh and scripts/rpm/install.sh and is
 # converted to a RUN \ continuation block by _sh_to_dockerfile_run (lib/sh_to_dockerfile_run.sh).
 # Package URL/SHA placeholders in the install scripts are substituted with actual
 # values fetched from the artifact server at generation time (no ARG indirection).
-# OpenSSL/TLS upgrade versions are defined in lib/support.sh (support_get_openssl_upgrade_block).
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
 # Fragments:    lib/dockerfile_fragment_footer.docker
@@ -14,10 +12,9 @@ set -Eeuo pipefail
 
 # generate_dockerfile lineage distro edition version tools_version
 #
-# Emits a Dockerfile with up to three RUN blocks:
+# Emits a Dockerfile with two RUN blocks:
 #   1. Base runtime deps (apt-get/microdnf; ca-certificates, procps).
-#   2. OpenSSL/TLS security upgrade (Ubuntu distros only; versions from support_get_openssl_upgrade_block).
-#   3. All install logic inlined as a RUN \ block with hardcoded package URLs
+#   2. All install logic inlined as a RUN \ block with hardcoded package URLs
 #      and SHAs (substituted from placeholders in scripts/{deb,rpm}/install.sh).
 # No COPY of install.sh: DOI's bashbrew build context only includes files committed
 # in the upstream directory; install.sh is not among them.
@@ -154,11 +151,6 @@ RUN \
   rm -rf /var/cache/yum /var/cache/dnf'
     fi
 
-    # --- OpenSSL security upgrade (Ubuntu distros only) ---
-    # Versions are defined in lib/support.sh (support_get_openssl_upgrade_block).
-    local openssl_upgrade_run
-    openssl_upgrade_run=$(support_get_openssl_upgrade_block "${distro}")
-
     # --- Placeholder substitution for package URLs/SHAs ---
     # TGZ scripts use __PKG_URL_* / __PKG_SHA_* placeholders.
     # Native scripts use __SERVER_URL_* / __SERVER_SHA_* placeholders.
@@ -237,11 +229,6 @@ HEADER
 
         echo "${base_deps_run}"
         echo ""
-
-        if [ -n "${openssl_upgrade_run}" ]; then
-            echo "${openssl_upgrade_run}"
-            echo ""
-        fi
 
         # For local native package builds, COPY the pre-staged package file into
         # /tmp/aerospike/ before the install RUN block (the install script detects
