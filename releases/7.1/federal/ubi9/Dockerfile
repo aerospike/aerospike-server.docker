@@ -5,15 +5,15 @@
 # https://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:24.04
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7
 
-LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
+LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
+      org.opencontainers.image.base.name="registry.access.redhat.com/ubi9/ubi-minimal:9.7" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.2.0.20" \
+      org.opencontainers.image.version="7.1.0.25" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,48 +21,43 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="enterprise"
+ARG AEROSPIKE_EDITION="federal"
 
-ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
+ENV AEROSPIKE_LINUX_BASE="registry.access.redhat.com/ubi9/ubi-minimal:9.7"
+
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
-# hadolint ignore=DL3008
+# hadolint ignore=DL3041
 RUN \
-  apt-get update; \
-  apt-get install -y --no-install-recommends \
+  microdnf install -y --setopt=install_weak_deps=0 \
     ca-certificates \
-    procps \
+    procps-ng \
   ; \
-  rm -rf /var/lib/apt/lists/*
-
-# Upgrade openssl/libssl3t64 and libgnutls30t64 to patched versions
-RUN \
-  apt-get update; \
-  apt-get install -y --no-install-recommends \
-    libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-    libssl3t64=3.0.13-0ubuntu3.11 \
-    openssl=3.0.13-0ubuntu3.11 \
-  ; \
-  rm -rf /var/lib/apt/lists/*
+  microdnf clean all; \
+  rm -rf /var/cache/yum /var/cache/dnf
 
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3003,DL3008,DL3041,SC2015
 RUN \
   { \
     # Install curl and resolve arch-specific links.
-    apt-get update; \
-    apt-get install -y --no-install-recommends curl; \
-    ARCH="$(dpkg --print-architecture)"; \
-    if [ "${ARCH}" = "amd64" ]; then \
+    ARCH="$(rpm --eval '%{_arch}')"; \
+    # curl-minimal is preferred on ubi-minimal; fall back to full curl if absent. \
+    if ! command -v curl >/dev/null 2>&1; then \
+        if ! microdnf install -y curl-minimal; then \
+            microdnf install -y curl; \
+        fi; \
+    fi; \
+    if [ "${ARCH}" = "x86_64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.2.0.20/aerospike-server-enterprise_7.2.0.20_tools-13.0.1_ubuntu24.04_x86_64.tgz'; \
-        pkgSha='b8f3c0ac22cbedc8ba89055721a88f1d4ef4af35280403ecdf16f0601f20fd9f'; \
-    elif [ "${ARCH}" = "arm64" ]; then \
+        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-federal/7.1.0.25/aerospike-server-federal_7.1.0.25_tools-13.0.1_el9_x86_64.tgz'; \
+        pkgSha='426336dfee26cb488f44a6d6784118b63e7294af7b0ce1694a1b48d7c271a9d3'; \
+    elif [ "${ARCH}" = "aarch64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.2.0.20/aerospike-server-enterprise_7.2.0.20_tools-13.0.1_ubuntu24.04_aarch64.tgz'; \
-        pkgSha='ee87770e675a9ba65d666a888937a8134161c9f1aa125933420bc033cd4b31fe'; \
+        pkgLink=''; \
+        pkgSha=''; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
@@ -76,35 +71,43 @@ RUN \
   }; \
   { \
     # Fetch and unpack server package.
+    # findutils: provides find(1) invoked by aerospike-server %post scriptlets. \
+    # shadow-utils: provides groupadd/useradd invoked by %pre/%post scriptlets; \
+    #               retained in the image (needed by many runtime exec workflows). \
+    # tar/gzip: extract the TGZ bundle; removed in cleanup. \
+    microdnf install -y --setopt=install_weak_deps=0 findutils shadow-utils tar gzip; \
     mkdir -p /tmp/aerospike; \
     curl -fL -o /tmp/aerospike/pkg.tgz "${pkgLink}"; \
     echo "${pkgSha} */tmp/aerospike/pkg.tgz" | sha256sum --strict --check -; \
     tar -xzf /tmp/aerospike/pkg.tgz --strip-components=1 -C /tmp/aerospike; \
+    rm /tmp/aerospike/pkg.tgz; \
   }; \
   { \
     # Install Aerospike server and tools.
-    # apt-get install ./deb resolves all dependencies (including libldap for \
-    # enterprise/federal) from the Ubuntu repos automatically — no need to \
-    # pre-install them manually, which risks version conflicts. \
-    apt-get install -y --no-install-recommends \
-        /tmp/aerospike/aerospike-server-*.deb \
-        /tmp/aerospike/aerospike-tools*.deb; \
+    # Install both packages together with rpm -i so the package manager resolves \
+    # dependency ordering and %post scriptlets run in the correct sequence. \
+    # openldap: required by enterprise/federal server at runtime for LDAP auth. \
+    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
+        microdnf install -y --setopt=install_weak_deps=0 openldap; \
+    fi; \
+    rpm -i --excludedocs \
+        /tmp/aerospike/aerospike-server-*.rpm \
+        /tmp/aerospike/aerospike-tools*.rpm; \
   }; \
   { \
     # Post-install housekeeping.
-    mkdir -p /etc/aerospike /licenses /var/log/aerospike /var/run/aerospike; \
+    mkdir -p /licenses /var/log/aerospike /var/run/aerospike; \
     cp /tmp/aerospike/LICENSE /licenses/; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
         if [ -f /tmp/aerospike/features.conf ]; then \
+            mkdir -p /etc/aerospike; \
             cp /tmp/aerospike/features.conf /etc/aerospike/features.conf; \
         fi; \
     fi; \
     rm -rf /tmp/aerospike; \
-    # Mark curl as auto-installed so autoremove drops it if nothing else depends on it \
-    # (aerospike-tools may declare a hard Depends on curl; in that case curl stays). \
-    apt-mark auto curl; \
-    apt-get autoremove -y --purge; \
-    rm -rf /var/lib/apt/lists/*; \
+    microdnf remove -y tar gzip; \
+    microdnf clean all; \
+    rm -rf /var/cache/yum /var/cache/dnf; \
   }; \
   echo "done";
 

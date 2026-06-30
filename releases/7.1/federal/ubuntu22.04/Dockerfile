@@ -5,15 +5,15 @@
 # https://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
-LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
+LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:22.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.2.0.20" \
+      org.opencontainers.image.version="7.1.0.25" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,9 +21,10 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="enterprise"
+ARG AEROSPIKE_EDITION="federal"
 
-ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
+ENV AEROSPIKE_LINUX_BASE="ubuntu:22.04"
+
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # hadolint ignore=DL3008
@@ -35,13 +36,13 @@ RUN \
   ; \
   rm -rf /var/lib/apt/lists/*
 
-# Upgrade openssl/libssl3t64 and libgnutls30t64 to patched versions
+# Upgrade openssl/libssl3 and libgnutls30 to patched versions
 RUN \
   apt-get update; \
   apt-get install -y --no-install-recommends \
-    libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-    libssl3t64=3.0.13-0ubuntu3.11 \
-    openssl=3.0.13-0ubuntu3.11 \
+    libgnutls30=3.7.3-4ubuntu1.9 \
+    libssl3=3.0.2-0ubuntu1.25 \
+    openssl=3.0.2-0ubuntu1.25 \
   ; \
   rm -rf /var/lib/apt/lists/*
 
@@ -56,13 +57,13 @@ RUN \
     if [ "${ARCH}" = "amd64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.2.0.20/aerospike-server-enterprise_7.2.0.20_tools-13.0.1_ubuntu24.04_x86_64.tgz'; \
-        pkgSha='b8f3c0ac22cbedc8ba89055721a88f1d4ef4af35280403ecdf16f0601f20fd9f'; \
+        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-federal/7.1.0.25/aerospike-server-federal_7.1.0.25_tools-13.0.1_ubuntu22.04_x86_64.tgz'; \
+        pkgSha='0e00a08c067a4048ffbe3ac1772dec604bb0dcbf922cb81820941978fc947450'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-enterprise/7.2.0.20/aerospike-server-enterprise_7.2.0.20_tools-13.0.1_ubuntu24.04_aarch64.tgz'; \
-        pkgSha='ee87770e675a9ba65d666a888937a8134161c9f1aa125933420bc033cd4b31fe'; \
+        pkgLink=''; \
+        pkgSha=''; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# In-place Dockerfile update: refresh version label, OpenSSL upgrade block, and install block.
+# In-place Dockerfile update: refresh install block and patch version label.
 # Used by default (no -g flag).
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 # Dependencies: lib/log.sh, lib/support.sh, lib/fetch.sh, lib/sh_to_dockerfile_run.sh
@@ -258,62 +258,6 @@ function _dockerfile_remove_vendored_tini() {
     ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
 }
 
-# _dockerfile_refresh_openssl_block df distro
-# Refreshes (or inserts) the OpenSSL/TLS security upgrade RUN block in a Dockerfile.
-# Version constants come from support_get_openssl_upgrade_block (lib/support.sh).
-# No-op for non-Ubuntu distros (ubi9, ubi10).
-function _dockerfile_refresh_openssl_block() {
-    local df=$1 distro=$2
-
-    local new_block
-    new_block=$(support_get_openssl_upgrade_block "${distro}")
-    [ -z "${new_block}" ] && return 0
-
-    local tmp nbf
-    tmp=$(mktemp)
-    nbf=$(mktemp)
-    # shellcheck disable=SC2064
-    trap "rm -f '${tmp}' '${nbf}'" RETURN
-
-    printf '%s\n' "${new_block}" >"${nbf}"
-
-    if grep -qF '# Upgrade openssl/' "${df}"; then
-        # Block already present: replace it with the canonical content.
-        awk -v nbf="${nbf}" '
-        function emit_new_block(    line) {
-            while ((getline line < nbf) > 0) print line
-            close(nbf)
-        }
-        BEGIN { state = "looking" }
-        state == "done" { print; next }
-        state == "looking" && /^# Upgrade openssl\// { state = "consuming"; next }
-        state == "consuming" {
-            if (/^RUN \\/) { next }
-            if (/^[ \t]/)  { next }
-            if (/^$/)      { next }
-            emit_new_block(); state = "done"; print; next
-        }
-        { print }
-        END { if (state == "consuming") emit_new_block() }
-        ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
-    else
-        # Block missing: insert it immediately before the install anchor.
-        awk -v nbf="${nbf}" '
-        function emit_new_block(    line) {
-            while ((getline line < nbf) > 0) print line
-            close(nbf)
-        }
-        BEGIN { inserted = 0 }
-        !inserted && /^# Install Aerospike Server and Tools$/ {
-            emit_new_block()
-            print ""
-            inserted = 1
-        }
-        { print }
-        ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
-    fi
-}
-
 # resolve_packages distro edition version tools_version single_arch pkg_type
 # Outputs: x86_link x86_sha arm_link arm_sha pkg_format use_native
 # Sets the variables above in the caller's scope via dynamic scoping.
@@ -365,7 +309,6 @@ function resolve_packages() {
 #   - Patches the version label.
 #   - Removes stale ARG/COPY lines from prior formats.
 #   - Removes vendored-tini COPY block (tini is now fetched at build time).
-#   - Refreshes the OpenSSL/TLS security upgrade RUN block (Ubuntu distros only).
 #   - Re-inlines the install logic as a RUN \ block with fresh URL/SHA values.
 #   - Ensures STOPSIGNAL SIGTERM is present.
 # Relies on caller-scoped: x86_link x86_sha arm_link arm_sha
@@ -382,9 +325,6 @@ function update_dockerfile() {
     cp template/0/entrypoint.sh "${target}/"
     chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
-
-    # Refresh OpenSSL security upgrade block (Ubuntu distros only; no-op for ubi9/ubi10).
-    _dockerfile_refresh_openssl_block "${df}" "$(basename "${target}")"
 
     # Resolve install script source.
     # use_native is set by resolve_packages (caller-scoped) when no TGZ bundle found.
