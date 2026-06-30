@@ -291,7 +291,7 @@ function _dockerfile_refresh_openssl_block() {
             if (/^RUN \\/) { next }
             if (/^[ \t]/)  { next }
             if (/^$/)      { next }
-            emit_new_block(); print ""; state = "done"; print; next
+            emit_new_block(); state = "done"; print; next
         }
         { print }
         END { if (state == "consuming") emit_new_block() }
