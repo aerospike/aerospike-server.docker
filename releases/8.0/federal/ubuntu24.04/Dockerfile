@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.0.0.18" \
+      org.opencontainers.image.version="8.0.0.17" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -24,6 +24,7 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 ARG AEROSPIKE_EDITION="federal"
 
 ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
+
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # hadolint ignore=DL3008
@@ -32,16 +33,6 @@ RUN \
   apt-get install -y --no-install-recommends \
     ca-certificates \
     procps \
-  ; \
-  rm -rf /var/lib/apt/lists/*
-
-# Upgrade openssl/libssl3t64 and libgnutls30t64 to patched versions
-RUN \
-  apt-get update; \
-  apt-get install -y --no-install-recommends \
-    libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-    libssl3t64=3.0.13-0ubuntu3.11 \
-    openssl=3.0.13-0ubuntu3.11 \
   ; \
   rm -rf /var/lib/apt/lists/*
 
@@ -56,8 +47,8 @@ RUN \
     if [ "${ARCH}" = "amd64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-federal/8.0.0.18/aerospike-server-federal_8.0.0.18_tools-13.0.1_ubuntu24.04_x86_64.tgz'; \
-        pkgSha='c56ba60a2d0aedff3077e8a57d3f9d700f8264ff365e61061741b287cf4519f6'; \
+        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-federal/8.0.0.17/aerospike-server-federal_8.0.0.17_tools-13.0.1_ubuntu24.04_x86_64.tgz'; \
+        pkgSha='f23abff35ba67d0f62e95df2ca72d6fc809dd581a493bdf95ebad31228ecfa34'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \

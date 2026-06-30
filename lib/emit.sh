@@ -151,30 +151,6 @@ RUN \
   rm -rf /var/cache/yum /var/cache/dnf'
     fi
 
-    # --- OpenSSL security upgrade (Ubuntu distros only) ---
-    local openssl_upgrade_run=""
-    if [ "${distro}" = "ubuntu24.04" ]; then
-        openssl_upgrade_run='# Upgrade openssl/libssl3t64 and libgnutls30t64 to patched versions
-RUN \
-  apt-get update; \
-  apt-get install -y --no-install-recommends \
-    libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-    libssl3t64=3.0.13-0ubuntu3.11 \
-    openssl=3.0.13-0ubuntu3.11 \
-  ; \
-  rm -rf /var/lib/apt/lists/*'
-    elif [ "${distro}" = "ubuntu22.04" ]; then
-        openssl_upgrade_run='# Upgrade openssl/libssl3 and libgnutls30 to patched versions
-RUN \
-  apt-get update; \
-  apt-get install -y --no-install-recommends \
-    libgnutls30=3.7.3-4ubuntu1.9 \
-    libssl3=3.0.2-0ubuntu1.25 \
-    openssl=3.0.2-0ubuntu1.25 \
-  ; \
-  rm -rf /var/lib/apt/lists/*'
-    fi
-
     # --- Placeholder substitution for package URLs/SHAs ---
     # TGZ scripts use __PKG_URL_* / __PKG_SHA_* placeholders.
     # Native scripts use __SERVER_URL_* / __SERVER_SHA_* placeholders.
@@ -253,11 +229,6 @@ HEADER
 
         echo "${base_deps_run}"
         echo ""
-
-        if [ -n "${openssl_upgrade_run}" ]; then
-            echo "${openssl_upgrade_run}"
-            echo ""
-        fi
 
         # For local native package builds, COPY the pre-staged package file into
         # /tmp/aerospike/ before the install RUN block (the install script detects
