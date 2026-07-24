@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.1.2.3" \
+      org.opencontainers.image.version="8.1.2.4" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -47,8 +47,8 @@ RUN \
     if [ "${ARCH}" = "amd64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-federal/8.1.2.3/aerospike-server-federal_8.1.2.3_tools-13.0.1_ubuntu24.04_x86_64.tgz'; \
-        pkgSha='257a38b144e1d3651b9c52d8f224a6bf6482174b87c5f1817e793ebc7bd8e225'; \
+        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-federal/8.1.2.4/aerospike-server-federal_8.1.2.4_tools-13.0.2_ubuntu24.04_x86_64.tgz'; \
+        pkgSha='fb65dd76c34bec17c7fb89b046a16bb363023073bee7d5d8355c330e935cf5ef'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
