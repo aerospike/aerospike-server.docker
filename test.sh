@@ -358,6 +358,9 @@ function check_arg_passthrough() {
         exit 1
     fi
 
+    # Single quotes are deliberate: this runs under "bash -c" inside the container,
+    # so $p and the command substitution must reach it unexpanded.
+    # shellcheck disable=SC2016
     local find_asd='for p in /proc/[0-9]*; do [ "$(cat "$p/comm" 2>/dev/null)" = asd ] && { tr "\0" " " <"$p/cmdline"; exit 0; }; done; exit 1'
 
     local cmdline=""
