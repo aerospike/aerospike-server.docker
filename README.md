@@ -20,6 +20,7 @@
 	-	[List of template variables](#list-of-template-variables)
 	-	[Preconfigured namespace](#preconfigured-namespace)
 -	[Advanced Configuration](#advanced-configuration)
+	-	[Passing server command-line arguments](#passing-server-command-line-arguments)
 	-	[Persistent data directory](#persistent-data-directory)
 	-	[Block storage](#block-storage)
 	-	[Persistent Lua cache](#persistent-lua-cache)
@@ -236,6 +237,29 @@ For example:
 ```sh
 docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 container.aerospike.com/aerospike/aerospike-server-enterprise --config-file /opt/aerospike/etc/aerospike.conf
 ```
+
+### Passing server command-line arguments
+
+The image's default command is `asd`, so any arguments you supply after the image name replace it. When the first argument begins with `-`, the entrypoint prepends `asd` and appends `--fgdaemon` so the server runs in the foreground — pass only the flags you want. A first argument that does not begin with `-` is run as the container command instead, so `bash` gives you a shell.
+
+This is a supported interface: container orchestrators can set server flags without replacing the image's entrypoint.
+
+For example, to enable verbose logging before the configuration file is parsed:
+
+```sh
+docker run -d --name aerospike -p 3000-3002:3000-3002 container.aerospike.com/aerospike/aerospike-server-enterprise --early-verbose
+```
+
+Under Kubernetes, set `args` on the server container and leave `command` unset so the entrypoint still runs:
+
+```yaml
+args:
+  - --early-verbose
+```
+
+Available flags and their arguments vary by server version. Run `asd --help` in the image you are targeting to see the options that version supports.
+
+Environment variables are not translated into command-line arguments. The variables in [List of template variables](#list-of-template-variables) are substituted into the default configuration template; they are not passed to `asd`.
 
 ### Persistent data directory
 

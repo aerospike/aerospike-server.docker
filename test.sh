@@ -333,6 +333,71 @@ function check_container() {
     fi
 }
 
+# Verify the entrypoint forwards server arguments to asd. This is a documented
+# interface (README: "Passing server command-line arguments") that container
+# orchestrators rely on to set server flags without replacing the entrypoint, so
+# it needs coverage against future entrypoint changes.
+# PID 1 is tini, so asd is located by scanning /proc (procps may not be in image).
+function check_arg_passthrough() {
+    local probe="${CONTAINER}-args"
+    # Benign flag: this is already the default path the entrypoint writes the conf to.
+    local probe_arg="--config-file"
+    local probe_val="/etc/aerospike/aerospike.conf"
+
+    log_info "Verifying server argument passthrough..."
+
+    docker rm -f "${probe}" >/dev/null 2>&1 || true
+
+    local run_opts=(-td --name "${probe}" -e "DEFAULT_TTL=30d")
+    [ -n "${PLATFORM}" ] && run_opts+=("--platform=${PLATFORM}")
+
+    if ! docker run "${run_opts[@]}" "${IMAGE_TAG}" "${probe_arg}" "${probe_val}" >/dev/null 2>&1; then
+        log_failure "Container failed to start when given server arguments"
+        docker logs "${probe}" 2>&1 | tail -20
+        docker rm -f "${probe}" >/dev/null 2>&1 || true
+        exit 1
+    fi
+
+    local find_asd='for p in /proc/[0-9]*; do [ "$(cat "$p/comm" 2>/dev/null)" = asd ] && { tr "\0" " " <"$p/cmdline"; exit 0; }; done; exit 1'
+
+    local cmdline=""
+    if try 15 docker exec "${probe}" bash -c "${find_asd}" >/dev/null 2>&1; then
+        # "|| true": asd can exit between the probe above and this call. Without it,
+        # errexit aborts before the cleanup below and leaks the probe container.
+        cmdline=$(docker exec "${probe}" bash -c "${find_asd}" 2>/dev/null | tr -d '\r') || true
+    fi
+
+    if [ -z "${cmdline}" ]; then
+        # Most likely cause is asd rejecting the forwarded flag, so show the logs
+        # before the container goes away.
+        log_failure "Could not locate asd process in container"
+        docker logs "${probe}" 2>&1 | tail -20
+        docker rm -f "${probe}" >/dev/null 2>&1 || true
+        exit 1
+    fi
+
+    docker rm -f "${probe}" >/dev/null 2>&1 || true
+
+    # Entrypoint prepends asd when the first argument starts with '-'.
+    if [[ "${cmdline}" != "asd "* ]]; then
+        log_failure "Expected asd argv to begin with 'asd', got: ${cmdline}"
+        exit 1
+    fi
+
+    if [[ "${cmdline}" != *"${probe_arg} ${probe_val}"* ]]; then
+        log_failure "Server argument not forwarded to asd: ${cmdline}"
+        exit 1
+    fi
+
+    # Entrypoint appends --fgdaemon so asd stays in the foreground under tini.
+    if [[ "${cmdline}" != *"--fgdaemon"* ]]; then
+        log_failure "Entrypoint did not append --fgdaemon: ${cmdline}"
+        exit 1
+    fi
+
+    log_success "Server arguments forwarded to asd"
+}
+
 # Optional first arg: "full" = also remove image when CLEAN=true (use after test).
 # No arg = container only (use before run_docker so we don't remove the image we're about to run).
 function cleanup() {
@@ -410,6 +475,7 @@ function test_specific_image() {
     cleanup
     run_docker
     check_container "${version}" "${EDITION}" "${arch_display}"
+    check_arg_passthrough
     run_snyk_scan "${IMAGE_TAG}" "${arch_display}" "" "${EDITION}" "${version}"
     cleanup full
 
@@ -501,6 +567,7 @@ function test_from_releases() {
                 cleanup
                 run_docker
                 check_container "${version}" "${edition}" "${arch}"
+                check_arg_passthrough
                 run_snyk_scan "${IMAGE_TAG}" "${arch}" "releases/${lineage}/${edition}/${distro}/Dockerfile" "${edition}" "${version}" "${distro}"
                 cleanup full
 
