@@ -240,7 +240,11 @@ docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 300
 
 ### Passing server command-line arguments
 
-The image's default command is `asd`, so any arguments you supply after the image name replace it. When the first argument begins with `-`, the entrypoint prepends `asd` and appends `--fgdaemon` so the server runs in the foreground — pass only the flags you want. A first argument that does not begin with `-` is run as the container command instead, so `bash` gives you a shell.
+The image's default command is `asd`, so any arguments you supply after the image name replace it. The entrypoint then dispatches on the first argument:
+
+-	Begins with `-`: the entrypoint prepends `asd` and appends `--fgdaemon` so the server runs in the foreground. Pass only the flags you want.
+-	Is `asd`: the entrypoint waits for the network link and appends `--fgdaemon`, so `asd --early-verbose` behaves the same as `--early-verbose` alone.
+-	Anything else: exec'd as the container command, so `bash` gives you a shell.
 
 This is a supported interface: container orchestrators can set server flags without replacing the image's entrypoint.
 
