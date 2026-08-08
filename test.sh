@@ -381,19 +381,31 @@ function check_arg_passthrough() {
 
     docker rm -f "${probe}" >/dev/null 2>&1 || true
 
+    # When the image's architecture is emulated (CI tests arm64 images on amd64
+    # runners), binfmt prefixes argv with the emulator and the target binary:
+    #   /usr/bin/qemu-aarch64 /usr/bin/asd asd --config-file ... --fgdaemon
+    # Strip that prefix so the checks below still anchor on the real argv[0]. Do
+    # not relax them to a substring match instead: "/usr/bin/asd --config-file"
+    # would satisfy "asd --config-file" even if the entrypoint never prepended asd.
+    local argv="${cmdline}"
+    if [[ "${argv}" == /*qemu-* ]]; then
+        argv="${argv#* }" # drop emulator path
+        argv="${argv#* }" # drop target binary path
+    fi
+
     # Entrypoint prepends asd when the first argument starts with '-'.
-    if [[ "${cmdline}" != "asd "* ]]; then
+    if [[ "${argv}" != "asd "* ]]; then
         log_failure "Expected asd argv to begin with 'asd', got: ${cmdline}"
         exit 1
     fi
 
-    if [[ "${cmdline}" != *"${probe_arg} ${probe_val}"* ]]; then
+    if [[ "${argv}" != *"${probe_arg} ${probe_val}"* ]]; then
         log_failure "Server argument not forwarded to asd: ${cmdline}"
         exit 1
     fi
 
     # Entrypoint appends --fgdaemon so asd stays in the foreground under tini.
-    if [[ "${cmdline}" != *"--fgdaemon"* ]]; then
+    if [[ "${argv}" != *"--fgdaemon"* ]]; then
         log_failure "Entrypoint did not append --fgdaemon: ${cmdline}"
         exit 1
     fi
