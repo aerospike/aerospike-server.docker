@@ -342,15 +342,26 @@ function check_container() {
 # PID 1 is tini, so asd is located by scanning /proc (procps may not be in image).
 function check_arg_passthrough() {
     local probe="${CONTAINER}-args"
-    # The probe flag must be one the entrypoint could never emit on its own,
-    # otherwise the test proves nothing. --config-file is unusable here: its value
-    # would be both asd's default and the exact path the entrypoint writes the conf
-    # to, so an entrypoint that dropped "$@" and hardcoded that flag would produce a
-    # byte-identical argv and pass. --early-verbose is inert (verbose logging before
-    # config parse), is never synthesized by the entrypoint, and exists in every
-    # shipped lineage.
-    local probe_arg="--early-verbose"
-    local expect="asd ${probe_arg} --fgdaemon"
+    # Two properties make this probe able to fail:
+    #
+    # 1. The FIRST token must be one the entrypoint could never emit on its own,
+    #    otherwise the test proves nothing. --config-file cannot lead: its value here
+    #    is both asd's default and the exact path the entrypoint writes the conf to,
+    #    so an entrypoint that dropped "$@" and hardcoded that flag would produce a
+    #    byte-identical argv and pass. --early-verbose is inert (verbose logging
+    #    before config parse), is never synthesized by the entrypoint, and exists in
+    #    every shipped lineage.
+    # 2. More than one token, because "$@" and "$1" are indistinguishable at argc 1.
+    #    An entrypoint mutated to forward only its first argument would otherwise
+    #    pass -- and multi-token is the case orchestrators actually depend on, since
+    #    a flag with a value ("--preview yaml-config") is two argv tokens. Three
+    #    tokens also kills a "$1" "$2" mutation. --config-file is safe as a
+    #    non-leading token precisely because token 1 can no longer be synthesized,
+    #    and the entrypoint guarantees that path exists (it writes the conf there).
+    local probe_args=(--early-verbose --config-file /etc/aerospike/aerospike.conf)
+    # IFS is unmodified, so [*] joins with a single space -- matching the argv
+    # rendering the /proc scan below produces.
+    local expect="asd ${probe_args[*]} --fgdaemon"
 
     log_info "Verifying server argument passthrough..."
 
@@ -359,7 +370,7 @@ function check_arg_passthrough() {
     local run_opts=(-td --name "${probe}" -e "DEFAULT_TTL=30d")
     [ -n "${PLATFORM}" ] && run_opts+=("--platform=${PLATFORM}")
 
-    if ! docker run "${run_opts[@]}" "${IMAGE_TAG}" "${probe_arg}" >/dev/null 2>&1; then
+    if ! docker run "${run_opts[@]}" "${IMAGE_TAG}" "${probe_args[@]}" >/dev/null 2>&1; then
         log_failure "Container failed to start when given server arguments"
         docker logs "${probe}" 2>&1 | tail -20 || true
         docker rm -f "${probe}" >/dev/null 2>&1 || true
@@ -408,7 +419,10 @@ function check_arg_passthrough() {
     if [ "${argv}" != "${expect}" ]; then
         log_failure "Unexpected asd argv"
         log_failure "  expected: ${expect}"
-        log_failure "  actual:   ${cmdline}"
+        # Report the string that was actually compared, not the raw cmdline. Under
+        # emulation the raw form additionally differs by the two stripped prefix
+        # tokens, which would obscure the real mismatch.
+        log_failure "  actual:   ${argv}"
         exit 1
     fi
 
