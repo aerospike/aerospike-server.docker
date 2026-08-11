@@ -53,7 +53,9 @@ TESTS PERFORMED:
     5. Version matches expected (if detectable)
     6. Edition matches expected (if -e specified)
     7. Default namespace 'test' exists
-    8. Snyk container scan (optional, with -s/--snyk)
+    8. Server arguments are forwarded to asd
+    9. Non-option command is exec'd as given
+    10. Snyk container scan (optional, with -s/--snyk)
 
 EXAMPLES:
     # Test a specific image (from any registry)
@@ -333,11 +335,128 @@ function check_container() {
     fi
 }
 
+# Verify the entrypoint forwards server arguments to asd. This is a documented
+# interface (README: "Passing server command-line arguments") that container
+# orchestrators rely on to set server flags without replacing the entrypoint, so
+# it needs coverage against future entrypoint changes.
+# PID 1 is tini, so asd is located by scanning /proc (procps may not be in image).
+function check_arg_passthrough() {
+    local probe="${CONTAINER}-args"
+    # Two properties make this probe able to fail:
+    #
+    # 1. The FIRST token must be one the entrypoint could never emit on its own,
+    #    otherwise the test proves nothing. --config-file cannot lead: its value here
+    #    is both asd's default and the exact path the entrypoint writes the conf to,
+    #    so an entrypoint that dropped "$@" and hardcoded that flag would produce a
+    #    byte-identical argv and pass. --early-verbose is inert (verbose logging
+    #    before config parse), is never synthesized by the entrypoint, and exists in
+    #    every shipped lineage.
+    # 2. More than one token, because "$@" and "$1" are indistinguishable at argc 1.
+    #    An entrypoint mutated to forward only its first argument would otherwise
+    #    pass -- and multi-token is the case orchestrators actually depend on, since
+    #    a flag with a value ("--preview yaml-config") is two argv tokens. Three
+    #    tokens also kills a "$1" "$2" mutation. --config-file is safe as a
+    #    non-leading token precisely because token 1 can no longer be synthesized,
+    #    and the entrypoint guarantees that path exists (it writes the conf there).
+    local probe_args=(--early-verbose --config-file /etc/aerospike/aerospike.conf)
+    # IFS is unmodified, so [*] joins with a single space -- matching the argv
+    # rendering the /proc scan below produces.
+    local expect="asd ${probe_args[*]} --fgdaemon"
+
+    log_info "Verifying server argument passthrough..."
+
+    docker rm -f "${probe}" >/dev/null 2>&1 || true
+
+    local run_opts=(-td --name "${probe}" -e "DEFAULT_TTL=30d")
+    [ -n "${PLATFORM}" ] && run_opts+=("--platform=${PLATFORM}")
+
+    if ! docker run "${run_opts[@]}" "${IMAGE_TAG}" "${probe_args[@]}" >/dev/null 2>&1; then
+        log_failure "Container failed to start when given server arguments"
+        docker logs "${probe}" 2>&1 | tail -20 || true
+        docker rm -f "${probe}" >/dev/null 2>&1 || true
+        exit 1
+    fi
+
+    # Single quotes are deliberate: this runs under "bash -c" inside the container,
+    # so $p and the command substitution must reach it unexpanded.
+    # shellcheck disable=SC2016
+    local find_asd='for p in /proc/[0-9]*; do [ "$(cat "$p/comm" 2>/dev/null)" = asd ] && { tr "\0" " " <"$p/cmdline"; exit 0; }; done; exit 1'
+
+    local cmdline=""
+    if try 15 docker exec "${probe}" bash -c "${find_asd}" >/dev/null 2>&1; then
+        # "|| true": asd can exit between the probe above and this call. Without it,
+        # errexit aborts before the cleanup below and leaks the probe container.
+        cmdline=$(docker exec "${probe}" bash -c "${find_asd}" 2>/dev/null | tr -d '\r') || true
+    fi
+
+    if [ -z "${cmdline}" ]; then
+        # Most likely cause is asd rejecting the forwarded flag, so show the logs
+        # before the container goes away.
+        log_failure "Could not locate asd process in container"
+        docker logs "${probe}" 2>&1 | tail -20 || true
+        docker rm -f "${probe}" >/dev/null 2>&1 || true
+        exit 1
+    fi
+
+    docker rm -f "${probe}" >/dev/null 2>&1 || true
+
+    # When the image's architecture is emulated (CI tests arm64 images on amd64
+    # runners), binfmt prefixes argv with the emulator and the target binary:
+    #   /usr/bin/qemu-aarch64 /usr/bin/asd asd --early-verbose --fgdaemon
+    # Strip that prefix so the comparison below still anchors on the real argv[0].
+    # Do not relax it to a substring match instead: "/usr/bin/asd --early-verbose"
+    # would satisfy a bare "asd --early-verbose" even with no asd prepended.
+    local argv="${cmdline}"
+    if [[ "${argv}" == /*qemu-* ]]; then
+        argv="${argv#* }" # drop emulator path
+        argv="${argv#* }" # drop target binary path
+    fi
+    while [[ "${argv}" == *" " ]]; do argv="${argv% }"; done # NUL->space left a trailer
+
+    # Compare the whole argv, not substrings. An exact match is what proves the
+    # entrypoint prepended asd, forwarded our flag, and appended --fgdaemon -- and
+    # it also catches arguments being injected, dropped, or reordered.
+    if [ "${argv}" != "${expect}" ]; then
+        log_failure "Unexpected asd argv"
+        log_failure "  expected: ${expect}"
+        # Report the string that was actually compared, not the raw cmdline. Under
+        # emulation the raw form additionally differs by the two stripped prefix
+        # tokens, which would obscure the real mismatch.
+        log_failure "  actual:   ${argv}"
+        exit 1
+    fi
+
+    log_success "Server arguments forwarded to asd"
+}
+
+# The entrypoint execs a first argument that is neither an option nor "asd" as the
+# container command (README documents `bash` giving a shell). check_arg_passthrough
+# covers the option branch and the default CMD ["asd"] covers the asd branch, so
+# without this the command branch is the one documented behavior with no coverage.
+function check_command_passthrough() {
+    log_info "Verifying non-option command passthrough..."
+
+    local run_opts=(--rm)
+    [ -n "${PLATFORM}" ] && run_opts+=("--platform=${PLATFORM}")
+
+    local out=""
+    out=$(docker run "${run_opts[@]}" "${IMAGE_TAG}" bash -c 'echo command-passthrough-ok' 2>/dev/null) || true
+
+    if [[ "${out}" != *command-passthrough-ok* ]]; then
+        log_failure "Entrypoint did not exec a non-option command as given: ${out:-<no output>}"
+        exit 1
+    fi
+
+    log_success "Non-option command exec'd as given"
+}
+
 # Optional first arg: "full" = also remove image when CLEAN=true (use after test).
 # No arg = container only (use before run_docker so we don't remove the image we're about to run).
 function cleanup() {
     docker stop "${CONTAINER}" 2>/dev/null || true
     docker rm -f "${CONTAINER}" 2>/dev/null || true
+    # check_arg_passthrough's probe container, so an interrupt cannot leak a server.
+    docker rm -f "${CONTAINER}-args" 2>/dev/null || true
     if [ "${1:-}" = "full" ] && [ "${CLEAN}" = "true" ]; then
         docker rmi -f "${IMAGE_TAG}" 2>/dev/null || true
     fi
@@ -410,6 +529,8 @@ function test_specific_image() {
     cleanup
     run_docker
     check_container "${version}" "${EDITION}" "${arch_display}"
+    check_arg_passthrough
+    check_command_passthrough
     run_snyk_scan "${IMAGE_TAG}" "${arch_display}" "" "${EDITION}" "${version}"
     cleanup full
 
@@ -501,6 +622,8 @@ function test_from_releases() {
                 cleanup
                 run_docker
                 check_container "${version}" "${edition}" "${arch}"
+                check_arg_passthrough
+                check_command_passthrough
                 run_snyk_scan "${IMAGE_TAG}" "${arch}" "releases/${lineage}/${edition}/${distro}/Dockerfile" "${edition}" "${version}" "${distro}"
                 cleanup full
 

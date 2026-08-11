@@ -51,6 +51,10 @@ if [ -f /etc/aerospike/aerospike.template.conf ]; then
     bash_eval_template "${template}" "${conf}"
 fi
 
+# Forwarding server arguments to asd is a documented interface (see README,
+# "Passing server command-line arguments"). Container orchestrators rely on it to
+# set server flags without replacing the entrypoint; preserve it.
+
 # if command starts with an option, prepend asd
 if [ "${1:0:1}" = '-' ]; then
     set -- asd "$@"
