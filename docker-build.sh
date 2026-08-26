@@ -49,12 +49,16 @@ OPTIONS:
                         Multiple: repeat -r (e.g. -r reg1 -r reg2)
                         Default: aerospike (docker.io/aerospike/...)
                         Example: -r artifact.aerospike.io/database-docker-dev-local
-    -u, --url URL       Custom artifacts URL
+    -u, --url URL       Where to get the server package. URL, local directory,
+                        or a single local .deb/.rpm file.
                         Default: https://download.aerospike.com/artifacts
-                        If *.tgz is not found, falls back to *.rpm (el9/el10) or *.deb (ubuntu).
-                        JFrog Artifactory RPM (el9/el10 layout):
-                          https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local
-                        DEB (flat layout): database-deb-prod-public-local or direct edition URL.
+                        See PACKAGE SOURCES below for every accepted form.
+    -A, --asadm-url URL Where to get the standalone aerospike-asadm package.
+                        Default: the JFrog repo matching the package format.
+                        Native .deb/.rpm builds only - the *.tgz bundles already
+                        ship asadm inside aerospike-tools.
+                        See PACKAGE SOURCES below.
+    --no-asadm          Do not install a standalone aerospike-asadm package.
     -e, --edition ED    Filter edition(s): community, enterprise, federal
                         Can specify multiple: -e enterprise community
                         Default: all editions
@@ -98,6 +102,69 @@ DISTRO SUPPORT BY LINEAGE (default: all distros below; primary UBI is ubi9):
     7.1:       ubuntu22.04, ubi9
     7.2, 8.0:  ubuntu24.04, ubi9
     8.1+:      ubuntu24.04, ubi10
+
+PACKAGE SOURCES (-u for the server, -A for asadm):
+
+  How a server package is chosen:
+    1. The *.tgz bundle (server + aerospike-tools, which includes asadm).
+    2. If no *.tgz is found, the native .deb/.rpm for the distro. Tools are not
+       in that bundle, so asadm is fetched separately via -A.
+    Each arch is resolved independently: -a arm64 works even when only an arm64
+    package exists.
+
+  -u accepts:
+    https://download.aerospike.com/artifacts        (default)
+        <base>/aerospike-server-<edition>/<version>/<pkg>
+    A direct edition URL
+        e.g. https://stage.aerospike.com/artifacts/docker/aerospike-server-enterprise
+        <base>/<version>/<pkg>
+    A JFrog Artifactory repo (auto-detected; native packages only)
+        RPM  <base>/<el9|el10>/<x86_64|aarch64>/<pkg>.rpm
+             https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local
+        DEB  <base>/pool/<suite>/<pkg-name>/<pkg>.deb   (apt dists/ + pool/)
+             https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local
+        Exact filenames (including the package revision, e.g. 8.1.2.4-4) and
+        SHA256 checksums are discovered from the repo.
+    A local directory (no download; packages are staged via COPY)
+        Searched, in order:  <dir>/  <dir>/<version>/  <dir>/<lineage>/
+                             <dir>/<lineage>/<version>/
+                             <dir>/aerospike-server-<edition>/[<version>/]
+        then recursively. Matches are version-aware, so stale packages from an
+        earlier run are never picked up.
+    A single local .deb/.rpm file
+        Used when its filename names the requested edition and arch. With a
+        lineage (8.1) rather than a full version, the version is read from the
+        filename.
+
+  -A accepts the same shapes, resolved to the newest matching package:
+    A JFrog Artifactory repo         (default, chosen by package format:
+                                      database-deb-prod-public-local for .deb,
+                                      database-rpm-prod-public-local for .rpm)
+    A plain HTTP directory index     packages sitting directly in that directory
+    A local directory                staged via COPY, no download
+    A direct .deb/.rpm URL or path   applied only to the arch its filename names,
+                                     so one -A package cannot land in the other
+                                     arch's image
+
+  asadm source precedence:
+    1. --no-asadm                          -> no asadm installed
+    2. -A URL                              -> that source
+    3. an asadm package in a local -u dir  -> keeps local builds self-contained
+    4. the JFrog default for the package format
+    Both arch spellings are accepted throughout (amd64/x86_64, arm64/aarch64).
+    When no asadm package is found the image is built without it - a warning,
+    not an error. A local -A path that does not exist is reported by name.
+
+ENVIRONMENT (each is the default for the matching flag):
+    ARTIFACTS_DOMAIN        same as -u
+    ASADM_DOMAIN            same as -A
+    ASADM_DOMAIN_DEB        asadm default for .deb builds
+    ASADM_DOMAIN_RPM        asadm default for .rpm builds
+    ASADM_DISABLED=true     same as --no-asadm
+    BAKE_TAG_LATEST_FORCE=1 same as --tag-latest
+    BAKE_TAG_LATEST_AUTO=1  same as --auto-latest
+    DEBUG=true              log every artifact URL fetched
+    LOG_COLOR=false         disable coloured log output
 
 OUTPUT:
     releases/<lineage>/<edition>/<distro>/    Generated Dockerfiles
@@ -146,10 +213,34 @@ EXAMPLES:
 
     # --- Regenerate Dockerfiles only (no bake / no docker build) ---
     $0 -g 8.1
+    $0 -g                                    # every lineage, every edition/distro
 
     # --- Custom artifacts URL (e.g. staging) ---
     $0 -t 8.1.1.0-start-108 -e enterprise -d ubi9 \\
        -u https://stage.aerospike.com/artifacts/docker/aerospike-server-enterprise
+
+    # --- Native packages from JFrog (no *.tgz there; asadm once published) ---
+    $0 -t 8.1 -e enterprise -d ubuntu24.04 \\
+       -u https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local
+    $0 -t 8.1 -e enterprise -d ubi10 \\
+       -u https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local
+
+    # --- Local packages: directory, or one specific file ---
+    # Directory holding the server package (and optionally an asadm package)
+    $0 -t 8.1.2.5 -e enterprise -d ubuntu -a arm64 -u ~/Downloads
+    # A single .deb; version is read from the filename when given a lineage
+    $0 -t 8.1 -e enterprise -d ubuntu -a arm64 \\
+       -u ~/Downloads/aerospike-server-enterprise_8.1.2.5-9ubuntu24.04_arm64.deb
+
+    # --- Choosing where asadm comes from ---
+    # Server from JFrog, asadm from one specific package
+    $0 -t 8.1 -e enterprise -d ubuntu24.04 \\
+       -u https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local \\
+       -A ~/Downloads/aerospike-asadm_5.0.3-4ubuntu24.04_aarch64.deb
+    # Both from the same local directory
+    $0 -t 8.1.2.5 -e enterprise -u ../signed-artifacts -A ../signed-artifacts
+    # Build without asadm
+    $0 -t 8.1 --no-asadm
 EOF
 }
 
@@ -157,7 +248,8 @@ EOF
 # Main
 #------------------------------------------------------------------------------
 function main() {
-    local mode="" custom_url="" version_or_lineage=""
+    local mode="" custom_url="" asadm_url="" version_or_lineage=""
+    local no_asadm=false
     local generate_only=false
     local full_generate=false
     local -a bake_opts=()
@@ -191,6 +283,14 @@ function main() {
         -u | --url)
             custom_url="$2"
             shift 2
+            ;;
+        -A | --asadm-url)
+            asadm_url="$2"
+            shift 2
+            ;;
+        --no-asadm)
+            no_asadm=true
+            shift
             ;;
         -e | --edition)
             shift
@@ -273,6 +373,8 @@ function main() {
 
     [ ${#REGISTRY_PREFIXES[@]} -eq 0 ] && REGISTRY_PREFIXES=("aerospike")
     [ -n "${custom_url}" ] && export ARTIFACTS_DOMAIN="${custom_url}"
+    [ -n "${asadm_url}" ] && export ASADM_DOMAIN="${asadm_url}"
+    [ "${no_asadm}" = true ] && export ASADM_DISABLED=true
 
     # When using -t or -p without -g, combinable: generate_only stays false,
     # full_generate stays false -> in-place update mode.

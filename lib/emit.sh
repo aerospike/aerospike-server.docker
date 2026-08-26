@@ -48,15 +48,25 @@ function generate_dockerfile() {
         arm_sha=$(fetch_package_sha "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64")
     fi
 
-    # Fallback to native rpm/deb when tgz not available
+    # Fallback to native rpm/deb when tgz not available. Both arches are probed
+    # independently: a single-arch build (-a arm64) must not be abandoned just
+    # because the other arch has no package.
     if [ -z "${x86_sha}" ]; then
         use_native=true
         x86_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "x86_64" "${pkg_type}")
         x86_sha=$(fetch_sha_for_link "${x86_link}")
-        if [ -n "${x86_link}" ]; then
-            arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
-            arm_sha=$(fetch_sha_for_link "${arm_link}")
-        fi
+        arm_link=$(get_server_package_link_native "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "aarch64" "${pkg_type}")
+        arm_sha=$(fetch_sha_for_link "${arm_link}")
+    fi
+
+    # asadm ships inside aerospike-tools in the TGZ bundles, so it is only
+    # resolved separately on the native path. Empty when not published.
+    local asadm_x86_link="" asadm_x86_sha="" asadm_arm_link="" asadm_arm_sha=""
+    if "${use_native}"; then
+        asadm_x86_link=$(get_asadm_package_link_native "${artifact_distro}" "x86_64" "${pkg_type}")
+        asadm_x86_sha=$(fetch_sha_for_link "${asadm_x86_link}")
+        asadm_arm_link=$(get_asadm_package_link_native "${artifact_distro}" "aarch64" "${pkg_type}")
+        asadm_arm_sha=$(fetch_sha_for_link "${asadm_arm_link}")
     fi
 
     # When building single-arch, clear unused arch.
@@ -64,16 +74,50 @@ function generate_dockerfile() {
     if [ "${single_arch}" = "amd64" ]; then
         arm_link=""
         arm_sha=""
+        asadm_arm_link=""
+        asadm_arm_sha=""
     fi
     if [ "${single_arch}" = "arm64" ]; then
         x86_link=""
         x86_sha=""
+        asadm_x86_link=""
+        asadm_x86_sha=""
     fi
 
-    # Skip when no package available
-    if [ -z "${x86_sha}" ] && [ -z "${x86_link}" ]; then
+    # Skip when no package is available for any arch still being built
+    if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
         log_warn "    Skipping - package not available"
         return 1
+    fi
+
+    # A multi-arch run still bakes both platforms, so an arch with no package
+    # fails at docker build time rather than here. Name it now.
+    if [ -z "${single_arch}" ] && [ "${edition}" != "federal" ]; then
+        if [ -z "${x86_link}" ]; then
+            log_warn "    No amd64 package - the linux/amd64 build will fail (use -a arm64)"
+        fi
+        if [ -z "${arm_link}" ]; then
+            log_warn "    No arm64 package - the linux/arm64 build will fail (use -a amd64)"
+        fi
+    fi
+
+    # A remote package with no resolvable checksum would fail the build's
+    # sha256sum check; surface it here rather than at docker build time.
+    local -a _links=("${x86_link}" "${arm_link}" "${asadm_x86_link}" "${asadm_arm_link}")
+    local -a _shas=("${x86_sha}" "${arm_sha}" "${asadm_x86_sha}" "${asadm_arm_sha}")
+    local _i
+    for _i in "${!_links[@]}"; do
+        if [[ "${_links[${_i}]}" == http* ]] && [ -z "${_shas[${_i}]}" ]; then
+            log_warn "    No SHA256 available for ${_links[${_i}]}"
+        fi
+    done
+
+    if "${use_native}" && [ "${ASADM_DISABLED}" != true ]; then
+        if [ -n "${asadm_x86_link}${asadm_arm_link}" ]; then
+            log_info "    Including asadm: $(basename "${asadm_x86_link:-${asadm_arm_link}}")"
+        else
+            log_warn "    asadm not found at $(asadm_domain_for_pkg_type "${pkg_type}") - image will have no asadm"
+        fi
     fi
 
     # --- Prepare target directory ---
@@ -108,6 +152,9 @@ function generate_dockerfile() {
             fi
             [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
         fi
+        if [[ "${asadm_x86_link}" != http* ]] && [ -n "${asadm_x86_link}" ] && [ -f "${asadm_x86_link}" ]; then
+            cp "${asadm_x86_link}" "${target}/"
+        fi
         if [[ "${arm_link}" != http* ]] && [ -n "${arm_link}" ] && [ -f "${arm_link}" ]; then
             cp "${arm_link}" "${target}/"
             _dir=$(dirname "${arm_link}")
@@ -117,6 +164,9 @@ function generate_dockerfile() {
                 _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*.aarch64.rpm" 2>/dev/null | sort -V | tail -1)
             fi
             [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
+        fi
+        if [[ "${asadm_arm_link}" != http* ]] && [ -n "${asadm_arm_link}" ] && [ -f "${asadm_arm_link}" ]; then
+            cp "${asadm_arm_link}" "${target}/"
         fi
     else
         if [ "${pkg_type}" = "deb" ]; then
@@ -160,14 +210,21 @@ RUN \
     if "${use_native}"; then
         # Native .deb/.rpm: empty URL = use COPY'd file; HTTP URL = curl download.
         local _x86_url="" _x86_sha_val="" _arm_url="" _arm_sha_val=""
+        local _ad_x86_url="" _ad_x86_sha="" _ad_arm_url="" _ad_arm_sha=""
         [[ "${x86_link}" == http* ]] && _x86_url="${x86_link}" && _x86_sha_val="${x86_sha}"
         [[ "${arm_link}" == http* ]] && _arm_url="${arm_link}" && _arm_sha_val="${arm_sha}"
+        [[ "${asadm_x86_link}" == http* ]] && _ad_x86_url="${asadm_x86_link}" && _ad_x86_sha="${asadm_x86_sha}"
+        [[ "${asadm_arm_link}" == http* ]] && _ad_arm_url="${asadm_arm_link}" && _ad_arm_sha="${asadm_arm_sha}"
         if [ "${pkg_type}" = "deb" ]; then
             subst_args=(
                 -e "s|__SERVER_URL_AMD64__|${_x86_url}|g"
                 -e "s|__SERVER_SHA_AMD64__|${_x86_sha_val}|g"
                 -e "s|__SERVER_URL_ARM64__|${_arm_url}|g"
                 -e "s|__SERVER_SHA_ARM64__|${_arm_sha_val}|g"
+                -e "s|__ASADM_URL_AMD64__|${_ad_x86_url}|g"
+                -e "s|__ASADM_SHA_AMD64__|${_ad_x86_sha}|g"
+                -e "s|__ASADM_URL_ARM64__|${_ad_arm_url}|g"
+                -e "s|__ASADM_SHA_ARM64__|${_ad_arm_sha}|g"
             )
         else
             subst_args=(
@@ -175,6 +232,10 @@ RUN \
                 -e "s|__SERVER_SHA_X86_64__|${_x86_sha_val}|g"
                 -e "s|__SERVER_URL_AARCH64__|${_arm_url}|g"
                 -e "s|__SERVER_SHA_AARCH64__|${_arm_sha_val}|g"
+                -e "s|__ASADM_URL_X86_64__|${_ad_x86_url}|g"
+                -e "s|__ASADM_SHA_X86_64__|${_ad_x86_sha}|g"
+                -e "s|__ASADM_URL_AARCH64__|${_ad_arm_url}|g"
+                -e "s|__ASADM_SHA_AARCH64__|${_ad_arm_sha}|g"
             )
         fi
     elif [ "${pkg_type}" = "deb" ]; then
@@ -237,9 +298,13 @@ HEADER
             local copy_glob=""
             [ "${pkg_type}" = "deb" ] && copy_glob="*.deb"
             [ "${pkg_type}" = "rpm" ] && copy_glob="*.rpm"
-            local has_local=false
-            [[ "${x86_link}" != http* ]] && [ -n "${x86_link}" ] && has_local=true
-            [[ "${arm_link}" != http* ]] && [ -n "${arm_link}" ] && has_local=true
+            # asadm counts here too: -A may point at a local directory while the
+            # server comes from a remote URL, and the staged asadm packages still
+            # need a COPY to reach the build.
+            local has_local=false _pkg
+            for _pkg in "${x86_link}" "${arm_link}" "${asadm_x86_link}" "${asadm_arm_link}"; do
+                [[ "${_pkg}" != http* ]] && [ -n "${_pkg}" ] && has_local=true
+            done
             if "${has_local}"; then
                 echo "COPY ${copy_glob} /tmp/aerospike/"
                 echo ""

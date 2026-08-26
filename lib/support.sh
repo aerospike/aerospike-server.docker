@@ -104,6 +104,22 @@ function support_distro_to_artifact_name() {
     esac
 }
 
+# Map an artifact distro name to its Debian/Ubuntu apt suite (the codename used
+# as the pool/ and dists/ path component in the JFrog apt repos). Empty for
+# non-deb distros.
+function support_distro_to_apt_suite() {
+    case "$1" in
+    ubuntu20.04) echo "focal" ;;
+    ubuntu22.04) echo "jammy" ;;
+    ubuntu24.04) echo "noble" ;;
+    ubuntu26.04) echo "resolute" ;;
+    debian11) echo "bullseye" ;;
+    debian12) echo "bookworm" ;;
+    debian13) echo "trixie" ;;
+    *) echo "" ;;
+    esac
+}
+
 function support_platforms() {
     local edition=${1:-}
     # Federal only supports amd64

@@ -21,6 +21,9 @@ function generate_dockerfiles() {
 
     declare -A VERSION_MAP TOOLS_MAP
     declare -ag LINEAGES_TO_BUILD=()
+    # Counts targets actually written; a run that produces none must not fall
+    # through to a build against whatever stale Dockerfiles are in releases/.
+    declare -g G_GENERATED_COUNT=0
 
     # --- Resolve version(s) ---
     if [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; then
@@ -117,7 +120,9 @@ function generate_dockerfiles() {
 
                 if [ "${full_generate}" = true ] || [ ! -f "${target}/Dockerfile" ]; then
                     # Full generate (or Dockerfile missing -- auto-fallback)
-                    generate_dockerfile "${lineage}" "${distro}" "${edition}" "${version}" "${tools_version}" || true
+                    if generate_dockerfile "${lineage}" "${distro}" "${edition}" "${version}" "${tools_version}"; then
+                        G_GENERATED_COUNT=$((G_GENERATED_COUNT + 1))
+                    fi
                 else
                     # In-place update
                     local artifact_distro pkg_type
@@ -135,18 +140,35 @@ function generate_dockerfiles() {
                     local x86_link x86_sha arm_link arm_sha pkg_format
                     resolve_packages "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${single_arch}" "${pkg_type}"
 
-                    if [ -z "${x86_sha}" ] && [ -z "${x86_link}" ]; then
+                    if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
                         log_warn "    Skipping ${edition}/${distro} - package not available"
                         continue
+                    fi
+
+                    # See emit.sh: bake targets both platforms on a multi-arch run.
+                    if [ -z "${single_arch}" ] && [ "${edition}" != "federal" ]; then
+                        if [ -z "${x86_link}" ]; then
+                            log_warn "    ${edition}/${distro}: no amd64 package - the linux/amd64 build will fail"
+                        fi
+                        if [ -z "${arm_link}" ]; then
+                            log_warn "    ${edition}/${distro}: no arm64 package - the linux/arm64 build will fail"
+                        fi
                     fi
 
                     [ "${pkg_format}" != "tgz" ] && log_info "    Using native ${pkg_format} (tgz not found)"
 
                     update_dockerfile "${target}" "${version}" "${single_arch}"
+                    G_GENERATED_COUNT=$((G_GENERATED_COUNT + 1))
                 fi
             done
         done
     done
+
+    if [ "${G_GENERATED_COUNT}" -eq 0 ]; then
+        log_warn "No Dockerfiles were generated - every target was skipped."
+        log_warn "Check that -u points at packages matching the requested version, edition, distro and arch."
+        exit 1
+    fi
 
     # shellcheck disable=SC2034  # consumed by generate_bake in caller scope
     declare -gA G_VERSION_MAP
