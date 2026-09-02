@@ -42,7 +42,10 @@ check() { # check <name> <condition-description> <actual> <expected>
     if [ "$3" = "$4" ]; then pass "$1"; else fail "$1" "$2: got [$3] want [$4]"; fi
 }
 
-reset() { git checkout -- releases/ 2>/dev/null || true; git clean -fdxq releases/ 2>/dev/null || true; }
+reset() {
+    git checkout -- releases/ 2>/dev/null || true
+    git clean -fdxq releases/ 2>/dev/null || true
+}
 
 # Zero-byte fixtures: generation never reads package contents.
 mk_pkgs() { # mk_pkgs <dir> <editions...>
@@ -67,32 +70,39 @@ staged() { find "${CTX}" -maxdepth 1 -name '*.deb' -exec basename {} \; 2>/dev/n
 staged_count() { staged | grep -c "$1" || true; }
 
 echo "== promise 1/2: asadm staged from a local -u directory =="
-reset; mk_pkgs "${WORK}/a" enterprise; mk_asadm "${WORK}/a"
+reset
+mk_pkgs "${WORK}/a" enterprise
+mk_asadm "${WORK}/a"
 gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" || true
 check "both asadm arches staged" "asadm files" "$(staged_count asadm)" "2"
 check "COPY emitted" "COPY *.deb present" \
     "$(grep -c '^COPY \*\.deb' "${CTX}/Dockerfile" || true)" "1"
 
 echo "== promise 2 negative: --no-asadm stages none =="
-reset; gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" --no-asadm || true
+reset
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" --no-asadm || true
 check "no asadm staged" "asadm files" "$(staged_count asadm)" "0"
 
 echo "== promise 2 precedence: -A wins over an asadm in the -u dir =="
-reset; mk_asadm "${WORK}/b" 9.9.9
+reset
+mk_asadm "${WORK}/b" 9.9.9
 gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${WORK}/b" || true
 check "-A beats -u" "staged asadm version" \
     "$(staged | grep -o '9\.9\.9' | head -1)" "9.9.9"
 check "-u asadm not also staged" "5.0.3 files" "$(staged_count '5\.0\.3')" "0"
 
 echo "== local -u makes no outbound request =="
-reset; mkdir -p "${WORK}/stub"
+reset
+mkdir -p "${WORK}/stub"
 cat >"${WORK}/stub/curl" <<'STUB'
 #!/bin/bash
 for a in "$@"; do case "$a" in http*) echo "$a" >>"${CURL_LOG}" ;; esac; done
 exec /usr/bin/curl "$@"
 STUB
 chmod +x "${WORK}/stub/curl"
-CURL_LOG="${WORK}/curl.log"; export CURL_LOG; : >"${CURL_LOG}"
+CURL_LOG="${WORK}/curl.log"
+export CURL_LOG
+: >"${CURL_LOG}"
 PATH="${WORK}/stub:${PATH}" gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" || true
 check "zero http requests" "urls fetched" "$(wc -l <"${CURL_LOG}" | tr -d ' ')" "0"
 
@@ -106,8 +116,10 @@ check "exits 1" "exit code" "${rc}" "1"
 check "releases/ intact" "Dockerfile count" "${after}" "${before}"
 
 echo "== promise 6: a single -u file is not handed to the wrong target =="
-reset; F="${WORK}/one/aerospike-server-enterprise_${VERSION}-1ubuntu24.04_amd64.deb"
-mkdir -p "${WORK}/one"; : >"${F}"
+reset
+F="${WORK}/one/aerospike-server-enterprise_${VERSION}-1ubuntu24.04_amd64.deb"
+mkdir -p "${WORK}/one"
+: >"${F}"
 gen "${VERSION}" -e enterprise -d ubuntu24.04 ubi10 -a amd64 -u "${F}" || true
 check "deb target generated" "ubuntu24.04 staged deb" \
     "$(staged_count 'aerospike-server')" "1"
