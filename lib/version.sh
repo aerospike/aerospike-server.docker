@@ -68,7 +68,10 @@ function _ere_quote() {
 }
 
 # True when a package filename names the given arch, under either spelling
-# (amd64/x86_64, arm64/aarch64), or is arch-independent.
+# (amd64/x86_64, arm64/aarch64), or is arch-independent. Both spellings are
+# accepted because Aerospike publishes asadm debs as _aarch64.deb while the
+# server debs use the dpkg _arm64.deb. This is the single implementation of
+# arch matching for asadm.
 function pkg_name_matches_arch() {
     local name=$1 arch=$2
     local deb_arch="${arch}"
@@ -83,6 +86,13 @@ function pkg_name_matches_arch() {
 }
 
 # List the entry names in an Artifactory directory index (HTML autoindex).
+#
+# Entries are constrained to the package-filename charset. A name is later
+# concatenated into a URL that is substituted into a single-quoted shell
+# assignment in the generated Dockerfile, so a name containing a quote,
+# "$", "(" or a backtick would break out of the quoting and execute at
+# docker build time. The index is attacker-controlled over plain HTTP, so
+# the charset is enforced here, at the boundary, rather than at each use.
 function artifactory_list_names() {
     local dir_url=$1
     [ -z "${dir_url}" ] && {
@@ -91,6 +101,7 @@ function artifactory_list_names() {
     }
     fetch "list" "${dir_url}/" 2>/dev/null |
         grep -oE 'href="[^"?][^"]*"' | sed 's/^href="//; s/"$//' |
+        grep -E '^[A-Za-z0-9][A-Za-z0-9._+~:-]*/?$' |
         grep -vE '^\.\.?/?$' || true
 }
 
@@ -187,9 +198,17 @@ function find_local_server_package() {
     local pkg_type=$6
 
     if [ -f "${base_dir}" ]; then
-        local _name
+        # Enforce the same facts the directory branches below enforce, so a
+        # single file cannot be handed to the wrong package type, version or
+        # edition. artifact_distro is deliberately not tested: -d ubuntu
+        # expands to several distros and would silently skip all but one.
+        local _name _ok=true
         _name=$(basename "${base_dir}")
-        if [[ "${_name}" == *"${edition}"* ]] && pkg_name_matches_arch "${_name}" "${arch}"; then
+        [[ "${_name}" == *".${pkg_type}" ]] || _ok=false
+        [[ "${_name}" == *"${edition}"* ]] || _ok=false
+        [[ "${_name}" == *"${version}"* ]] || _ok=false
+        pkg_name_matches_arch "${_name}" "${arch}" || _ok=false
+        if "${_ok}"; then
             echo "${base_dir}"
         else
             echo ""
@@ -565,12 +584,6 @@ function find_local_asadm_package() {
     }
     base_dir=$(cd "${base_dir}" && pwd)
 
-    # Aerospike publishes asadm debs under both arch spellings (_arm64.deb and
-    # _aarch64.deb), so accept either rather than only the dpkg one.
-    local deb_arch="${arch}"
-    [ "${arch}" = "x86_64" ] && deb_arch="amd64"
-    [ "${arch}" = "aarch64" ] && deb_arch="arm64"
-
     local ext="deb"
     [ "${pkg_type}" = "rpm" ] && ext="rpm"
 
@@ -612,13 +625,12 @@ function get_asadm_package_link_native() {
         return
     fi
 
+    # A local -u is the whole answer: "build from local packages" must not make
+    # outbound requests to a host the user never named. Matches how
+    # get_server_package_link_native and get_package_link treat a local source.
     if [ -z "${ASADM_DOMAIN}" ] && is_local_artifacts_dir; then
-        local local_pkg
-        local_pkg=$(find_local_asadm_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${arch}" "${pkg_type}")
-        if [ -n "${local_pkg}" ]; then
-            echo "${local_pkg}"
-            return
-        fi
+        find_local_asadm_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${arch}" "${pkg_type}"
+        return
     fi
 
     local base
@@ -627,10 +639,6 @@ function get_asadm_package_link_native() {
         echo ""
         return
     }
-
-    local deb_arch="${arch}"
-    [ "${arch}" = "x86_64" ] && deb_arch="amd64"
-    [ "${arch}" = "aarch64" ] && deb_arch="arm64"
 
     # Direct package URL or file path - used verbatim, no discovery. Applies
     # only to the arch its filename names, so a single -A package cannot be
@@ -784,7 +792,7 @@ function fetch_sha_for_link() {
     local sha
     sha=$(fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' ' || true)
     if [ -z "${sha}" ]; then
-        # JFrog repos carry no .sha256 sidecars but expose the digest as a header.
+        # Fall back to the digest header when no .sha256 sidecar is served.
         sha=$(curl -fsSLI "${link}" 2>/dev/null | tr -d '\r' |
             awk 'tolower($1) == "x-checksum-sha256:" { print $2 }' | tail -1 || true)
     fi

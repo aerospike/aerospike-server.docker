@@ -84,10 +84,26 @@ function generate_dockerfiles() {
 
     echo ""
 
-    # Full generate cleans only the lineages we're about to rebuild
+    # Full generate prunes only targets that can no longer be rebuilt: distro
+    # directories a lineage no longer supports. Each surviving target is cleaned
+    # and rewritten atomically in generate_dockerfile, so a run that resolves no
+    # packages leaves the committed tree intact instead of emptying it and then
+    # aborting. Editions are never pruned here: the rebuild honours
+    # EDITION_FILTERS, so a filtered -g must not delete the editions it skips.
     if [ "${full_generate}" = true ]; then
-        for lineage in "${LINEAGES_TO_BUILD[@]}"; do
-            [ -d "releases/${lineage}" ] && rm -rf "releases/${lineage}"
+        local _lin _ed_dir _dist_dir _supported
+        for _lin in "${LINEAGES_TO_BUILD[@]}"; do
+            [ -d "releases/${_lin}" ] || continue
+            _supported=" $(support_distros "${_lin}") "
+            for _ed_dir in "releases/${_lin}"/*/; do
+                [ -d "${_ed_dir}" ] || continue
+                for _dist_dir in "${_ed_dir}"*/; do
+                    [ -d "${_dist_dir}" ] || continue
+                    if [[ "${_supported}" != *" $(basename "${_dist_dir}") "* ]]; then
+                        rm -rf "${_dist_dir}"
+                    fi
+                done
+            done
         done
     fi
 

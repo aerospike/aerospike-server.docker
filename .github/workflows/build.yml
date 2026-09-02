@@ -50,6 +50,11 @@ jobs:
           done
       - name: Should not change anything
         run: '[ -z "$(git diff --stat)" ] || (git diff --stat; exit 1)'
+      # The steps above only exercise the default *.tgz path. This drives the
+      # native .deb/.rpm path offline, with fixture packages and a local http
+      # server -- no network, no docker, no published aerospike-asadm.
+      - name: Native-path generation tests
+        run: ./.ci/test-generate.sh
 
   build-and-test:
     name: Build and test

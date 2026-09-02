@@ -112,15 +112,31 @@ function generate_dockerfile() {
         fi
     done
 
+    # Reported per arch: a concatenation test would log "Including asadm" when
+    # only one arch resolved, while the other image silently shipped without it.
     if "${use_native}" && [ "${ASADM_DISABLED}" != true ]; then
-        if [ -n "${asadm_x86_link}${asadm_arm_link}" ]; then
-            log_info "    Including asadm: $(basename "${asadm_x86_link:-${asadm_arm_link}}")"
-        else
-            log_warn "    asadm not found at $(asadm_domain_for_pkg_type "${pkg_type}") - image will have no asadm"
+        local _asadm_src
+        _asadm_src=$(asadm_domain_for_pkg_type "${pkg_type}")
+        if [ -n "${x86_link}" ]; then
+            if [ -n "${asadm_x86_link}" ]; then
+                log_info "    Including asadm (amd64): $(basename "${asadm_x86_link}")"
+            else
+                log_warn "    No amd64 asadm at ${_asadm_src} - the amd64 image will have none"
+            fi
+        fi
+        if [ -n "${arm_link}" ]; then
+            if [ -n "${asadm_arm_link}" ]; then
+                log_info "    Including asadm (arm64): $(basename "${asadm_arm_link}")"
+            else
+                log_warn "    No arm64 asadm at ${_asadm_src} - the arm64 image will have none"
+            fi
         fi
     fi
 
     # --- Prepare target directory ---
+    # Cleaned here, not up front: nothing committed is removed until this target
+    # is known to be buildable and is about to be rewritten.
+    rm -rf "${target}"
     mkdir -p "${target}"
     cp template/0/entrypoint.sh "${target}/"
     chmod +x "${target}/entrypoint.sh"
@@ -324,4 +340,18 @@ HEADER
     if [ -n "$(tail -c1 "${target}/Dockerfile" 2>/dev/null)" ]; then
         echo >>"${target}/Dockerfile"
     fi
+
+    # The caller invokes this as an `if` condition, which suspends errexit for
+    # the whole body: a mid-function failure (a broken template, a failed
+    # sed/awk, a full disk) would neither abort nor change the return status,
+    # and the redirect above has already truncated the file. Validate the
+    # artifact so a success return means "wrote a usable Dockerfile".
+    local _df="${target}/Dockerfile"
+    local _marker
+    for _marker in '^FROM ' '^  echo "done";$' '^ENTRYPOINT ' '^CMD '; do
+        if ! grep -qE "${_marker}" "${_df}" 2>/dev/null; then
+            log_warn "    Generation produced an incomplete Dockerfile (missing ${_marker})"
+            return 1
+        fi
+    done
 }
