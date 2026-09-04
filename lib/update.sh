@@ -44,52 +44,9 @@ function _dockerfile_refresh_install_block() {
     local pkg_type
     pkg_type=$(support_distro_to_pkg_type "$(basename "$(dirname "${df}")")")
 
-    if "${use_native}"; then
-        # Native scripts: __SERVER_URL_* placeholders; empty = COPY'd file (local build).
-        local _x86_url="" _x86_sha_val="" _arm_url="" _arm_sha_val=""
-        local _ad_x86_url="" _ad_x86_sha="" _ad_arm_url="" _ad_arm_sha=""
-        [[ "${x86_link:-}" == http* ]] && _x86_url="${x86_link}" && _x86_sha_val="${x86_sha:-}"
-        [[ "${arm_link:-}" == http* ]] && _arm_url="${arm_link}" && _arm_sha_val="${arm_sha:-}"
-        [[ "${asadm_x86_link:-}" == http* ]] && _ad_x86_url="${asadm_x86_link}" && _ad_x86_sha="${asadm_x86_sha:-}"
-        [[ "${asadm_arm_link:-}" == http* ]] && _ad_arm_url="${asadm_arm_link}" && _ad_arm_sha="${asadm_arm_sha:-}"
-        if [ "${pkg_type}" = "deb" ]; then
-            _sed_i \
-                -e "s|__SERVER_URL_AMD64__|${_x86_url}|g" \
-                -e "s|__SERVER_SHA_AMD64__|${_x86_sha_val}|g" \
-                -e "s|__SERVER_URL_ARM64__|${_arm_url}|g" \
-                -e "s|__SERVER_SHA_ARM64__|${_arm_sha_val}|g" \
-                -e "s|__ASADM_URL_AMD64__|${_ad_x86_url}|g" \
-                -e "s|__ASADM_SHA_AMD64__|${_ad_x86_sha}|g" \
-                -e "s|__ASADM_URL_ARM64__|${_ad_arm_url}|g" \
-                -e "s|__ASADM_SHA_ARM64__|${_ad_arm_sha}|g" \
-                "${nbf}"
-        else
-            _sed_i \
-                -e "s|__SERVER_URL_X86_64__|${_x86_url}|g" \
-                -e "s|__SERVER_SHA_X86_64__|${_x86_sha_val}|g" \
-                -e "s|__SERVER_URL_AARCH64__|${_arm_url}|g" \
-                -e "s|__SERVER_SHA_AARCH64__|${_arm_sha_val}|g" \
-                -e "s|__ASADM_URL_X86_64__|${_ad_x86_url}|g" \
-                -e "s|__ASADM_SHA_X86_64__|${_ad_x86_sha}|g" \
-                -e "s|__ASADM_URL_AARCH64__|${_ad_arm_url}|g" \
-                -e "s|__ASADM_SHA_AARCH64__|${_ad_arm_sha}|g" \
-                "${nbf}"
-        fi
-    elif [ "${pkg_type}" = "deb" ]; then
-        _sed_i \
-            -e "s|__PKG_URL_AMD64__|${x86_link:-}|g" \
-            -e "s|__PKG_SHA_AMD64__|${x86_sha:-}|g" \
-            -e "s|__PKG_URL_ARM64__|${arm_link:-}|g" \
-            -e "s|__PKG_SHA_ARM64__|${arm_sha:-}|g" \
-            "${nbf}"
-    else
-        _sed_i \
-            -e "s|__PKG_URL_X86_64__|${x86_link:-}|g" \
-            -e "s|__PKG_SHA_X86_64__|${x86_sha:-}|g" \
-            -e "s|__PKG_URL_AARCH64__|${arm_link:-}|g" \
-            -e "s|__PKG_SHA_AARCH64__|${arm_sha:-}|g" \
-            "${nbf}"
-    fi
+    local -a SUBST_ARGS=()
+    _build_subst_args "${pkg_type}" "${use_native}"
+    _sed_i "${SUBST_ARGS[@]}" "${nbf}"
 
     # Ensure exactly one trailing blank line (separator before the next instruction).
     printf '\n' >>"${nbf}"
@@ -288,6 +245,8 @@ function resolve_packages() {
     asadm_arm_link=""
     asadm_arm_sha=""
     # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
+    asadm_unreadable=false
+    # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
     pkg_format="tgz"
     # shellcheck disable=SC2034  # consumed by update_dockerfile via dynamic scoping
     use_native=false
@@ -311,10 +270,16 @@ function resolve_packages() {
             pkg_format="${pkg_type}"
             # shellcheck disable=SC2034  # consumed by update_dockerfile
             use_native=true
-            asadm_x86_link=$(get_asadm_package_link_native "${artifact_distro}" "x86_64" "${pkg_type}")
+            local _arc=0
+            asadm_x86_link=$(get_asadm_package_link_native "${artifact_distro}" "x86_64" "${pkg_type}") || _arc=$?
             asadm_x86_sha=$(fetch_sha_for_link "${asadm_x86_link}")
-            asadm_arm_link=$(get_asadm_package_link_native "${artifact_distro}" "aarch64" "${pkg_type}")
+            asadm_arm_link=$(get_asadm_package_link_native "${artifact_distro}" "aarch64" "${pkg_type}") || _arc=$?
             asadm_arm_sha=$(fetch_sha_for_link "${asadm_arm_link}")
+            if [ "${_arc}" -eq "${AS_LIST_ERROR}" ]; then
+                log_warn "The asadm source given with -A could not be read"
+                # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
+                asadm_unreadable=true
+            fi
         fi
     fi
 
@@ -332,6 +297,112 @@ function resolve_packages() {
         asadm_x86_link=""
         asadm_x86_sha=""
     fi
+}
+
+# _install_script_for pkg_type use_native
+# The install script a target is built from. Native .deb/.rpm images use the
+# -native variants, which take a pre-staged package or a URL; TGZ bundles use
+# the standard ones.
+function _install_script_for() {
+    local pkg_type=$1 use_native=$2
+    if "${use_native}"; then
+        echo "${SCRIPT_DIR}/scripts/${pkg_type}/install-native.sh"
+    else
+        echo "${SCRIPT_DIR}/scripts/${pkg_type}/install.sh"
+    fi
+}
+
+# _stage_local_packages target pkg_type use_native
+#
+# Purge stale packages from a build context and copy in the ones this run
+# resolved locally, so `COPY *.deb` picks up exactly the current set. Reads the
+# caller-scoped x86_link / arm_link / asadm_*_link that resolve_packages sets.
+#
+# The purge is unconditional: a target that was a native build last run and is a
+# TGZ build now must not keep its old packages, and nothing else in the context
+# matches these globs.
+function _stage_local_packages() {
+    local target=$1 pkg_type=$2 use_native=$3
+
+    rm -f "${target}"/aerospike-server-*."${pkg_type}" \
+        "${target}"/aerospike-tools-*."${pkg_type}" \
+        "${target}"/aerospike-asadm[-_]*."${pkg_type}" 2>/dev/null || true
+
+    "${use_native}" || return 0
+
+    # Stage the server package for each arch, plus any tools package sitting
+    # beside it, so apt/rpm can satisfy a hard Depends/Requires on
+    # aerospike-tools that the image would otherwise fail to install.
+    local _link _arch_glob _dir _tools_f
+    for _link in "${x86_link:-}" "${arm_link:-}"; do
+        [[ "${_link}" != http* ]] && [ -n "${_link}" ] && [ -f "${_link}" ] || continue
+        cp "${_link}" "${target}/"
+        _dir=$(dirname "${_link}")
+        if pkg_name_matches_arch "${_link}" "x86_64"; then
+            [ "${pkg_type}" = "deb" ] && _arch_glob="_amd64.deb" || _arch_glob=".x86_64.rpm"
+        else
+            [ "${pkg_type}" = "deb" ] && _arch_glob="_arm64.deb" || _arch_glob=".aarch64.rpm"
+        fi
+        _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*${_arch_glob}" 2>/dev/null | sort -V | tail -1)
+        [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
+    done
+
+    local _ad
+    for _ad in "${asadm_x86_link:-}" "${asadm_arm_link:-}"; do
+        if [[ "${_ad}" != http* ]] && [ -n "${_ad}" ] && [ -f "${_ad}" ]; then
+            cp "${_ad}" "${target}/"
+        fi
+    done
+}
+
+# _build_subst_args pkg_type use_native
+#
+# Fill the global SUBST_ARGS array with the sed expressions that replace the
+# URL/SHA placeholders in an install script. One definition of which
+# placeholders exist, shared by the generate path (which pipes through sed) and
+# the update path (which passes them to _sed_i) -- previously two lists of eight
+# expressions that had to be edited together and did not have to agree.
+#
+# An empty URL is meaningful: the native scripts read it as "the package was
+# staged via COPY, do not download". Only an http link is substituted, so a
+# local build always emits the empty form.
+function _build_subst_args() {
+    local pkg_type=$1 use_native=$2
+    local x86_tag arm_tag
+    if [ "${pkg_type}" = "deb" ]; then
+        x86_tag="AMD64"
+        arm_tag="ARM64"
+    else
+        x86_tag="X86_64"
+        arm_tag="AARCH64"
+    fi
+
+    SUBST_ARGS=()
+    if ! "${use_native}"; then
+        SUBST_ARGS=(
+            -e "s|__PKG_URL_${x86_tag}__|${x86_link:-}|g"
+            -e "s|__PKG_SHA_${x86_tag}__|${x86_sha:-}|g"
+            -e "s|__PKG_URL_${arm_tag}__|${arm_link:-}|g"
+            -e "s|__PKG_SHA_${arm_tag}__|${arm_sha:-}|g"
+        )
+        return
+    fi
+
+    local _su="" _ss="" _au="" _as="" _bu="" _bs="" _cu="" _cs=""
+    [[ "${x86_link:-}" == http* ]] && _su="${x86_link}" && _ss="${x86_sha:-}"
+    [[ "${arm_link:-}" == http* ]] && _bu="${arm_link}" && _bs="${arm_sha:-}"
+    [[ "${asadm_x86_link:-}" == http* ]] && _au="${asadm_x86_link}" && _as="${asadm_x86_sha:-}"
+    [[ "${asadm_arm_link:-}" == http* ]] && _cu="${asadm_arm_link}" && _cs="${asadm_arm_sha:-}"
+    SUBST_ARGS=(
+        -e "s|__SERVER_URL_${x86_tag}__|${_su}|g"
+        -e "s|__SERVER_SHA_${x86_tag}__|${_ss}|g"
+        -e "s|__SERVER_URL_${arm_tag}__|${_bu}|g"
+        -e "s|__SERVER_SHA_${arm_tag}__|${_bs}|g"
+        -e "s|__ASADM_URL_${x86_tag}__|${_au}|g"
+        -e "s|__ASADM_SHA_${x86_tag}__|${_as}|g"
+        -e "s|__ASADM_URL_${arm_tag}__|${_cu}|g"
+        -e "s|__ASADM_SHA_${arm_tag}__|${_cs}|g"
+    )
 }
 
 # update_dockerfile target version single_arch
@@ -361,55 +432,8 @@ function update_dockerfile() {
     local pkg_type install_script
     pkg_type=$(support_distro_to_pkg_type "$(basename "${target}")")
     local _use_native="${use_native:-false}"
-    if "${_use_native}"; then
-        if [ "${pkg_type}" = "deb" ]; then
-            install_script="${SCRIPT_DIR}/scripts/deb/install-native.sh"
-        else
-            install_script="${SCRIPT_DIR}/scripts/rpm/install-native.sh"
-        fi
-        # Remove stale package files from previous native-mode builds before staging
-        # new ones. Without this, old versions (or wrong-arch packages) accumulate and
-        # COPY *.deb picks up all of them, causing apt/rpm to fail on wrong-arch files.
-        rm -f "${target}"/aerospike-server-*."${pkg_type}" \
-            "${target}"/aerospike-tools-*."${pkg_type}" \
-            "${target}"/aerospike-asadm[-_]*."${pkg_type}" 2>/dev/null || true
-        # Stage server packages; also stage any tools package found alongside the
-        # server in the artifacts directory so that apt/rpm can satisfy a hard
-        # Depends/Requires on aerospike-tools.
-        local _dir _tools_f
-        if [[ "${x86_link:-}" != http* ]] && [ -n "${x86_link:-}" ] && [ -f "${x86_link:-}" ]; then
-            cp "${x86_link}" "${target}/"
-            _dir=$(dirname "${x86_link}")
-            if [ "${pkg_type}" = "deb" ]; then
-                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*_amd64.deb" 2>/dev/null | sort -V | tail -1)
-            else
-                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*.x86_64.rpm" 2>/dev/null | sort -V | tail -1)
-            fi
-            [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
-        fi
-        if [[ "${arm_link:-}" != http* ]] && [ -n "${arm_link:-}" ] && [ -f "${arm_link:-}" ]; then
-            cp "${arm_link}" "${target}/"
-            _dir=$(dirname "${arm_link}")
-            if [ "${pkg_type}" = "deb" ]; then
-                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*_arm64.deb" 2>/dev/null | sort -V | tail -1)
-            else
-                _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*.aarch64.rpm" 2>/dev/null | sort -V | tail -1)
-            fi
-            [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
-        fi
-        local _ad
-        for _ad in "${asadm_x86_link:-}" "${asadm_arm_link:-}"; do
-            if [[ "${_ad}" != http* ]] && [ -n "${_ad}" ] && [ -f "${_ad}" ]; then
-                cp "${_ad}" "${target}/"
-            fi
-        done
-    else
-        if [ "${pkg_type}" = "deb" ]; then
-            install_script="${SCRIPT_DIR}/scripts/deb/install.sh"
-        else
-            install_script="${SCRIPT_DIR}/scripts/rpm/install.sh"
-        fi
-    fi
+    install_script=$(_install_script_for "${pkg_type}" "${_use_native}")
+    _stage_local_packages "${target}" "${pkg_type}" "${_use_native}"
 
     # Remove vendored-tini COPY block (older Dockerfiles only; idempotent if absent).
     _dockerfile_remove_vendored_tini "${df}"

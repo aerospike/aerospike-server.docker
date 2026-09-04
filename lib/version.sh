@@ -138,6 +138,15 @@ function _pick_versioned() {
     printf '%s' "${out}" | grep -vE '^$' | sort -V | tail -1 || true
 }
 
+# Outcome of a directory listing, as the exit status of artifactory_list_names
+# and everything built on it. "Empty" is not an outcome: an empty listing with
+# status OK means the directory exists and holds nothing, which is a different
+# fact from "the host refused us" and has to stay distinguishable all the way
+# up to the caller that decides whether to skip or abort.
+readonly AS_LIST_OK=0
+readonly AS_LIST_ABSENT=1 # 404 -- authoritatively not there
+readonly AS_LIST_ERROR=2  # 000/401/403/5xx -- we do not know
+
 # List the entry names in an Artifactory directory index (HTML autoindex).
 #
 # Entries are constrained to the package-filename charset. A name is later
@@ -146,16 +155,73 @@ function _pick_versioned() {
 # "$", "(" or a backtick would break out of the quoting and execute at
 # docker build time. The index is attacker-controlled over plain HTTP, so
 # the charset is enforced here, at the boundary, rather than at each use.
+#
+# The HTTP status is captured rather than discarded. Collapsing 404, 403, DNS
+# failure, TLS failure and connect timeout into one empty string made "not
+# published yet" indistinguishable from "your -A is wrong" -- and, one level up,
+# let a single timed-out listing drop a lineage from a release at exit 0.
+# Measured against the live repos: an unreadable repo answers 401 and a
+# nonexistent one 404, so anything that is not 200 or 404 is an error.
 function artifactory_list_names() {
     local dir_url=$1
-    [ -z "${dir_url}" ] && {
+    [ -z "${dir_url}" ] && return "${AS_LIST_ABSENT}"
+
+    local cached body code
+    cached=$(_list_cache_path "${dir_url}")
+    if [ -n "${cached}" ] && [ -f "${cached}" ]; then
+        code=$(head -1 "${cached}")
+        tail -n +2 "${cached}"
+        [ "${code}" = "200" ] && return "${AS_LIST_OK}"
+        [ "${code}" = "404" ] && return "${AS_LIST_ABSENT}"
+        return "${AS_LIST_ERROR}"
+    fi
+
+    # -w appends the status as a final line; --fail is deliberately not used, so
+    # a 404 body is discarded but its status still reaches us.
+    local raw
+    raw=$(curl -sSL -w '\n%{http_code}' "${dir_url}/" 2>/dev/null || true)
+    code=$(printf '%s' "${raw}" | tail -1)
+    body=$(printf '%s' "${raw}" | sed '$d')
+    log_debug "list - ${dir_url}/ (${code:-000})"
+
+    local names=""
+    if [ "${code}" = "200" ]; then
+        names=$(printf '%s\n' "${body}" |
+            grep -oE 'href="[^"?][^"]*"' | sed 's/^href="//; s/"$//' |
+            grep -E '^[A-Za-z0-9][A-Za-z0-9._+~:-]*/?$' |
+            grep -vE '^\.\.?/?$' || true)
+    fi
+    if [ -n "${cached}" ]; then
+        # A 404 is the result most worth caching: the miss path re-probes it for
+        # every arch and every pattern.
+        printf '%s\n%s\n' "${code:-000}" "${names}" >"${cached}" 2>/dev/null || true
+    fi
+    printf '%s\n' "${names}"
+
+    [ "${code}" = "200" ] && return "${AS_LIST_OK}"
+    [ "${code}" = "404" ] && return "${AS_LIST_ABSENT}"
+    return "${AS_LIST_ERROR}"
+}
+
+# Cache file for one directory URL, or empty when caching is off.
+#
+# A directory listing does not change within one docker-build.sh run, and the
+# same URL is fetched once per arch times once per pattern -- 4x for a single
+# target, ~390 requests for a full -g against a JFrog repo. An in-memory
+# `declare -gA` cache cannot work here: every reader is inside $( ), so the
+# writes die with the subshell. A file survives it. AS_LIST_CACHE_DIR is created
+# and removed by docker-build.sh, so the cache never outlives the run that
+# built it -- a long -p that spans a JFrog publish still sees one consistent
+# snapshot rather than a stale one from an earlier invocation.
+function _list_cache_path() {
+    [ -n "${AS_LIST_CACHE_DIR:-}" ] && [ -d "${AS_LIST_CACHE_DIR}" ] || {
         echo ""
         return
     }
-    fetch "list" "${dir_url}/" 2>/dev/null |
-        grep -oE 'href="[^"?][^"]*"' | sed 's/^href="//; s/"$//' |
-        grep -E '^[A-Za-z0-9][A-Za-z0-9._+~:-]*/?$' |
-        grep -vE '^\.\.?/?$' || true
+    local key
+    key=$(printf '%s' "$1" | shasum -a 256 2>/dev/null | cut -c1-40) ||
+        key=$(printf '%s' "$1" | sha256sum | cut -c1-40)
+    echo "${AS_LIST_CACHE_DIR}/${key}"
 }
 
 # Directory holding native packages for one package name in a JFrog repo.
@@ -178,64 +244,121 @@ function artifactory_pkg_dir() {
 }
 
 # Echo the URL of the highest-versioned file in an Artifactory directory whose
-# name matches an ERE. Empty when the directory or a match is absent.
+# name matches an ERE. Empty when the directory or a match is absent; exit
+# status carries which, and AS_LIST_ERROR when the listing could not be read.
+#
+# The listing is captured before it is filtered. Piping straight out of
+# artifactory_list_names discards its exit status, which is the whole point of
+# having one.
 function artifactory_pick_latest() {
     local dir_url=$1 pattern=$2
-    local name
+    local name names rc=0
     [ -z "${dir_url}" ] && {
         echo ""
-        return
+        return "${AS_LIST_ABSENT}"
     }
-    name=$(artifactory_list_names "${dir_url}" | grep -E "${pattern}" | sort -V | tail -1)
+    names=$(artifactory_list_names "${dir_url}") || rc=$?
+    if [ "${rc}" -eq "${AS_LIST_ERROR}" ]; then
+        echo ""
+        return "${AS_LIST_ERROR}"
+    fi
+    name=$(printf '%s\n' "${names}" | grep -E "${pattern}" | sort -V | tail -1 || true)
     [ -z "${name}" ] && {
         echo ""
-        return
+        return "${AS_LIST_ABSENT}"
     }
     echo "${dir_url}/${name}"
 }
 
 # Like artifactory_pick_latest, but the arch is matched against the filename
-# under either spelling rather than being baked into the pattern.
+# under either spelling rather than being baked into the pattern, and several
+# patterns may be given: the first that matches anything wins.
+#
+# Taking a pattern list rather than being called once per pattern is what lets
+# the exact-then-loose retry share a single listing instead of re-fetching the
+# same directory for each.
 function artifactory_pick_latest_for_arch() {
-    local dir_url=$1 pattern=$2 arch=$3
-    local name
+    local dir_url=$1 arch=$2
+    shift 2
+    local name names pattern rc=0
     [ -z "${dir_url}" ] && {
         echo ""
-        return
+        return "${AS_LIST_ABSENT}"
     }
-    name=$(artifactory_list_names "${dir_url}" | grep -E "${pattern}" |
-        while read -r n; do
-            pkg_name_matches_arch "${n}" "${arch}" && echo "${n}"
-        done | sort -V | tail -1)
-    [ -z "${name}" ] && {
+    names=$(artifactory_list_names "${dir_url}") || rc=$?
+    if [ "${rc}" -eq "${AS_LIST_ERROR}" ]; then
         echo ""
-        return
-    }
-    echo "${dir_url}/${name}"
+        return "${AS_LIST_ERROR}"
+    fi
+    for pattern in "$@"; do
+        name=$(printf '%s\n' "${names}" | grep -E "${pattern}" |
+            while read -r n; do
+                pkg_name_matches_arch "${n}" "${arch}" && echo "${n}"
+            done | sort -V | tail -1 || true)
+        if [ -n "${name}" ]; then
+            echo "${dir_url}/${name}"
+            return "${AS_LIST_OK}"
+        fi
+    done
+    echo ""
+    return "${AS_LIST_ABSENT}"
+}
+
+# The package type a JFrog repo holds, inferred from its URL, or empty when the
+# URL does not say. The two published repos are single-format.
+function artifactory_repo_pkg_type() {
+    case "$1" in
+    *database-deb-*) echo "deb" ;;
+    *database-rpm-*) echo "rpm" ;;
+    *) echo "" ;;
+    esac
 }
 
 # Discover the latest version for a lineage in a JFrog repo by listing the
 # enterprise package directory for each distro the lineage supports.
+#
+# Returns AS_LIST_ERROR when a listing could not be read, so the caller can tell
+# "this lineage is not published" from "we could not find out" -- the second
+# must not silently drop a lineage from a release.
 function find_latest_version_for_lineage_artifactory() {
     local lineage=$1
-    local lineage_re
+    local lineage_re repo_type
     lineage_re=$(_ere_quote "${lineage}")
+    repo_type=$(artifactory_repo_pkg_type "${ARTIFACTS_DOMAIN}")
 
-    local versions="" distro artifact_distro pkg_type dir
+    local versions="" distro artifact_distro pkg_type dir names rc=0 failed=false
     # shellcheck disable=SC2086
     for distro in $(support_distros "${lineage}"); do
         pkg_type=$(support_distro_to_pkg_type "${distro}")
+        # A deb repo cannot hold el9 rpms. Probing it anyway is a guaranteed
+        # 404 per rpm distro, on the discovery path every run takes.
+        [ -n "${repo_type}" ] && [ "${pkg_type}" != "${repo_type}" ] && continue
         artifact_distro=$(support_distro_to_artifact_name "${distro}")
         dir=$(artifactory_pkg_dir "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "x86_64" "${pkg_type}" "aerospike-server-enterprise")
         [ -z "${dir}" ] && continue
+        rc=0
+        names=$(artifactory_list_names "${dir}") || rc=$?
+        if [ "${rc}" -eq "${AS_LIST_ERROR}" ]; then
+            log_warn "Cannot read ${dir} - treating ${lineage} as unresolved rather than absent"
+            failed=true
+            continue
+        fi
         versions="${versions}
-$(artifactory_list_names "${dir}" | grep -E "\\.${pkg_type}\$" |
+$(printf '%s\n' "${names}" | grep -E "\\.${pkg_type}\$" |
             grep -oE "${lineage_re}\\.[0-9]+\\.[0-9]+" || true)"
     done
 
     # || true: grep exits 1 when no version matched, which under set -e would
     # kill the caller's $(...) assignment instead of yielding an empty result.
     echo "${versions}" | grep -vE '^$' | sort -V | tail -1 || true
+
+    # A version found despite one bad listing is still a real answer; only
+    # report an error when nothing resolved and a listing failed, because that
+    # is the case indistinguishable from "not published".
+    if [ "${failed}" = true ] && [ -z "$(echo "${versions}" | grep -vE '^$' || true)" ]; then
+        return "${AS_LIST_ERROR}"
+    fi
+    return "${AS_LIST_OK}"
 }
 
 # Find local server package file; echo path if found, else empty. Search base and base/version.
@@ -600,19 +723,20 @@ function get_server_package_link_native() {
         distro_re=$(_ere_quote "${artifact_distro}")
         dir=$(artifactory_pkg_dir "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${arch}" "${pkg_type}" "aerospike-server-${edition}")
         # Exact <version>-<rev> match first, then a looser one so pre-release
-        # version strings (e.g. 8.1.1.0-start-16-gea126d3) still resolve.
+        # version strings (e.g. 8.1.1.0-start-16-gea126d3) still resolve. Both
+        # patterns are tried against one listing rather than one call each.
+        local rc=0
         if [ "${pkg_type}" = "rpm" ]; then
-            link=$(artifactory_pick_latest "${dir}" "^aerospike-server-${edition}-${version_re}-[0-9]+\\.${distro_re}\\.${arch}\\.rpm$")
-            if [ -z "${link}" ]; then
-                link=$(artifactory_pick_latest "${dir}" "^aerospike-server-${edition}-${version_re}[-.].*\\.${arch}\\.rpm$")
-            fi
+            link=$(artifactory_pick_latest_for_arch "${dir}" "${arch}" \
+                "^aerospike-server-${edition}-${version_re}-[0-9]+\\.${distro_re}\\.${arch}\\.rpm$" \
+                "^aerospike-server-${edition}-${version_re}[-.].*\\.${arch}\\.rpm$") || rc=$?
         else
-            link=$(artifactory_pick_latest "${dir}" "^aerospike-server-${edition}_${version_re}-[0-9]+${distro_re}_${deb_arch}\\.deb$")
-            if [ -z "${link}" ]; then
-                link=$(artifactory_pick_latest "${dir}" "^aerospike-server-${edition}_${version_re}[-_].*_${deb_arch}\\.deb$")
-            fi
+            link=$(artifactory_pick_latest_for_arch "${dir}" "${arch}" \
+                "^aerospike-server-${edition}_${version_re}-[0-9]+${distro_re}_${deb_arch}\\.deb$" \
+                "^aerospike-server-${edition}_${version_re}[-_].*_${deb_arch}\\.deb$") || rc=$?
         fi
         echo "${link}"
+        [ "${rc}" -eq "${AS_LIST_ERROR}" ] && return "${AS_LIST_ERROR}"
         return
     fi
 
@@ -751,13 +875,24 @@ function get_asadm_package_link_native() {
 
     # Distro-qualified match first, then any asadm package for this arch, so
     # plain directories that do not embed the distro in the filename still work.
-    local link ext="deb"
+    # Both patterns share one listing.
+    local link ext="deb" rc=0
     [ "${pkg_type}" = "rpm" ] && ext="rpm"
-    link=$(artifactory_pick_latest_for_arch "${dir}" "^aerospike-asadm[-_].*${distro_re}.*\\.${ext}$" "${arch}")
-    if [ -z "${link}" ]; then
-        link=$(artifactory_pick_latest_for_arch "${dir}" "^aerospike-asadm[-_].*\\.${ext}$" "${arch}")
-    fi
+    link=$(artifactory_pick_latest_for_arch "${dir}" "${arch}" \
+        "^aerospike-asadm[-_].*${distro_re}.*\\.${ext}$" \
+        "^aerospike-asadm[-_].*\\.${ext}$") || rc=$?
     echo "${link}"
+
+    # A source the user named explicitly either yields a package or says why
+    # not. Silence is only acceptable for the default repo, where "not published
+    # yet" is the expected answer and building without asadm is sanctioned.
+    if [ "${rc}" -eq "${AS_LIST_ERROR}" ]; then
+        if [ -n "${ASADM_DOMAIN}" ]; then
+            log_warn "Cannot read the asadm source you gave with -A: ${dir}"
+            return "${AS_LIST_ERROR}"
+        fi
+        log_warn "Cannot read the default asadm repo (${dir}) - continuing without asadm"
+    fi
 }
 
 # Find local tools package; echo path if found, else empty.

@@ -49,7 +49,12 @@ function generate_dockerfiles() {
     elif [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+$ ]]; then
         local lineage="${version_or_lineage}"
         local version tools_version
-        version=$(find_latest_version_for_lineage "${lineage}")
+        local _rc=0
+        version=$(find_latest_version_for_lineage "${lineage}") || _rc=$?
+        if [ "${_rc}" -eq "${AS_LIST_ERROR}" ]; then
+            log_warn "${lineage} -> could not be resolved (the package source could not be read)"
+            exit 1
+        fi
         [ -z "${version}" ] && {
             log_warn "${lineage} -> NOT FOUND"
             exit 1
@@ -67,7 +72,17 @@ function generate_dockerfiles() {
         # shellcheck disable=SC2086
         for lineage in $(support_releases); do
             local version tools_version
-            version=$(find_latest_version_for_lineage "${lineage}")
+            # An unreadable source is not the same fact as an unpublished
+            # lineage. Continuing on the first silently drops a lineage from an
+            # all-lineages run while the survivors keep the count non-zero, so
+            # the run reaches bake with a partial matrix at exit 0.
+            local _rc=0
+            version=$(find_latest_version_for_lineage "${lineage}") || _rc=$?
+            if [ "${_rc}" -eq "${AS_LIST_ERROR}" ]; then
+                log_warn "${lineage} -> could not be resolved (the package source could not be read)."
+                log_warn "Refusing to continue: a lineage dropped this way would leave the run short."
+                exit 1
+            fi
             [ -z "${version}" ] && {
                 log_warn "${lineage} -> NOT FOUND"
                 G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
@@ -164,8 +179,14 @@ function generate_dockerfiles() {
                     fi
 
                     # shellcheck disable=SC2034  # set by resolve_packages, consumed by update_dockerfile
-                    local x86_link x86_sha arm_link arm_sha pkg_format
+                    local x86_link x86_sha arm_link arm_sha pkg_format asadm_unreadable
                     resolve_packages "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${single_arch}" "${pkg_type}"
+
+                    if [ "${asadm_unreadable}" = true ]; then
+                        log_warn "    Skipping ${edition}/${distro} - the asadm source given with -A could not be read"
+                        G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
+                        continue
+                    fi
 
                     if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
                         log_warn "    Skipping ${edition}/${distro} - package not available"

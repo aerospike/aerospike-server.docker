@@ -24,7 +24,7 @@ WORK=$(mktemp -d)
 SRV_PID=""
 FAILED=0
 SCENARIOS=0
-EXPECTED_SCENARIOS=16
+EXPECTED_SCENARIOS=21
 CURRENT_LOG="${WORK}/out.log"
 
 FORCE=false
@@ -436,6 +436,70 @@ check "skipped target omitted" "ubi10 in bake file" \
 check "omission reported" "warning present" \
     "$(grep -c 'Omitting releases/8.1/enterprise/ubi10' "${CURRENT_LOG}" || true)" "1"
 rm -f bake-multi.hcl
+
+scenario "a 404 asadm source is absent, not an error"
+# Promise 3's case: the package is authoritatively not published, so the image
+# is built without it and the run succeeds.
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/noasadm" \
+    -A "${BASE}-nosuchrepo" && rc404=0 || rc404=$?
+check "run succeeds" "exit code" "${rc404}" "0"
+check "target still generated" "server files" "$(staged_count 'aerospike-server')" "2"
+check "no asadm staged" "asadm files" "$(staged_count asadm)" "0"
+
+scenario "an unreadable -A fails the target instead of dropping asadm"
+# A source the user named explicitly either yields a package or says why not.
+# A closed port gives curl no HTTP status at all, which is the case that used to
+# be indistinguishable from "not published yet".
+DEADPORT=$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/noasadm" \
+    -A "http://127.0.0.1:${DEADPORT}/artifactory/database-deb-prod-public-local" && rcA=0 || rcA=$?
+check "run fails" "exit code" "${rcA}" "1"
+check "reported as unreadable, not absent" "warning present" \
+    "$(grep -q 'could not be read' "${CURRENT_LOG}" && echo yes || echo no)" "yes"
+check "not reported as merely absent" "\"will have none\" warning" \
+    "$(grep -c 'will have none' "${CURRENT_LOG}" || true)" "0"
+check "nothing staged into the target" "server files" "$(staged_count 'aerospike-server')" "0"
+
+scenario "an unreadable server source aborts instead of dropping a lineage"
+# The partial-release path: on an all-lineages run a dropped lineage leaves the
+# survivors' count non-zero, so the run would reach bake a lineage short.
+gen -e enterprise -d ubuntu24.04 \
+    -u "http://127.0.0.1:${DEADPORT}/artifactory/database-deb-prod-public-local" && rcU=0 || rcU=$?
+check "run fails" "exit code" "${rcU}" "1"
+check "refuses rather than continuing" "warning present" \
+    "$(grep -q 'could not be read' "${CURRENT_LOG}" && echo yes || echo no)" "yes"
+check "releases/ intact" "Dockerfile count" \
+    "$(dockerfile_count "releases/${LINEAGE}")" "$(git ls-files "releases/${LINEAGE}" | grep -c Dockerfile)"
+
+scenario "a pre-release version resolves through the loose pattern"
+# The exact pattern requires <version>-<rev>; a pre-release string
+# (8.1.1.0-start-16-g216a75438) only matches the looser second pattern. Both are
+# now tried against one listing, so a regression that keeps only the first
+# pattern would silently stop resolving these.
+# -rc2 rather than -1ubuntu24.04: the exact pattern requires a numeric revision
+# followed by the distro, so this filename is reachable only through the loose
+# one. A fixture that also matched the exact pattern would prove nothing.
+PRE="8.1.1.0-start-16-g216a75438"
+PRE_POOL="${WORK}/repo/artifactory/database-deb-prod-public-local-pre/pool/noble/aerospike-server-enterprise"
+mk_pkg "${PRE_POOL}/aerospike-server-enterprise_${PRE}-rc2_amd64.deb"
+mk_pkg "${PRE_POOL}/aerospike-server-enterprise_${PRE}-rc2_arm64.deb"
+gen "${PRE}" -e enterprise -d ubuntu24.04 -u "${BASE}-pre" --no-asadm || true
+check "pre-release server resolved" "serverUrl count" \
+    "$(grep -c "serverUrl='http" "${DF}" || true)" "2"
+check "resolved the pre-release build" "version in serverUrl" \
+    "$(grep -c "serverUrl='http[^']*${PRE}" "${DF}" || true)" "2"
+
+scenario "each directory listing is fetched once per run"
+# Two arches times the exact/loose retry re-fetched one arch-independent pool
+# URL four times. The patterns now share a listing and the listing is cached for
+# the run, so the same directory is requested once.
+: >"${CURL_LOG}"
+PATH="${WORK}/stub:${PATH}" gen "${VERSION}" -e enterprise -d ubuntu24.04 \
+    -u "${WORK}/a" -A "${BASE}" || true
+check "asadm pool listed exactly once" "listing requests" \
+    "$(grep -c "database-deb-prod-public-local/pool/noble/aerospike-asadm/\$" "${CURL_LOG}" || true)" "1"
+check "still resolved both arches" "asadmUrl count" \
+    "$(grep -c "asadmUrl='http" "${DF}" || true)" "2"
 
 echo
 if [ "${SCENARIOS}" -ne "${EXPECTED_SCENARIOS}" ]; then

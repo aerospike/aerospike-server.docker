@@ -372,6 +372,14 @@ function main() {
         exit 1
     fi
 
+    # One directory listing per distinct URL per run. Established here, before
+    # any resolution, because every reader is inside $( ) and could not create
+    # or share it from there. Removed on exit, so a later run never sees a
+    # snapshot taken before a publish.
+    AS_LIST_CACHE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/as-listcache.XXXXXX")
+    export AS_LIST_CACHE_DIR
+    trap 'rm -rf "${AS_LIST_CACHE_DIR}"' EXIT
+
     [ ${#REGISTRY_PREFIXES[@]} -eq 0 ] && REGISTRY_PREFIXES=("aerospike")
     [ -n "${custom_url}" ] && export ARTIFACTS_DOMAIN="${custom_url}"
     [ -n "${asadm_url}" ] && export ASADM_DOMAIN="${asadm_url}"
