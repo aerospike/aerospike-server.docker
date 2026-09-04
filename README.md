@@ -485,7 +485,10 @@ Dockerfiles are **persistent** (checked into the repo) and compact. All installa
 	    -u, --url URL       Server package source: artifacts URL, direct edition URL,
 	                        JFrog repo, local directory, or a single local .deb/.rpm
 	    -A, --asadm-url URL Source for the standalone aerospike-asadm package.
-	                        Default: the JFrog database-{deb,rpm}-prod-public-local repo.
+	                        Default: the JFrog database-{deb,rpm}-prod-public-local repo,
+	                        unless -u is a local path, in which case only that path is
+	                        searched and nothing is fetched - even when it holds no
+	                        asadm package.
 	                        Accepts a repo URL, HTTP directory, local directory, or a
 	                        direct .deb/.rpm. Native .deb/.rpm builds only - the *.tgz
 	                        bundles already ship asadm inside aerospike-tools.

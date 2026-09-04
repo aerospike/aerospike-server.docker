@@ -104,6 +104,15 @@ function support_distro_to_artifact_name() {
     esac
 }
 
+# Every artifact distro name this tool recognises, including ones no longer
+# built for -- a package filename naming a retired distro must still be
+# recognised as distro-specific rather than treated as portable. Used to tell a
+# hand-named, distro-less package from one built for a different distro. Keep in
+# step with the case above and with support_distro_to_apt_suite.
+function support_artifact_distros() {
+    echo "ubuntu20.04 ubuntu22.04 ubuntu24.04 el8 el9 el10"
+}
+
 # Map an artifact distro name to its Debian/Ubuntu apt suite (the codename used
 # as the pool/ and dists/ path component in the JFrog apt repos). Empty for
 # non-deb distros.

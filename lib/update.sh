@@ -318,6 +318,8 @@ function resolve_packages() {
         fi
     fi
 
+    drop_unchecksummed_arches
+
     if [ "${single_arch}" = "amd64" ]; then
         arm_link=""
         arm_sha=""

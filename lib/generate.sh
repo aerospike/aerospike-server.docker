@@ -24,6 +24,13 @@ function generate_dockerfiles() {
     # Counts targets actually written; a run that produces none must not fall
     # through to a build against whatever stale Dockerfiles are in releases/.
     declare -g G_GENERATED_COUNT=0
+    # The targets this run actually wrote. A skipped target keeps its committed
+    # Dockerfile on disk -- the clean is per-target now -- and generate_bake
+    # selects by directory existence while tagging with the version resolved
+    # this run, so without this list a skipped lineage would be published under
+    # the new version's tags carrying the previous build's contents.
+    declare -ga G_GENERATED_TARGETS=()
+    declare -g G_SKIPPED_COUNT=0
 
     # --- Resolve version(s) ---
     if [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; then
@@ -63,6 +70,7 @@ function generate_dockerfiles() {
             version=$(find_latest_version_for_lineage "${lineage}")
             [ -z "${version}" ] && {
                 log_warn "${lineage} -> NOT FOUND"
+                G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
                 continue
             }
             tools_version=$(find_tools_version "${version}")
@@ -138,6 +146,9 @@ function generate_dockerfiles() {
                     # Full generate (or Dockerfile missing -- auto-fallback)
                     if generate_dockerfile "${lineage}" "${distro}" "${edition}" "${version}" "${tools_version}"; then
                         G_GENERATED_COUNT=$((G_GENERATED_COUNT + 1))
+                        G_GENERATED_TARGETS+=("${target}")
+                    else
+                        G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
                     fi
                 else
                     # In-place update
@@ -158,6 +169,7 @@ function generate_dockerfiles() {
 
                     if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
                         log_warn "    Skipping ${edition}/${distro} - package not available"
+                        G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
                         continue
                     fi
 
@@ -175,6 +187,7 @@ function generate_dockerfiles() {
 
                     update_dockerfile "${target}" "${version}" "${single_arch}"
                     G_GENERATED_COUNT=$((G_GENERATED_COUNT + 1))
+                    G_GENERATED_TARGETS+=("${target}")
                 fi
             done
         done

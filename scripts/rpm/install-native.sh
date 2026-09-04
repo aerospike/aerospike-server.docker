@@ -105,10 +105,17 @@ if [ "${serverFound}" = false ]; then
     echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"
     exit 1
 fi
+# aerospike-asadm* rather than aerospike-asadm-*: the resolver accepts both
+# separators (aerospike-asadm[-_]), so requiring the hyphen here would let a
+# locally staged aerospike-asadm_5.0.3-....rpm be resolved, logged as included
+# and copied in, then matched by none of these globs -- an image that ships
+# without asadm while the generation log says it has it. The server and tools
+# packages still cannot match: their names begin aerospike-server- /
+# aerospike-tools-.
 for f in /tmp/aerospike/aerospike-tools-*."${ARCH}".rpm \
-    /tmp/aerospike/aerospike-asadm-*."${ARCH}".rpm \
-    /tmp/aerospike/aerospike-asadm-*."${ALT_ARCH}".rpm \
-    /tmp/aerospike/aerospike-asadm-*.noarch.rpm; do
+    /tmp/aerospike/aerospike-asadm*."${ARCH}".rpm \
+    /tmp/aerospike/aerospike-asadm*."${ALT_ARCH}".rpm \
+    /tmp/aerospike/aerospike-asadm*.noarch.rpm; do
     if [ -f "${f}" ]; then pkgs+=("${f}"); fi
 done
 rpm -i --excludedocs "${pkgs[@]}"

@@ -57,6 +57,19 @@ function asadm_domain_for_pkg_type() {
     fi
 }
 
+# The source get_asadm_package_link_native actually searched, for reporting.
+# It takes the local -u branch before consulting asadm_domain_for_pkg_type, so
+# using that function alone names a JFrog host the run never contacted -- which
+# is every local native build, since asadm is not published there yet. The
+# precedence lives here, beside the resolver that implements it.
+function asadm_source_for_pkg_type() {
+    if [ -z "${ASADM_DOMAIN}" ] && is_local_artifacts_dir; then
+        echo "${ARTIFACTS_DOMAIN}"
+    else
+        asadm_domain_for_pkg_type "$1"
+    fi
+}
+
 # Check if -u points to a local directory (not http/https)
 function is_local_artifacts_dir() {
     [[ "${ARTIFACTS_DOMAIN}" != http* ]]
@@ -70,8 +83,8 @@ function _ere_quote() {
 # True when a package filename names the given arch, under either spelling
 # (amd64/x86_64, arm64/aarch64), or is arch-independent. Both spellings are
 # accepted because Aerospike publishes asadm debs as _aarch64.deb while the
-# server debs use the dpkg _arm64.deb. This is the single implementation of
-# arch matching for asadm.
+# server debs use the dpkg _arm64.deb. The container-side counterparts are the
+# ALT_ARCH globs in scripts/{deb,rpm}/install-native.sh; keep all three in step.
 function pkg_name_matches_arch() {
     local name=$1 arch=$2
     local deb_arch="${arch}"
@@ -83,6 +96,46 @@ function pkg_name_matches_arch() {
     *"${arch}"* | *"${deb_arch}"* | *_all.deb | *.noarch.rpm) return 0 ;;
     esac
     return 1
+}
+
+# True when a package filename carries exactly the given version, not merely a
+# string containing it. A plain substring test accepts 8.1.2.40 for a requested
+# 8.1.2.4 -- the fourth component is a build number that routinely reaches
+# double digits -- producing an image labelled and tagged with the wrong
+# version. The version must be delimited on both sides: preceded by -, _ or .,
+# and followed by anything that cannot continue the number.
+function pkg_name_matches_version() {
+    local name version_re
+    name=$(basename "$1")
+    version_re="[-_.]$(_ere_quote "$2")([^0-9.]|\.[^0-9]|$)"
+    [[ "${name}" =~ ${version_re} ]]
+}
+
+# True when a package filename names any distro this tool knows how to build
+# for. Used to tell a hand-named, distro-less package (safe to use anywhere)
+# from one built for a different distro (never safe). The list is derived from
+# support_distro_to_artifact_name so adding a distro does not need a second
+# edit here.
+function pkg_name_names_a_distro() {
+    local name d
+    name=$(basename "$1")
+    for d in $(support_artifact_distros); do
+        [[ "${name}" == *"${d}"* ]] && return 0
+    done
+    return 1
+}
+
+# Newest path from a newline-separated list, keeping only names that carry
+# exactly the given version. The find globs above are substring matches, so
+# without this a directory holding both 8.1.2.4 and 8.1.2.40 resolves to the
+# latter -- disagreeing with the single-file branch about the same packages.
+function _pick_versioned() {
+    local version=$1 paths=$2 f out=""
+    while IFS= read -r f; do
+        [ -n "${f}" ] || continue
+        pkg_name_matches_version "${f}" "${version}" && out+="${f}"$'\n'
+    done <<<"${paths}"
+    printf '%s' "${out}" | grep -vE '^$' | sort -V | tail -1 || true
 }
 
 # List the entry names in an Artifactory directory index (HTML autoindex).
@@ -187,8 +240,8 @@ $(artifactory_list_names "${dir}" | grep -E "\\.${pkg_type}\$" |
 
 # Find local server package file; echo path if found, else empty. Search base and base/version.
 # Tries exact filename first, then glob match (e.g. *server*edition*arch*.rpm).
-# base_dir may also be a single .deb/.rpm file, which is used directly when it
-# names the requested edition and arch.
+# base_dir may also be a single .deb/.rpm file, which is used directly when its
+# filename names the requested package type, edition, version, distro and arch.
 function find_local_server_package() {
     local base_dir=$1
     local artifact_distro=$2
@@ -199,14 +252,16 @@ function find_local_server_package() {
 
     if [ -f "${base_dir}" ]; then
         # Enforce the same facts the directory branches below enforce, so a
-        # single file cannot be handed to the wrong package type, version or
-        # edition. artifact_distro is deliberately not tested: -d ubuntu
-        # expands to several distros and would silently skip all but one.
+        # single file cannot be handed to the wrong package type, version,
+        # edition, distro or arch. -d ubuntu expands to one target per concrete
+        # distro, each with a resolved artifact_distro, so testing it here skips
+        # the mismatched targets rather than all but one.
         local _name _ok=true
         _name=$(basename "${base_dir}")
         [[ "${_name}" == *".${pkg_type}" ]] || _ok=false
         [[ "${_name}" == *"${edition}"* ]] || _ok=false
-        [[ "${_name}" == *"${version}"* ]] || _ok=false
+        pkg_name_matches_version "${_name}" "${version}" || _ok=false
+        [[ "${_name}" == *"${artifact_distro}"* ]] || _ok=false
         pkg_name_matches_arch "${_name}" "${arch}" || _ok=false
         if "${_ok}"; then
             echo "${base_dir}"
@@ -256,7 +311,8 @@ function find_local_server_package() {
         # to avoid picking up stale packages from a previous -u run).
         for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
+            found=$(_pick_versioned "${version}" \
+                "$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null)")
             [ -n "${found}" ] && echo "${found}" && return
         done
     else
@@ -271,7 +327,8 @@ function find_local_server_package() {
         # to avoid picking up stale packages from a previous -u run).
         for dir in "${search_dirs[@]}"; do
             [ -d "${dir}" ] || continue
-            found=$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
+            found=$(_pick_versioned "${version}" \
+                "$(find "${dir}" -maxdepth 1 -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null)")
             [ -n "${found}" ] && echo "${found}" && return
         done
     fi
@@ -283,12 +340,12 @@ function find_local_server_package() {
         if [ "${pkg_type}" = "rpm" ]; then
             for f in "${dir}"/*.rpm; do
                 [ -f "${f}" ] || continue
-                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${version}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${arch}"* ]] && echo "${f}" && return
+                [[ "${f}" = *"${edition}"* ]] && pkg_name_matches_version "${f}" "${version}" && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${arch}"* ]] && echo "${f}" && return
             done
         else
             for f in "${dir}"/*.deb; do
                 [ -f "${f}" ] || continue
-                [[ "${f}" = *"${edition}"* ]] && [[ "${f}" = *"${version}"* ]] && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${deb_arch}"* ]] && echo "${f}" && return
+                [[ "${f}" = *"${edition}"* ]] && pkg_name_matches_version "${f}" "${version}" && [[ "${f}" = *"${artifact_distro}"* ]] && [[ "${f}" = *"${deb_arch}"* ]] && echo "${f}" && return
             done
         fi
     done
@@ -296,9 +353,11 @@ function find_local_server_package() {
     # Recursive: search nested layouts (e.g. releases/7.1/.../pkg), version-aware.
     if [ -d "${base_dir}" ]; then
         if [ "${pkg_type}" = "rpm" ]; then
-            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | sort -V | tail -1)
+            found=$(_pick_versioned "${version}" \
+                "$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null)")
         else
-            found=$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null | sort -V | tail -1)
+            found=$(_pick_versioned "${version}" \
+                "$(find "${base_dir}" -type f -name "aerospike-server*${edition}*${version}*${artifact_distro}*${deb_arch}*.deb" 2>/dev/null)")
         fi
         [ -n "${found}" ] && echo "${found}" && return
     fi
@@ -587,17 +646,34 @@ function find_local_asadm_package() {
     local ext="deb"
     [ "${pkg_type}" = "rpm" ] && ext="rpm"
 
-    local candidates found
+    local candidates found qualified unqualified f
     candidates=$(find "${base_dir}" -type f -name "aerospike-asadm[-_]*.${ext}" 2>/dev/null |
         while read -r f; do
             pkg_name_matches_arch "${f}" "${arch}" && echo "${f}"
         done)
 
-    # Distro-qualified match first so an el10 (or ubuntu24.04) package is never
-    # handed to an el9 (or ubuntu22.04) image.
-    found=$(echo "${candidates}" | grep -F "${artifact_distro}" | sort -V | tail -1 || true)
+    # Both tiers test the basename, never the path: candidates are absolute
+    # paths from a recursive find, so a path test makes ~/pkgs/ubuntu24.04/
+    # qualify a ubuntu22.04 package, and excluding known distros by path drops
+    # legitimate distro-less packages that merely live under rel9/ or model3/.
+    qualified=""
+    unqualified=""
+    while IFS= read -r f; do
+        [ -n "${f}" ] || continue
+        if [[ "$(basename "${f}")" == *"${artifact_distro}"* ]]; then
+            qualified+="${f}"$'\n'
+        elif ! pkg_name_names_a_distro "${f}"; then
+            unqualified+="${f}"$'\n'
+        fi
+    done <<<"${candidates}"
+
+    # Distro-qualified match first, so an el10 (or ubuntu24.04) package is never
+    # handed to an el9 (or ubuntu22.04) image. The fallback accepts only
+    # packages that name no distro at all -- hand-built or hand-renamed ones --
+    # rather than any package, which is what let a wrong-distro package through.
+    found=$(printf '%s' "${qualified}" | grep -vE '^$' | sort -V | tail -1 || true)
     if [ -z "${found}" ]; then
-        found=$(echo "${candidates}" | grep -vE '^$' | sort -V | tail -1 || true)
+        found=$(printf '%s' "${unqualified}" | grep -vE '^$' | sort -V | tail -1 || true)
     fi
     echo "${found}"
 }
@@ -772,31 +848,75 @@ function get_tools_package_link_native() {
 }
 
 # Fetch SHA256 for any package URL or local file path (reads link.sha256 sidecar).
+#
+# Every branch assigns into one variable and the result is validated once, at
+# the end. A checksum is substituted into a single-quoted shell assignment in
+# the generated Dockerfile (serverSha='...', asadmSha='...'), so a value
+# carrying a quote closes it and the remainder runs as root at docker build
+# time -- from a Dockerfile committed to a public repo, and before the
+# sha256sum check it was supposed to feed. Remote sidecars and the
+# X-Checksum-Sha256 header are attacker-controlled over plain HTTP; a local
+# sidecar is whatever scripts/shasum-artifacts.sh or the user put next to the
+# package. Neither is trusted, so both go through the same gate.
 function fetch_sha_for_link() {
     local link=$1
+    local sha=""
     [ -z "${link}" ] && {
         echo ""
         return
     }
     if [[ "${link}" != http* ]]; then
         # Local file: read .sha256 sidecar if present, else compute the hash.
+        # The || true is load-bearing: without it pipefail turns a cut failure
+        # into a caller exit from inside $( ).
         if [ -f "${link}.sha256" ]; then
-            cut -f1 -d' ' <"${link}.sha256"
+            sha=$(cut -f1 -d' ' <"${link}.sha256" || true)
         elif [ -f "${link}" ]; then
-            sha256sum "${link}" 2>/dev/null | cut -f1 -d' '
-        else
-            echo ""
+            sha=$(sha256sum "${link}" 2>/dev/null | cut -f1 -d' ' || true)
         fi
-        return
+    else
+        sha=$(fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' ' || true)
+        if [ -z "${sha}" ]; then
+            # Fall back to the digest header when no .sha256 sidecar is served.
+            sha=$(curl -fsSLI "${link}" 2>/dev/null | tr -d '\r' |
+                awk 'tolower($1) == "x-checksum-sha256:" { print $2 }' | tail -1 || true)
+        fi
     fi
-    local sha
-    sha=$(fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' ' || true)
-    if [ -z "${sha}" ]; then
-        # Fall back to the digest header when no .sha256 sidecar is served.
-        sha=$(curl -fsSLI "${link}" 2>/dev/null | tr -d '\r' |
-            awk 'tolower($1) == "x-checksum-sha256:" { print $2 }' | tail -1 || true)
+    if [ -n "${sha}" ] && [[ ! "${sha}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+        log_warn "Ignoring malformed SHA256 for ${link}"
+        sha=""
     fi
     echo "${sha}"
+}
+
+# Drop any arch whose remote package has no usable checksum, reading and writing
+# the caller's x86_link/arm_link/asadm_*_link (the same dynamic scoping
+# resolve_packages uses). A live URL beside an empty digest is not a degraded
+# build, it is an unbuildable one: the install script runs
+# `sha256sum --strict --check` on the empty value and the RUN fails. Both the
+# generate and update paths call this, so the two cannot drift apart.
+#
+# The arch is dropped rather than the whole target: get_package_link composes a
+# tgz URL with no existence check, so when only one arch is published a
+# whole-target skip would lose the arch that does build.
+function drop_unchecksummed_arches() {
+    if [[ "${x86_link:-}" == http* ]] && [ -z "${x86_sha:-}" ]; then
+        log_warn "    No SHA256 for ${x86_link} - dropping amd64"
+        x86_link=""
+    fi
+    if [[ "${arm_link:-}" == http* ]] && [ -z "${arm_sha:-}" ]; then
+        log_warn "    No SHA256 for ${arm_link} - dropping arm64"
+        arm_link=""
+    fi
+    # asadm is explicitly optional, so an absent one is not a build failure.
+    if [[ "${asadm_x86_link:-}" == http* ]] && [ -z "${asadm_x86_sha:-}" ]; then
+        log_warn "    No SHA256 for ${asadm_x86_link} - amd64 asadm dropped"
+        asadm_x86_link=""
+    fi
+    if [[ "${asadm_arm_link:-}" == http* ]] && [ -z "${asadm_arm_sha:-}" ]; then
+        log_warn "    No SHA256 for ${asadm_arm_link} - arm64 asadm dropped"
+        asadm_arm_link=""
+    fi
 }
 
 # Fetch SHA256 checksum for a package (tgz)

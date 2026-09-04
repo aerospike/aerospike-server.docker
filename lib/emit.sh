@@ -84,6 +84,10 @@ function generate_dockerfile() {
         asadm_x86_sha=""
     fi
 
+    # Runs before the skip check below, the per-arch asadm report and the
+    # has_local staging loop, so all three see only links that can actually build.
+    drop_unchecksummed_arches
+
     # Skip when no package is available for any arch still being built
     if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
         log_warn "    Skipping - package not available"
@@ -101,22 +105,11 @@ function generate_dockerfile() {
         fi
     fi
 
-    # A remote package with no resolvable checksum would fail the build's
-    # sha256sum check; surface it here rather than at docker build time.
-    local -a _links=("${x86_link}" "${arm_link}" "${asadm_x86_link}" "${asadm_arm_link}")
-    local -a _shas=("${x86_sha}" "${arm_sha}" "${asadm_x86_sha}" "${asadm_arm_sha}")
-    local _i
-    for _i in "${!_links[@]}"; do
-        if [[ "${_links[${_i}]}" == http* ]] && [ -z "${_shas[${_i}]}" ]; then
-            log_warn "    No SHA256 available for ${_links[${_i}]}"
-        fi
-    done
-
     # Reported per arch: a concatenation test would log "Including asadm" when
     # only one arch resolved, while the other image silently shipped without it.
     if "${use_native}" && [ "${ASADM_DISABLED}" != true ]; then
         local _asadm_src
-        _asadm_src=$(asadm_domain_for_pkg_type "${pkg_type}")
+        _asadm_src=$(asadm_source_for_pkg_type "${pkg_type}")
         if [ -n "${x86_link}" ]; then
             if [ -n "${asadm_x86_link}" ]; then
                 log_info "    Including asadm (amd64): $(basename "${asadm_x86_link}")"
@@ -134,10 +127,16 @@ function generate_dockerfile() {
     fi
 
     # --- Prepare target directory ---
-    # Cleaned here, not up front: nothing committed is removed until this target
-    # is known to be buildable and is about to be rewritten.
-    rm -rf "${target}"
+    # Only stale package files are removed, matching update.sh's purge. An
+    # `rm -rf "${target}"` also deletes the committed entrypoint.sh and
+    # aerospike.template.conf, and this function runs as an `if` condition with
+    # errexit suspended, so a failed cp below would neither abort nor change the
+    # return status -- the loss would surface only at docker build time. The
+    # cp's overwrite idempotently, so nothing else needs deleting.
     mkdir -p "${target}"
+    rm -f "${target}"/aerospike-server-*."${pkg_type}" \
+        "${target}"/aerospike-tools-*."${pkg_type}" \
+        "${target}"/aerospike-asadm[-_]*."${pkg_type}" 2>/dev/null || true
     cp template/0/entrypoint.sh "${target}/"
     chmod +x "${target}/entrypoint.sh"
     cp template/7/aerospike.template.conf "${target}/"
@@ -271,6 +270,9 @@ RUN \
     fi
 
     # --- Emit Dockerfile ---
+    # Written outside releases/, where none of the tree's globbers can see it.
+    local _df
+    _df=$(mktemp "${TMPDIR:-/tmp}/as-dockerfile.XXXXXX")
     {
         cat <<HEADER
 
@@ -334,24 +336,32 @@ HEADER
         echo ""
 
         cat "${SCRIPT_DIR}/lib/dockerfile_fragment_footer.docker"
-    } | sed 's/[[:space:]]*$//' | cat -s >"${target}/Dockerfile"
+    } | sed 's/[[:space:]]*$//' | cat -s >"${_df}"
 
     # Ensure file ends with newline
-    if [ -n "$(tail -c1 "${target}/Dockerfile" 2>/dev/null)" ]; then
-        echo >>"${target}/Dockerfile"
+    if [ -n "$(tail -c1 "${_df}" 2>/dev/null)" ]; then
+        echo >>"${_df}"
     fi
 
     # The caller invokes this as an `if` condition, which suspends errexit for
     # the whole body: a mid-function failure (a broken template, a failed
-    # sed/awk, a full disk) would neither abort nor change the return status,
-    # and the redirect above has already truncated the file. Validate the
-    # artifact so a success return means "wrote a usable Dockerfile".
-    local _df="${target}/Dockerfile"
+    # sed/awk, a full disk) would neither abort nor change the return status.
+    # Validate before the file reaches releases/, so a failed generation leaves
+    # the committed Dockerfile untouched instead of replacing it with one this
+    # code has just declared unusable.
+    #
+    # The sentinel is owned by lib/sh_to_dockerfile_run.sh; matching a hand-typed
+    # copy would break every generation the first time that module reformatted
+    # its output.
     local _marker
-    for _marker in '^FROM ' '^  echo "done";$' '^ENTRYPOINT ' '^CMD '; do
+    for _marker in '^FROM ' "^$(_ere_quote "${DOCKERFILE_RUN_SENTINEL}")\$" '^ENTRYPOINT ' '^CMD '; do
         if ! grep -qE "${_marker}" "${_df}" 2>/dev/null; then
             log_warn "    Generation produced an incomplete Dockerfile (missing ${_marker})"
+            rm -f "${_df}"
             return 1
         fi
     done
+
+    # One rename(2): the committed Dockerfile is never absent or half-written.
+    mv "${_df}" "${target}/Dockerfile"
 }

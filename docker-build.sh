@@ -132,9 +132,9 @@ PACKAGE SOURCES (-u for the server, -A for asadm):
         then recursively. Matches are version-aware, so stale packages from an
         earlier run are never picked up.
     A single local .deb/.rpm file
-        Used when its filename names the requested edition and arch. With a
-        lineage (8.1) rather than a full version, the version is read from the
-        filename.
+        Used when its filename names the requested package type, edition,
+        version, distro and arch. With a lineage (8.1) rather than a full
+        version, the version is read from the filename.
 
   -A accepts the same shapes, resolved to the newest matching package:
     A JFrog Artifactory repo         (default, chosen by package format:
@@ -149,8 +149,9 @@ PACKAGE SOURCES (-u for the server, -A for asadm):
   asadm source precedence:
     1. --no-asadm                          -> no asadm installed
     2. -A URL                              -> that source
-    3. an asadm package in a local -u dir  -> keeps local builds self-contained
-    4. the JFrog default for the package format
+    3. a local -u path, with no -A         -> that path only; nothing is fetched,
+                                              even when it holds no asadm package
+    4. otherwise                           -> the JFrog default for the package format
     Both arch spellings are accepted throughout (amd64/x86_64, arm64/aarch64).
     When no asadm package is found the image is built without it - a warning,
     not an error. A local -A path that does not exist is reported by name.
@@ -393,6 +394,18 @@ function main() {
     fi
 
     echo ""
+
+    # A push must be all-or-nothing. Skipped targets are now omitted from the
+    # bake file rather than built from their stale committed Dockerfile, so
+    # without this a single failed package listing would quietly publish a
+    # partial matrix at exit 0. -t is left alone: building the subset that did
+    # resolve is the point of a local test run.
+    if [ "${mode}" = "push" ] && [ "${G_SKIPPED_COUNT:-0}" -ne 0 ]; then
+        log_warn "${G_SKIPPED_COUNT} target(s) were skipped - refusing to push a partial matrix."
+        log_warn "Re-run with -t to build what did resolve, or fix the skipped targets first."
+        exit 1
+    fi
+
     log_info "=== Building Images ==="
 
     export BAKE_TAG_LATEST_AUTO="${tag_latest_auto}"
