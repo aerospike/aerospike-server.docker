@@ -385,6 +385,8 @@ These images are based on Ubuntu or Red Hat UBI depending on the variant:
 | 8.0     | ubuntu24.04, ubi9  | community, enterprise, federal |
 | 8.1+    | ubuntu24.04, ubi10 | community, enterprise, federal |
 
+7.1 is retired from the default set: a bare `./docker-build.sh -g` no longer includes it. It is still fully supported when named explicitly (`./docker-build.sh -t 7.1`), and CI still generates and tests it, because CI discovers lineages from `releases/` rather than from the default set.
+
 ## Building Images
 
 ### Prerequisites
@@ -455,6 +457,19 @@ Dockerfiles are **persistent** (checked into the repo) and compact. All installa
 
 # Build from local packages (no download)
 ./docker-build.sh -t 8.1.1.0 -e enterprise -u ./artifacts
+
+# Build from a single local package file
+./docker-build.sh -t 8.1 -e enterprise -d ubuntu -a arm64 \
+  -u ~/Downloads/aerospike-server-enterprise_8.1.3.0-97ubuntu24.04_arm64.deb
+
+# Build from the JFrog native-package repo (server, plus asadm once published there)
+./docker-build.sh -t 8.1 -u https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local
+
+# Take asadm from a specific package instead of the default repo
+./docker-build.sh -t 8.1 -A https://example.com/pkgs/aerospike-asadm_4.1.0-1ubuntu24.04_amd64.deb
+
+# Leave asadm out
+./docker-build.sh -t 8.1 --no-asadm
 ```
 
 ### Build Options
@@ -469,7 +484,17 @@ Dockerfiles are **persistent** (checked into the repo) and compact. All installa
 	OPTIONS:
 	    -r, --registry REG  Container registry for push mode.
 	                        Multiple: repeat -r (e.g. -r reg1 -r reg2). Default: aerospike.
-	    -u, --url URL       Custom artifacts URL or local directory path
+	    -u, --url URL       Server package source: artifacts URL, direct edition URL,
+	                        JFrog repo, local directory, or a single local .deb/.rpm
+	    -A, --asadm-url URL Source for the standalone aerospike-asadm package.
+	                        Default: the JFrog database-{deb,rpm}-prod-public-local repo,
+	                        unless -u is a local path, in which case only that path is
+	                        searched and nothing is fetched - even when it holds no
+	                        asadm package.
+	                        Accepts a repo URL, HTTP directory, local directory, or a
+	                        direct .deb/.rpm. Native .deb/.rpm builds only - the *.tgz
+	                        bundles already ship asadm inside aerospike-tools.
+	    --no-asadm          Do not install a standalone aerospike-asadm package
 	    -e, --edition ED    Filter editions: community, enterprise, federal (multiple allowed)
 	    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10
 	                        Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
@@ -483,6 +508,8 @@ Dockerfiles are **persistent** (checked into the repo) and compact. All installa
 	    8.1.1.0                   Specific release
 	    8.1.1.0-rc2               Release candidate
 	    8.1.1.0-start-16          Development build
+
+Run `./docker-build.sh -h` for the full PACKAGE SOURCES reference: every form `-u` and `-A` accept, how the *.tgz bundle falls back to native `.deb`/`.rpm`, the asadm source precedence, and the environment variable for each flag.
 
 ### Testing Images
 

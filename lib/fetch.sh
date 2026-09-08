@@ -4,10 +4,15 @@
 
 set -Eeuo pipefail
 
+# Applied to every host-side curl. Without them a firewall that drops packets
+# rather than refusing them hangs the whole run indefinitely: curl's default is
+# no total timeout at all, and a full -g makes one listing per package directory.
+AS_CURL_TIMEOUTS=(--connect-timeout 10 --max-time 60)
+
 function fetch() {
     local tag=$1
     local link=$2
 
     log_debug "${tag} - ${link}"
-    curl -fsSL "${link}" "${@:3}"
+    curl -fsSL "${AS_CURL_TIMEOUTS[@]}" "${link}" "${@:3}"
 }

@@ -37,12 +37,19 @@
 #   pipeline/logical end (| || &&) append ` \`
 #   line already ending with `;`   append ` \`
 #   anything else                  append `; \`
-#   last line of entire block      no suffix (hardcoded `echo "done";`)
+#   last line of entire block      no suffix (DOCKERFILE_RUN_SENTINEL)
+#
+# The final line is this module's marker that the install block reached its end.
+# lib/emit.sh validates an emitted Dockerfile by matching it, so it is exported
+# rather than written out twice -- a hand-copied duplicate would silently stop
+# all generation the first time the indentation or quoting here changed.
+DOCKERFILE_RUN_SENTINEL='  echo "done";'
+
 function _sh_to_dockerfile_run() {
     local script_path=$1
     local hadolint_ignore="${2:-DL3003,DL3008,DL3041,SC2015}"
 
-    awk -v hadolint="${hadolint_ignore}" '
+    awk -v hadolint="${hadolint_ignore}" -v sentinel="${DOCKERFILE_RUN_SENTINEL}" '
     # -------------------------------------------------------------------
     # is_sep: true when the line is a section-separator comment
     #   Format: "#" + optional spaces + 10 or more dashes, nothing else.
@@ -202,7 +209,7 @@ function _sh_to_dockerfile_run() {
     # ------ END: flush last section, then emit the final statement ------
     END {
         flush_section()
-        print "  echo \"done\";"
+        print sentinel
     }
     ' "$script_path"
 }

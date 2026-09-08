@@ -1,14 +1,29 @@
 #!/usr/bin/env bash
 # Support matrix and distro/edition helpers for Aerospike Docker images.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh. Canonical lineage order (linear): 7.1, 7.2, 8.0, 8.1
+# Dependencies: lib/log.sh. Canonical lineage order (linear): 7.1, 7.2, 8.0, 8.1, 8.2
 
 set -Eeuo pipefail
 
 source lib/log.sh
 
-# Supported release lineages (order preserved for build/test iteration)
-RELEASES="7.1 7.2 8.0 8.1"
+# Release lineages built by default (order preserved for build/test iteration).
+#
+# This is the *default* set, not the buildable set. It drives only the
+# all-lineages loop in generate.sh and the newest-GA query behind --auto-latest.
+# A targeted `-g 7.1` / `-t 7.1` does not consult it and keeps working for any
+# lineage support_distros still maps, which is how a retired lineage stays
+# available on demand.
+#
+# 7.1 is retired from the default set: it is the last lineage on ubuntu22.04 and
+# ubi9, and it is still built on demand and still present under releases/, so CI
+# -- which discovers lineages from releases/, not from here -- continues to
+# generate and test it.
+#
+# A lineage joins this list only once its packages are published: an unresolvable
+# lineage here is skipped with a warning by -g/-t, but -p refuses to push a
+# partial matrix, so listing 8.2 early would break every all-lineage push.
+RELEASES="7.2 8.0 8.1"
 
 # Supported editions
 EDITIONS="community enterprise federal"
@@ -22,21 +37,31 @@ function support_editions() {
 }
 
 # Get supported distros for a release lineage (single source of truth per lineage).
+# Covers every lineage that can be built, including ones retired from RELEASES --
+# dropping an entry here is what makes a lineage unbuildable, not dropping it
+# from RELEASES.
 function support_distros() {
     local lineage=${1:-}
 
     case "${lineage}" in
+    # Retired from the default set, still buildable on demand. Keep this entry.
     7.1)
         echo "ubuntu22.04 ubi9"
         ;;
     7.2 | 8.0)
         echo "ubuntu24.04 ubi9"
         ;;
-    8.1)
+    8.1 | 8.2)
         echo "ubuntu24.04 ubi10"
         ;;
+    # An unknown lineage used to fall back to 7.1's distros. This function is
+    # also what generate.sh prunes with: a -g of that lineage rm -rf's every
+    # distro directory the fallback does not name, so a lineage added to
+    # releases/ but not here would have its real distros deleted and replaced
+    # with ones its packages were never built for. There is no safe guess.
     *)
-        echo "ubuntu22.04 ubi9"
+        log_warn "unsupported release lineage '${lineage}' - add it to support_distros"
+        exit 1
         ;;
     esac
 }
@@ -101,6 +126,31 @@ function support_distro_to_artifact_name() {
         log_warn "unsupported distro '$1'"
         exit 1
         ;;
+    esac
+}
+
+# Every artifact distro name this tool recognises, including ones no longer
+# built for -- a package filename naming a retired distro must still be
+# recognised as distro-specific rather than treated as portable. Used to tell a
+# hand-named, distro-less package from one built for a different distro. Keep in
+# step with the case above and with support_distro_to_apt_suite.
+function support_artifact_distros() {
+    echo "ubuntu20.04 ubuntu22.04 ubuntu24.04 el8 el9 el10"
+}
+
+# Map an artifact distro name to its Debian/Ubuntu apt suite (the codename used
+# as the pool/ and dists/ path component in the JFrog apt repos). Empty for
+# non-deb distros.
+function support_distro_to_apt_suite() {
+    case "$1" in
+    ubuntu20.04) echo "focal" ;;
+    ubuntu22.04) echo "jammy" ;;
+    ubuntu24.04) echo "noble" ;;
+    ubuntu26.04) echo "resolute" ;;
+    debian11) echo "bullseye" ;;
+    debian12) echo "bookworm" ;;
+    debian13) echo "trixie" ;;
+    *) echo "" ;;
     esac
 }
 

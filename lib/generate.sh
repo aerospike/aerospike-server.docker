@@ -21,6 +21,16 @@ function generate_dockerfiles() {
 
     declare -A VERSION_MAP TOOLS_MAP
     declare -ag LINEAGES_TO_BUILD=()
+    # Counts targets actually written; a run that produces none must not fall
+    # through to a build against whatever stale Dockerfiles are in releases/.
+    declare -g G_GENERATED_COUNT=0
+    # The targets this run actually wrote. A skipped target keeps its committed
+    # Dockerfile on disk -- the clean is per-target now -- and generate_bake
+    # selects by directory existence while tagging with the version resolved
+    # this run, so without this list a skipped lineage would be published under
+    # the new version's tags carrying the previous build's contents.
+    declare -ga G_GENERATED_TARGETS=()
+    declare -g G_SKIPPED_COUNT=0
 
     # --- Resolve version(s) ---
     if [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; then
@@ -39,7 +49,12 @@ function generate_dockerfiles() {
     elif [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+$ ]]; then
         local lineage="${version_or_lineage}"
         local version tools_version
-        version=$(find_latest_version_for_lineage "${lineage}")
+        local _rc=0
+        version=$(find_latest_version_for_lineage "${lineage}") || _rc=$?
+        if [ "${_rc}" -eq "${AS_LIST_ERROR}" ]; then
+            log_warn "${lineage} -> could not be resolved (the package source could not be read)"
+            exit 1
+        fi
         [ -z "${version}" ] && {
             log_warn "${lineage} -> NOT FOUND"
             exit 1
@@ -57,9 +72,20 @@ function generate_dockerfiles() {
         # shellcheck disable=SC2086
         for lineage in $(support_releases); do
             local version tools_version
-            version=$(find_latest_version_for_lineage "${lineage}")
+            # An unreadable source is not the same fact as an unpublished
+            # lineage. Continuing on the first silently drops a lineage from an
+            # all-lineages run while the survivors keep the count non-zero, so
+            # the run reaches bake with a partial matrix at exit 0.
+            local _rc=0
+            version=$(find_latest_version_for_lineage "${lineage}") || _rc=$?
+            if [ "${_rc}" -eq "${AS_LIST_ERROR}" ]; then
+                log_warn "${lineage} -> could not be resolved (the package source could not be read)."
+                log_warn "Refusing to continue: a lineage dropped this way would leave the run short."
+                exit 1
+            fi
             [ -z "${version}" ] && {
                 log_warn "${lineage} -> NOT FOUND"
+                G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
                 continue
             }
             tools_version=$(find_tools_version "${version}")
@@ -81,10 +107,26 @@ function generate_dockerfiles() {
 
     echo ""
 
-    # Full generate cleans only the lineages we're about to rebuild
+    # Full generate prunes only targets that can no longer be rebuilt: distro
+    # directories a lineage no longer supports. Each surviving target is cleaned
+    # and rewritten atomically in generate_dockerfile, so a run that resolves no
+    # packages leaves the committed tree intact instead of emptying it and then
+    # aborting. Editions are never pruned here: the rebuild honours
+    # EDITION_FILTERS, so a filtered -g must not delete the editions it skips.
     if [ "${full_generate}" = true ]; then
-        for lineage in "${LINEAGES_TO_BUILD[@]}"; do
-            [ -d "releases/${lineage}" ] && rm -rf "releases/${lineage}"
+        local _lin _ed_dir _dist_dir _supported
+        for _lin in "${LINEAGES_TO_BUILD[@]}"; do
+            [ -d "releases/${_lin}" ] || continue
+            _supported=" $(support_distros "${_lin}") "
+            for _ed_dir in "releases/${_lin}"/*/; do
+                [ -d "${_ed_dir}" ] || continue
+                for _dist_dir in "${_ed_dir}"*/; do
+                    [ -d "${_dist_dir}" ] || continue
+                    if [[ "${_supported}" != *" $(basename "${_dist_dir}") "* ]]; then
+                        rm -rf "${_dist_dir}"
+                    fi
+                done
+            done
         done
     fi
 
@@ -117,7 +159,12 @@ function generate_dockerfiles() {
 
                 if [ "${full_generate}" = true ] || [ ! -f "${target}/Dockerfile" ]; then
                     # Full generate (or Dockerfile missing -- auto-fallback)
-                    generate_dockerfile "${lineage}" "${distro}" "${edition}" "${version}" "${tools_version}" || true
+                    if generate_dockerfile "${lineage}" "${distro}" "${edition}" "${version}" "${tools_version}"; then
+                        G_GENERATED_COUNT=$((G_GENERATED_COUNT + 1))
+                        G_GENERATED_TARGETS+=("${target}")
+                    else
+                        G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
+                    fi
                 else
                     # In-place update
                     local artifact_distro pkg_type
@@ -132,21 +179,46 @@ function generate_dockerfiles() {
                     fi
 
                     # shellcheck disable=SC2034  # set by resolve_packages, consumed by update_dockerfile
-                    local x86_link x86_sha arm_link arm_sha pkg_format
+                    local x86_link x86_sha arm_link arm_sha pkg_format asadm_unreadable
                     resolve_packages "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${single_arch}" "${pkg_type}"
 
-                    if [ -z "${x86_sha}" ] && [ -z "${x86_link}" ]; then
-                        log_warn "    Skipping ${edition}/${distro} - package not available"
+                    if [ "${asadm_unreadable}" = true ]; then
+                        log_warn "    Skipping ${edition}/${distro} - the asadm source given with -A could not be read"
+                        G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
                         continue
+                    fi
+
+                    if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
+                        log_warn "    Skipping ${edition}/${distro} - package not available"
+                        G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
+                        continue
+                    fi
+
+                    # See emit.sh: bake targets both platforms on a multi-arch run.
+                    if [ -z "${single_arch}" ] && [ "${edition}" != "federal" ]; then
+                        if [ -z "${x86_link}" ]; then
+                            log_warn "    ${edition}/${distro}: no amd64 package - the linux/amd64 build will fail"
+                        fi
+                        if [ -z "${arm_link}" ]; then
+                            log_warn "    ${edition}/${distro}: no arm64 package - the linux/arm64 build will fail"
+                        fi
                     fi
 
                     [ "${pkg_format}" != "tgz" ] && log_info "    Using native ${pkg_format} (tgz not found)"
 
                     update_dockerfile "${target}" "${version}" "${single_arch}"
+                    G_GENERATED_COUNT=$((G_GENERATED_COUNT + 1))
+                    G_GENERATED_TARGETS+=("${target}")
                 fi
             done
         done
     done
+
+    if [ "${G_GENERATED_COUNT}" -eq 0 ]; then
+        log_warn "No Dockerfiles were generated - every target was skipped."
+        log_warn "Check that -u points at packages matching the requested version, edition, distro and arch."
+        exit 1
+    fi
 
     # shellcheck disable=SC2034  # consumed by generate_bake in caller scope
     declare -gA G_VERSION_MAP
