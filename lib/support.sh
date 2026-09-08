@@ -7,14 +7,23 @@ set -Eeuo pipefail
 
 source lib/log.sh
 
-# Supported release lineages (order preserved for build/test iteration).
+# Release lineages built by default (order preserved for build/test iteration).
+#
+# This is the *default* set, not the buildable set. It drives only the
+# all-lineages loop in generate.sh and the newest-GA query behind --auto-latest.
+# A targeted `-g 7.1` / `-t 7.1` does not consult it and keeps working for any
+# lineage support_distros still maps, which is how a retired lineage stays
+# available on demand.
+#
+# 7.1 is retired from the default set: it is the last lineage on ubuntu22.04 and
+# ubi9, and it is still built on demand and still present under releases/, so CI
+# -- which discovers lineages from releases/, not from here -- continues to
+# generate and test it.
 #
 # A lineage joins this list only once its packages are published: an unresolvable
 # lineage here is skipped with a warning by -g/-t, but -p refuses to push a
-# partial matrix, so listing 8.2 early would break every all-lineage push. A
-# targeted `-g 8.2` does not consult this list and works as soon as the packages
-# land -- it needs only the support_distros entry below.
-RELEASES="7.1 7.2 8.0 8.1"
+# partial matrix, so listing 8.2 early would break every all-lineage push.
+RELEASES="7.2 8.0 8.1"
 
 # Supported editions
 EDITIONS="community enterprise federal"
@@ -28,10 +37,14 @@ function support_editions() {
 }
 
 # Get supported distros for a release lineage (single source of truth per lineage).
+# Covers every lineage that can be built, including ones retired from RELEASES --
+# dropping an entry here is what makes a lineage unbuildable, not dropping it
+# from RELEASES.
 function support_distros() {
     local lineage=${1:-}
 
     case "${lineage}" in
+    # Retired from the default set, still buildable on demand. Keep this entry.
     7.1)
         echo "ubuntu22.04 ubi9"
         ;;

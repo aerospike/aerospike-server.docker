@@ -24,7 +24,7 @@ WORK=$(mktemp -d)
 SRV_PID=""
 FAILED=0
 SCENARIOS=0
-EXPECTED_SCENARIOS=24
+EXPECTED_SCENARIOS=25
 CURRENT_LOG="${WORK}/out.log"
 
 FORCE=false
@@ -616,6 +616,36 @@ check "and says why" "warning present" \
 # The tracked tree, not a total: releases/8.2 is untracked and still on disk from
 # the half of this scenario above, so a count would compare the wrong things.
 check "no committed Dockerfile was deleted" "tracked deletions under releases/" \
+    "$(git status --porcelain -- releases/ | grep -c '^ D' || true)" "0"
+
+scenario "a lineage retired from the default set is still buildable on demand"
+# 7.1 is out of RELEASES but still mapped by support_distros and still committed
+# under releases/. The two halves are easy to conflate: dropping the
+# support_distros entry as well -- it looks unused once RELEASES stops naming it
+# -- is what would actually make the lineage unbuildable, and would also make a
+# -g of it prune the very directories it ships.
+OLD_LINEAGE="7.1"
+OLD_VERSION="7.1.0.21"
+L71="${WORK}/repo/artifactory/database-deb-prod-public-local-71/pool/jammy"
+for ed in community enterprise federal; do
+    mk_pkg "${L71}/aerospike-server-${ed}/aerospike-server-${ed}_${OLD_VERSION}-2ubuntu22.04_amd64.deb"
+    mk_pkg "${L71}/aerospike-server-${ed}/aerospike-server-${ed}_${OLD_VERSION}-2ubuntu22.04_arm64.deb"
+done
+check "it is out of the default set" "support_releases" \
+    "$(bash -c 'source lib/log.sh; source lib/support.sh; support_releases' | grep -c '\b7\.1\b' || true)" "0"
+check "but still mapped to its own distros" "support_distros ${OLD_LINEAGE}" \
+    "$(bash -c 'source lib/log.sh; source lib/support.sh; support_distros "$1"' _ "${OLD_LINEAGE}")" \
+    "ubuntu22.04 ubi9"
+gen "${OLD_LINEAGE}" -u "${BASE}-71" --no-asadm && rc71=0 || rc71=$?
+check "naming it explicitly still builds it" "exit code" "${rc71}" "0"
+check "it resolves its own jammy packages" "serverUrl" \
+    "$(grep -c "serverUrl='http[^']*/pool/jammy/[^']*${OLD_VERSION}-2ubuntu22.04" \
+        "releases/${OLD_LINEAGE}/enterprise/ubuntu22.04/Dockerfile" || true)" "2"
+# The pruning half: ubi9 is skipped by a deb-only repo but must not be deleted,
+# and ubuntu22.04 must not be replaced by a newer lineage's distro set.
+check "its ubi9 tree survives the rebuild" "committed ubi9 Dockerfiles" \
+    "$(dockerfile_count "releases/${OLD_LINEAGE}" | tr -d ' ')" "6"
+check "no committed file was deleted" "tracked deletions under releases/" \
     "$(git status --porcelain -- releases/ | grep -c '^ D' || true)" "0"
 
 echo

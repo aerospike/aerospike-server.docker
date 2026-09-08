@@ -385,6 +385,8 @@ These images are based on Ubuntu or Red Hat UBI depending on the variant:
 | 8.0     | ubuntu24.04, ubi9  | community, enterprise, federal |
 | 8.1+    | ubuntu24.04, ubi10 | community, enterprise, federal |
 
+7.1 is retired from the default set: a bare `./docker-build.sh -g` no longer includes it. It is still fully supported when named explicitly (`./docker-build.sh -t 7.1`), and CI still generates and tests it, because CI discovers lineages from `releases/` rather than from the default set.
+
 ## Building Images
 
 ### Prerequisites
