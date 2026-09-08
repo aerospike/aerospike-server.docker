@@ -24,7 +24,7 @@ WORK=$(mktemp -d)
 SRV_PID=""
 FAILED=0
 SCENARIOS=0
-EXPECTED_SCENARIOS=21
+EXPECTED_SCENARIOS=23
 CURRENT_LOG="${WORK}/out.log"
 
 FORCE=false
@@ -155,9 +155,29 @@ mkdir -p "${WORK}/stub"
 cat >"${WORK}/stub/curl" <<'STUB'
 #!/bin/bash
 for a in "$@"; do case "$a" in http*) echo "$a" >>"${CURL_LOG}" ;; esac; done
+# CURL_FAIL_ONCE: drop the first request whose URL contains it, the way a reset
+# connection or a firewall blackhole does -- exit 7, no HTTP status. Later
+# requests for the same URL go through, which is what makes a retry observable.
+if [ -n "${CURL_FAIL_ONCE:-}" ] && [ ! -e "${CURL_FAIL_MARK}" ]; then
+    for a in "$@"; do
+        case "$a" in
+        *"${CURL_FAIL_ONCE}"*)
+            : >"${CURL_FAIL_MARK}"
+            exit 7
+            ;;
+        esac
+    done
+fi
 exec /usr/bin/curl "$@"
 STUB
 chmod +x "${WORK}/stub/curl"
+# -t runs the in-place update path and then bakes. The bake is not what these
+# scenarios are about and needs a daemon CI does not have.
+cat >"${WORK}/stub/docker" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+chmod +x "${WORK}/stub/docker"
 CURL_LOG="${WORK}/curl.log"
 export CURL_LOG
 # The pinning case. A -u dir that already holds an asadm returned from the local
@@ -499,6 +519,58 @@ PATH="${WORK}/stub:${PATH}" gen "${VERSION}" -e enterprise -d ubuntu24.04 \
 check "asadm pool listed exactly once" "listing requests" \
     "$(grep -c "database-deb-prod-public-local/pool/noble/aerospike-asadm/\$" "${CURL_LOG}" || true)" "1"
 check "still resolved both arches" "asadmUrl count" \
+    "$(grep -c "asadmUrl='http" "${DF}" || true)" "2"
+
+# A repo carrying server packages for every lineage that ships ubuntu24.04, plus
+# an asadm pool. Both pool URLs are lineage-independent, so an all-lineages run
+# reads each of them once per lineage -- the only shape in which a cached
+# listing outcome is reused rather than recomputed.
+MULTI="${WORK}/repo/artifactory/database-deb-prod-public-local-multi"
+for v in 7.2.0.21 8.0.0.19 "${VERSION}"; do
+    mk_pkg "${MULTI}/pool/noble/aerospike-server-enterprise/aerospike-server-enterprise_${v}-4ubuntu24.04_amd64.deb"
+    mk_pkg "${MULTI}/pool/noble/aerospike-server-enterprise/aerospike-server-enterprise_${v}-4ubuntu24.04_arm64.deb"
+done
+mk_asadm "${MULTI}/pool/noble/aerospike-asadm"
+
+scenario "the default in-place update path resolves a native package"
+# Every scenario above runs -g. The in-place update path -- no -g, the default
+# mode, and the one the README's JFrog example uses -- calls resolve_packages as
+# a plain statement rather than as an if-condition, so errexit is live there. A
+# successful native resolution that returns non-zero kills the whole run before
+# anything is written and without a log line, which is exactly what a bare
+# `return` after a false `[ ]` test produced.
+: >"${CURL_LOG}"
+PATH="${WORK}/stub:${PATH}" ./docker-build.sh -t "${LINEAGE}" -e enterprise -d ubuntu24.04 \
+    -u "${BASE}-multi" --no-asadm >"${CURRENT_LOG}" 2>&1 && rcU2=0 || rcU2=$?
+check "run survives resolution" "exit code" "${rcU2}" "0"
+check "reaches the generation step" "log line" \
+    "$(grep -qF 'Dockerfiles generated in releases/' "${CURRENT_LOG}" && echo yes || echo no)" "yes"
+check "server resolved into the updated Dockerfile" "serverUrl count" \
+    "$(grep -c "serverUrl='http" "${DF}" || true)" "2"
+check "resolved the discovered build revision" "revision in serverUrl" \
+    "$(grep -c "serverUrl='http[^']*${VERSION}-4ubuntu24.04" "${DF}" || true)" "2"
+
+scenario "a transient listing failure is retried, not cached as an error"
+# ${code:-000} was cached like any other outcome, so one dropped connection --
+# a DNS blip, a TLS reset, a firewall that blackholes rather than refuses --
+# became a permanent AS_LIST_ERROR for that URL for the rest of the run. Every
+# later lineage read the poisoned entry instead of the repo, and because an
+# explicitly named -A source must either yield a package or fail its target,
+# a single blip on the first lineage failed all of them. Only 200 and 404 are
+# answers; anything else is cached nowhere and re-probed.
+: >"${CURL_LOG}"
+rm -f "${WORK}/curlmark"
+CURL_FAIL_ONCE="pool/noble/aerospike-asadm" CURL_FAIL_MARK="${WORK}/curlmark" \
+    PATH="${WORK}/stub:${PATH}" gen -e enterprise -d ubuntu24.04 \
+    -u "${BASE}-multi" -A "${BASE}-multi" && rcT=0 || rcT=$?
+check "the blip does not fail the run" "exit code" "${rcT}" "0"
+check "the failed listing is re-probed" "asadm pool requests" \
+    "$(grep -c "database-deb-prod-public-local-multi/pool/noble/aerospike-asadm/\$" "${CURL_LOG}" || true)" "2"
+check "the lineage that hit the blip has no asadm" "7.2 asadmUrl count" \
+    "$(grep -c "asadmUrl='http" "releases/7.2/enterprise/ubuntu24.04/Dockerfile" || true)" "0"
+check "a later lineage recovers on the retry" "8.0 asadmUrl count" \
+    "$(grep -c "asadmUrl='http" "releases/8.0/enterprise/ubuntu24.04/Dockerfile" || true)" "2"
+check "and so does the next" "${LINEAGE} asadmUrl count" \
     "$(grep -c "asadmUrl='http" "${DF}" || true)" "2"
 
 echo

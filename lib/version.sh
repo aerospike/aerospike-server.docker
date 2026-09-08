@@ -179,7 +179,7 @@ function artifactory_list_names() {
     # -w appends the status as a final line; --fail is deliberately not used, so
     # a 404 body is discarded but its status still reaches us.
     local raw
-    raw=$(curl -sSL -w '\n%{http_code}' "${dir_url}/" 2>/dev/null || true)
+    raw=$(curl -sSL "${AS_CURL_TIMEOUTS[@]}" -w '\n%{http_code}' "${dir_url}/" 2>/dev/null || true)
     code=$(printf '%s' "${raw}" | tail -1)
     body=$(printf '%s' "${raw}" | sed '$d')
     log_debug "list - ${dir_url}/ (${code:-000})"
@@ -191,10 +191,13 @@ function artifactory_list_names() {
             grep -E '^[A-Za-z0-9][A-Za-z0-9._+~:-]*/?$' |
             grep -vE '^\.\.?/?$' || true)
     fi
-    if [ -n "${cached}" ]; then
-        # A 404 is the result most worth caching: the miss path re-probes it for
-        # every arch and every pattern.
-        printf '%s\n%s\n' "${code:-000}" "${names}" >"${cached}" 2>/dev/null || true
+    # Only an authoritative answer is cached. A 404 is the result most worth
+    # caching: the miss path re-probes it for every arch and every pattern. A
+    # transport failure is not an answer -- caching 000/401/5xx would turn one
+    # DNS blip or dropped connection into a permanent AS_LIST_ERROR for that URL
+    # for the rest of the run, which the callers escalate to exit 1.
+    if [ -n "${cached}" ] && { [ "${code}" = "200" ] || [ "${code}" = "404" ]; }; then
+        printf '%s\n%s\n' "${code}" "${names}" >"${cached}" 2>/dev/null || true
     fi
     printf '%s\n' "${names}"
 
@@ -737,7 +740,7 @@ function get_server_package_link_native() {
         fi
         echo "${link}"
         [ "${rc}" -eq "${AS_LIST_ERROR}" ] && return "${AS_LIST_ERROR}"
-        return
+        return "${AS_LIST_OK}"
     fi
 
     local base_url
@@ -1013,7 +1016,7 @@ function fetch_sha_for_link() {
         sha=$(fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' ' || true)
         if [ -z "${sha}" ]; then
             # Fall back to the digest header when no .sha256 sidecar is served.
-            sha=$(curl -fsSLI "${link}" 2>/dev/null | tr -d '\r' |
+            sha=$(curl -fsSLI "${AS_CURL_TIMEOUTS[@]}" "${link}" 2>/dev/null | tr -d '\r' |
                 awk 'tolower($1) == "x-checksum-sha256:" { print $2 }' | tail -1 || true)
         fi
     fi
