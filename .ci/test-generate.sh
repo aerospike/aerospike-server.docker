@@ -115,6 +115,9 @@ staged_count() { staged | grep -c "$1" || true; }
 dockerfile_count() { # dockerfile_count <dir>
     if [ -d "$1" ]; then find "$1" -name Dockerfile 2>/dev/null | wc -l | tr -d ' '; else echo 0; fi
 }
+# Mode of the emitted Dockerfile (GNU stat on Linux, BSD stat on macOS). Git
+# tracks only the exec bit, so no other check here can see a mode regression.
+df_mode() { stat -c '%a' "${DF}" 2>/dev/null || stat -f '%Lp' "${DF}"; }
 # Value of a single-quoted shell assignment in the emitted Dockerfile, for the
 # Nth occurrence (1 = amd64 branch, 2 = arm64 branch).
 df_val() { # df_val <var> <n>
@@ -138,6 +141,7 @@ gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" || true
 check "both asadm arches staged" "asadm files" "$(staged_count asadm)" "2"
 check "COPY emitted" "COPY *.deb present" \
     "$(grep -c '^COPY \*\.deb' "${DF}" || true)" "1"
+check "emitted with the committed file mode" "Dockerfile mode" "$(df_mode)" "644"
 
 scenario "promise 2 negative: --no-asadm stages none"
 gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" --no-asadm || true

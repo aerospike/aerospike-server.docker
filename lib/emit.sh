@@ -237,6 +237,10 @@ HEADER
         fi
     done
 
+    # mv carries the mktemp file's 0600 across, and git tracks only the exec
+    # bit, so the drop would never surface in a diff.
+    chmod 644 "${_df}"
+
     # One rename(2): the committed Dockerfile is never absent or half-written.
     mv "${_df}" "${target}/Dockerfile"
 }
