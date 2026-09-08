@@ -24,7 +24,7 @@ WORK=$(mktemp -d)
 SRV_PID=""
 FAILED=0
 SCENARIOS=0
-EXPECTED_SCENARIOS=23
+EXPECTED_SCENARIOS=24
 CURRENT_LOG="${WORK}/out.log"
 
 FORCE=false
@@ -576,6 +576,47 @@ check "a later lineage recovers on the retry" "8.0 asadmUrl count" \
     "$(grep -c "asadmUrl='http" "releases/8.0/enterprise/ubuntu24.04/Dockerfile" || true)" "2"
 check "and so does the next" "${LINEAGE} asadmUrl count" \
     "$(grep -c "asadmUrl='http" "${DF}" || true)" "2"
+
+scenario "a new lineage builds for its own distros, and an unknown one is refused"
+# 8.2 is not published yet, so nothing else in this suite -- or in CI, which
+# discovers lineages from releases/ -- exercises it. This pins the support_distros
+# entry that a targeted `-g 8.2` needs, ahead of the packages landing.
+#
+# The unknown-lineage half matters more than it looks: support_distros is also
+# what generate.sh prunes releases/ with, so the old "fall back to 7.1's distros"
+# answer meant a -g of an unlisted lineage would rm -rf the distro directories it
+# actually ships and keep ones its packages were never built for.
+NEW_LINEAGE="8.2"
+NEW_VERSION="8.2.0.0"
+L82="${WORK}/repo/artifactory/database-deb-prod-public-local-82/pool/noble"
+for ed in community enterprise federal; do
+    mk_pkg "${L82}/aerospike-server-${ed}/aerospike-server-${ed}_${NEW_VERSION}-3ubuntu24.04_amd64.deb"
+    mk_pkg "${L82}/aerospike-server-${ed}/aerospike-server-${ed}_${NEW_VERSION}-3ubuntu24.04_arm64.deb"
+done
+gen "${NEW_LINEAGE}" -u "${BASE}-82" --no-asadm && rc82=0 || rc82=$?
+check "the new lineage generates" "exit code" "${rc82}" "0"
+# Three, not six: the fixture is a deb-only repo, so the two rpm targets per
+# edition resolve nothing and are skipped. A count over the whole lineage rather
+# than over ubuntu24.04 alone therefore also pins that no ubi tree was written.
+check "one Dockerfile per edition, no ubi tree" "Dockerfiles under the lineage" \
+    "$(dockerfile_count "releases/${NEW_LINEAGE}")" "3"
+check "it resolves the discovered version" "serverUrl" \
+    "$(grep -c "serverUrl='http[^']*${NEW_VERSION}-3ubuntu24.04" \
+        "releases/${NEW_LINEAGE}/enterprise/ubuntu24.04/Dockerfile" || true)" "2"
+# ubi10, not ubi9: an 8.2 that silently inherited the fallback would build the
+# wrong UBI, and against a deb-only repo both are skipped, so the emitted tree
+# cannot tell them apart. The pruning list is where the difference shows.
+check "it is mapped to ubi10, not the fallback's ubi9" "support_distros ${NEW_LINEAGE}" \
+    "$(bash -c 'source lib/log.sh; source lib/support.sh; support_distros "$1"' _ "${NEW_LINEAGE}")" \
+    "ubuntu24.04 ubi10"
+gen "9.9" -u "${BASE}-82" --no-asadm && rc99=0 || rc99=$?
+check "an unknown lineage fails" "exit code" "${rc99}" "1"
+check "and says why" "warning present" \
+    "$(grep -q 'unsupported release lineage' "${CURRENT_LOG}" && echo yes || echo no)" "yes"
+# The tracked tree, not a total: releases/8.2 is untracked and still on disk from
+# the half of this scenario above, so a count would compare the wrong things.
+check "no committed Dockerfile was deleted" "tracked deletions under releases/" \
+    "$(git status --porcelain -- releases/ | grep -c '^ D' || true)" "0"
 
 echo
 if [ "${SCENARIOS}" -ne "${EXPECTED_SCENARIOS}" ]; then

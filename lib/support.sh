@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # Support matrix and distro/edition helpers for Aerospike Docker images.
 # Copyright 2014-2025 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
-# Dependencies: lib/log.sh. Canonical lineage order (linear): 7.1, 7.2, 8.0, 8.1
+# Dependencies: lib/log.sh. Canonical lineage order (linear): 7.1, 7.2, 8.0, 8.1, 8.2
 
 set -Eeuo pipefail
 
 source lib/log.sh
 
-# Supported release lineages (order preserved for build/test iteration)
+# Supported release lineages (order preserved for build/test iteration).
+#
+# A lineage joins this list only once its packages are published: an unresolvable
+# lineage here is skipped with a warning by -g/-t, but -p refuses to push a
+# partial matrix, so listing 8.2 early would break every all-lineage push. A
+# targeted `-g 8.2` does not consult this list and works as soon as the packages
+# land -- it needs only the support_distros entry below.
 RELEASES="7.1 7.2 8.0 8.1"
 
 # Supported editions
@@ -32,11 +38,17 @@ function support_distros() {
     7.2 | 8.0)
         echo "ubuntu24.04 ubi9"
         ;;
-    8.1)
+    8.1 | 8.2)
         echo "ubuntu24.04 ubi10"
         ;;
+    # An unknown lineage used to fall back to 7.1's distros. This function is
+    # also what generate.sh prunes with: a -g of that lineage rm -rf's every
+    # distro directory the fallback does not name, so a lineage added to
+    # releases/ but not here would have its real distros deleted and replaced
+    # with ones its packages were never built for. There is no safe guess.
     *)
-        echo "ubuntu22.04 ubi9"
+        log_warn "unsupported release lineage '${lineage}' - add it to support_distros"
+        exit 1
         ;;
     esac
 }
