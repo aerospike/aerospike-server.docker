@@ -13,11 +13,17 @@ set -Eeuo pipefail
 
 source lib/fetch.sh
 
-ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:="https://download.aerospike.com/artifacts"}
+# Where server packages come from. The default is the JFrog repo matching the
+# package format; ARTIFACTS_DOMAIN (-u/--url) overrides both defaults when set.
+# The per-format defaults must be repo/listing URLs: only -u/ARTIFACTS_DOMAIN
+# goes through source-shape detection (local dir, single file, direct edition
+# URL), so a local path in a per-format variable is not supported.
+ARTIFACTS_DOMAIN_DEB=${ARTIFACTS_DOMAIN_DEB:="https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local"}
+ARTIFACTS_DOMAIN_RPM=${ARTIFACTS_DOMAIN_RPM:="https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local"}
+ARTIFACTS_DOMAIN=${ARTIFACTS_DOMAIN:=""}
 
-# Source for the standalone aerospike-asadm package, independent of
-# ARTIFACTS_DOMAIN because the download.aerospike.com artifact tree does not
-# carry asadm on its own (it ships inside aerospike-tools there).
+# Source for the standalone aerospike-asadm package, independent of the server
+# source so -u can point elsewhere while asadm keeps resolving from JFrog.
 # ASADM_DOMAIN (-A/--asadm-url) overrides both pkg-type defaults when set.
 ASADM_DOMAIN_DEB=${ASADM_DOMAIN_DEB:="https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local"}
 ASADM_DOMAIN_RPM=${ASADM_DOMAIN_RPM:="https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local"}
@@ -41,20 +47,29 @@ function is_artifactory_url() {
     [[ "$1" =~ jfrog\.io|artifactory|/database-rpm-|/database-deb- ]]
 }
 
-function is_artifactory_repo() {
-    is_artifactory_url "${ARTIFACTS_DOMAIN}"
+# _domain_for_pkg_type override deb_default rpm_default pkg_type
+# One rule for both package sources: an explicit override beats the per-format
+# default, so -u and -A cannot drift apart in how they resolve.
+function _domain_for_pkg_type() {
+    if [ -n "$1" ]; then
+        echo "$1"
+    elif [ "$4" = "deb" ]; then
+        echo "$2"
+    else
+        echo "$3"
+    fi
+}
+
+# Resolve the server package source for a package type: -u/--url when given,
+# otherwise the JFrog repo matching the package format.
+function server_domain_for_pkg_type() {
+    _domain_for_pkg_type "${ARTIFACTS_DOMAIN}" "${ARTIFACTS_DOMAIN_DEB}" "${ARTIFACTS_DOMAIN_RPM}" "$1"
 }
 
 # Resolve the asadm source for a package type: -A/--asadm-url when given,
 # otherwise the JFrog repo matching the package format.
 function asadm_domain_for_pkg_type() {
-    if [ -n "${ASADM_DOMAIN}" ]; then
-        echo "${ASADM_DOMAIN}"
-    elif [ "$1" = "deb" ]; then
-        echo "${ASADM_DOMAIN_DEB}"
-    else
-        echo "${ASADM_DOMAIN_RPM}"
-    fi
+    _domain_for_pkg_type "${ASADM_DOMAIN}" "${ASADM_DOMAIN_DEB}" "${ASADM_DOMAIN_RPM}" "$1"
 }
 
 # The source get_asadm_package_link_native actually searched, for reporting.
@@ -70,9 +85,10 @@ function asadm_source_for_pkg_type() {
     fi
 }
 
-# Check if -u points to a local directory (not http/https)
+# Check if -u points to a local directory (not http/https). The default -- no
+# -u at all -- is the JFrog repos, never local.
 function is_local_artifacts_dir() {
-    [[ "${ARTIFACTS_DOMAIN}" != http* ]]
+    [ -n "${ARTIFACTS_DOMAIN}" ] && [[ "${ARTIFACTS_DOMAIN}" != http* ]]
 }
 
 # Escape ERE metacharacters so a literal string can be used inside a pattern.
@@ -325,19 +341,22 @@ function artifactory_repo_pkg_type() {
 # must not silently drop a lineage from a release.
 function find_latest_version_for_lineage_artifactory() {
     local lineage=$1
-    local lineage_re repo_type
+    local lineage_re
     lineage_re=$(_ere_quote "${lineage}")
-    repo_type=$(artifactory_repo_pkg_type "${ARTIFACTS_DOMAIN}")
 
-    local versions="" distro artifact_distro pkg_type dir names rc=0 failed=false
+    local versions="" distro artifact_distro pkg_type base repo_type dir names rc=0 failed=false
     # shellcheck disable=SC2086
     for distro in $(support_distros "${lineage}"); do
         pkg_type=$(support_distro_to_pkg_type "${distro}")
+        base=$(server_domain_for_pkg_type "${pkg_type}")
+        repo_type=$(artifactory_repo_pkg_type "${base}")
         # A deb repo cannot hold el9 rpms. Probing it anyway is a guaranteed
-        # 404 per rpm distro, on the discovery path every run takes.
+        # 404 per rpm distro, on the discovery path every run takes. Only an
+        # explicit single-repo -u can mismatch; the defaults resolve each
+        # package type to its own repo.
         [ -n "${repo_type}" ] && [ "${pkg_type}" != "${repo_type}" ] && continue
         artifact_distro=$(support_distro_to_artifact_name "${distro}")
-        dir=$(artifactory_pkg_dir "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "x86_64" "${pkg_type}" "aerospike-server-enterprise")
+        dir=$(artifactory_pkg_dir "${base}" "${artifact_distro}" "x86_64" "${pkg_type}" "aerospike-server-enterprise")
         [ -z "${dir}" ] && continue
         rc=0
         names=$(artifactory_list_names "${dir}") || rc=$?
@@ -572,7 +591,9 @@ function find_latest_version_for_lineage() {
         return
     fi
 
-    if is_artifactory_repo; then
+    # The default (no -u) is the JFrog repos, so discovery goes through the
+    # Artifactory listing whenever no other source shape was named.
+    if [ -z "${ARTIFACTS_DOMAIN}" ] || is_artifactory_url "${ARTIFACTS_DOMAIN}"; then
         find_latest_version_for_lineage_artifactory "${lineage}"
         return
     fi
@@ -588,118 +609,15 @@ function find_latest_version_for_lineage() {
         tr -d '"/' | sort -V | tail -1 || true
 }
 
-# Find the tools version for a server version (same for all editions/distros)
-function find_tools_version() {
-    local version=$1
-    local url
-
-    if is_local_artifacts_dir; then
-        # Local dir: scan for any TGZ bundle whose name embeds _tools-<ver>_
-        # grep exits 1 when there are no matches; || true prevents pipefail from
-        # propagating that into a set -e exit in the caller.
-        local base_dir="${ARTIFACTS_DOMAIN}"
-        [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
-        find "${base_dir}" -type f -name "*${version}*_tools-*.tgz" 2>/dev/null |
-            grep -oE "_tools-[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+)?)?_" |
-            head -1 | sed 's/_tools-//; s/_$//' || true
-        return
-    fi
-
-    # JFrog repos hold native .deb/.rpm only - no TGZ bundles to derive tools from.
-    if is_artifactory_repo; then
-        echo ""
-        return
-    fi
-
-    if is_direct_url; then
-        url="${ARTIFACTS_DOMAIN}/${version}/"
-    else
-        url="${ARTIFACTS_DOMAIN}/aerospike-server-enterprise/${version}/"
-    fi
-
-    local page
-    page=$(fetch "tools" "${url}" 2>/dev/null)
-
-    # Extract tools version from any available package (|| true: grep exits 1 on no match)
-    echo "${page}" | grep -oE "_tools-[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+)?)?_" |
-        head -1 | sed 's/_tools-//; s/_$//' || true
-}
-
-# Find local TGZ bundle for given parameters; echo absolute path or empty.
-function find_local_tgz_package() {
-    local base_dir=$1 artifact_distro=$2 edition=$3 version=$4 tools_version=$5 arch=$6
-
-    if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
-        echo ""
-        return
-    fi
-
-    [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
-    [ -d "${base_dir}" ] || {
-        echo ""
-        return
-    }
-    base_dir=$(cd "${base_dir}" && pwd)
-
-    local tgz_name="aerospike-server-${edition}_${version}_tools-${tools_version}_${artifact_distro}_${arch}.tgz"
-    local search_dirs=(
-        "${base_dir}"
-        "${base_dir}/${version}"
-        "${base_dir}/aerospike-server-${edition}"
-        "${base_dir}/aerospike-server-${edition}/${version}"
-    )
-    local dir f
-    for dir in "${search_dirs[@]}"; do
-        [ -d "${dir}" ] || continue
-        f="${dir}/${tgz_name}"
-        [ -f "${f}" ] && echo "${f}" && return
-    done
-    # Recursive fallback (nested release layouts)
-    f=$(find "${base_dir}" -type f -name "${tgz_name}" 2>/dev/null | head -1)
-    [ -n "${f}" ] && echo "${f}" && return
-    echo ""
-}
-
-# Get the download link for a package (tgz bundle)
-function get_package_link() {
-    local artifact_distro=$1
-    local edition=$2
-    local version=$3
-    local tools_version=$4
-    local arch=$5
-
-    # Federal doesn't support arm64
-    if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
-        echo ""
-        return
-    fi
-
-    # Local dir: resolve the actual file path rather than building a computed URL
-    if is_local_artifacts_dir; then
-        find_local_tgz_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${arch}"
-        return
-    fi
-
-    local base_url
-    if is_direct_url; then
-        base_url="${ARTIFACTS_DOMAIN}"
-    else
-        base_url="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}"
-    fi
-
-    echo "${base_url}/${version}/aerospike-server-${edition}_${version}_tools-${tools_version}_${artifact_distro}_${arch}.tgz"
-}
-
-# Get server package link for native format (rpm or deb) - when tgz is not available.
-# Supports version-based layouts (default) and both JFrog Artifactory layouts.
+# Get the server package link (native .deb/.rpm).
+# Supports both JFrog Artifactory layouts (default), version-based layouts, and
+# local directories/files.
 function get_server_package_link_native() {
     local artifact_distro=$1
     local edition=$2
     local version=$3
-    # shellcheck disable=SC2034
-    local _unused=$4 # tools_version (kept for call-site compat)
-    local arch=$5
-    local pkg_type=$6
+    local arch=$4
+    local pkg_type=$5
 
     if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
         echo ""
@@ -717,14 +635,17 @@ function get_server_package_link_native() {
     [ "${arch}" = "x86_64" ] && deb_arch="amd64"
     [ "${arch}" = "aarch64" ] && deb_arch="arm64"
 
+    local base
+    base=$(server_domain_for_pkg_type "${pkg_type}")
+
     # JFrog repos embed a package revision that is not derivable from the server
     # version (e.g. 8.1.2.4-4), so the exact filename is discovered by listing
     # the package directory rather than composed from the version alone.
-    if is_artifactory_repo; then
+    if is_artifactory_url "${base}"; then
         local dir link version_re distro_re
         version_re=$(_ere_quote "${version}")
         distro_re=$(_ere_quote "${artifact_distro}")
-        dir=$(artifactory_pkg_dir "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${arch}" "${pkg_type}" "aerospike-server-${edition}")
+        dir=$(artifactory_pkg_dir "${base}" "${artifact_distro}" "${arch}" "${pkg_type}" "aerospike-server-${edition}")
         # Exact <version>-<rev> match first, then a looser one so pre-release
         # version strings (e.g. 8.1.1.0-start-16-gea126d3) still resolve. Both
         # patterns are tried against one listing rather than one call each.
@@ -745,9 +666,9 @@ function get_server_package_link_native() {
 
     local base_url
     if is_direct_url; then
-        base_url="${ARTIFACTS_DOMAIN}"
+        base_url="${base}"
     else
-        base_url="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}"
+        base_url="${base}/aerospike-server-${edition}"
     fi
 
     if [ "${pkg_type}" = "rpm" ]; then
@@ -815,11 +736,10 @@ function find_local_asadm_package() {
 #   4. the JFrog repo for this package format
 #
 # The source may be a direct package URL/path, a local directory, a JFrog repo,
-# or a plain HTTP directory index. Echoes empty when no package is published for
-# the requested distro/arch, which leaves asadm out rather than failing the build.
-#
-# Only the native install path calls this: the TGZ bundles carry asadm inside
-# aerospike-tools, so installing it again there would collide.
+# or a plain HTTP directory index. The newest matching package wins, so with no
+# -A the latest published asadm is installed. Echoes empty when no package is
+# published for the requested distro/arch, which leaves asadm out rather than
+# failing the build.
 function get_asadm_package_link_native() {
     local artifact_distro=$1 arch=$2 pkg_type=$3
 
@@ -830,7 +750,7 @@ function get_asadm_package_link_native() {
 
     # A local -u is the whole answer: "build from local packages" must not make
     # outbound requests to a host the user never named. Matches how
-    # get_server_package_link_native and get_package_link treat a local source.
+    # get_server_package_link_native treats a local source.
     if [ -z "${ASADM_DOMAIN}" ] && is_local_artifacts_dir; then
         find_local_asadm_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${arch}" "${pkg_type}"
         return
@@ -898,93 +818,6 @@ function get_asadm_package_link_native() {
     fi
 }
 
-# Find local tools package; echo path if found, else empty.
-function find_local_tools_package() {
-    local base_dir=$1 artifact_distro=$2 edition=$3 version=$4 tools_version=$5 arch=$6 pkg_type=$7
-
-    if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
-        echo ""
-        return
-    fi
-
-    [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
-    [ -d "${base_dir}" ] || {
-        echo ""
-        return
-    }
-    base_dir=$(cd "${base_dir}" && pwd)
-
-    local deb_arch="${arch}"
-    [ "${arch}" = "x86_64" ] && deb_arch="amd64"
-    [ "${arch}" = "aarch64" ] && deb_arch="arm64"
-
-    local search_dirs=("${base_dir}" "${base_dir}/${version}" "${base_dir}/aerospike-server-${edition}" "${base_dir}/aerospike-server-${edition}/${version}")
-    local dir f
-
-    if [ "${pkg_type}" = "rpm" ]; then
-        for dir in "${search_dirs[@]}"; do
-            [ -d "${dir}" ] || continue
-            for f in "${dir}"/aerospike-tools-"${tools_version}"-*."${artifact_distro}"."${arch}".rpm; do
-                [ -f "${f}" ] && echo "${f}" && return
-            done
-        done
-        f=$(find "${base_dir}" -type f -name "aerospike-tools*${tools_version}*${artifact_distro}*${arch}*.rpm" 2>/dev/null | head -1)
-    else
-        for dir in "${search_dirs[@]}"; do
-            [ -d "${dir}" ] || continue
-            for f in "${dir}"/aerospike-tools_"${tools_version}"_"${deb_arch}".deb \
-                "${dir}"/aerospike-tools_"${tools_version}"*_"${deb_arch}".deb; do
-                [ -f "${f}" ] && echo "${f}" && return
-            done
-        done
-        f=$(find "${base_dir}" -type f -name "aerospike-tools*${tools_version}*${deb_arch}*.deb" 2>/dev/null | head -1)
-    fi
-    [ -n "${f}" ] && echo "${f}" && return
-    echo ""
-}
-
-# Get tools package link for native format (rpm or deb)
-function get_tools_package_link_native() {
-    local artifact_distro=$1
-    local edition=$2
-    local version=$3
-    local tools_version=$4
-    local arch=$5
-    local pkg_type=$6
-
-    if [ "${arch}" = "aarch64" ] && [ "${edition}" = "federal" ]; then
-        echo ""
-        return
-    fi
-
-    # Local dir: search for the actual tools package file
-    if is_local_artifacts_dir; then
-        find_local_tools_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${arch}" "${pkg_type}"
-        return
-    fi
-
-    local base_url path_prefix
-    if is_direct_url || is_artifactory_repo; then
-        base_url="${ARTIFACTS_DOMAIN}"
-    else
-        base_url="${ARTIFACTS_DOMAIN}/aerospike-server-${edition}"
-    fi
-
-    if is_artifactory_repo; then
-        path_prefix="${artifact_distro}/${arch}"
-    else
-        path_prefix="${version}"
-    fi
-
-    if [ "${pkg_type}" = "rpm" ]; then
-        echo "${base_url}/${path_prefix}/aerospike-tools-${tools_version}-1.${artifact_distro}.${arch}.rpm"
-    else
-        local deb_arch="${arch}"
-        [ "${arch}" = "x86_64" ] && deb_arch="amd64"
-        echo "${base_url}/${path_prefix}/aerospike-tools_${tools_version}_${deb_arch}.deb"
-    fi
-}
-
 # Fetch SHA256 for any package URL or local file path (reads link.sha256 sidecar).
 #
 # Every branch assigns into one variable and the result is validated once, at
@@ -1013,11 +846,26 @@ function fetch_sha_for_link() {
             sha=$(sha256sum "${link}" 2>/dev/null | cut -f1 -d' ' || true)
         fi
     else
+        # A remote package's digest is immutable within a run, and the same
+        # URL is re-resolved once per target sharing a distro (asadm above
+        # all: its link depends only on distro/arch). The listing cache
+        # cannot help - it keys directory indexes - so digests get their own
+        # entries. Only a validated non-empty digest is cached: an empty
+        # answer may be a transient failure, which must stay re-probeable.
+        local cached
+        cached=$(_list_cache_path "sha:${link}")
+        if [ -n "${cached}" ] && [ -f "${cached}" ]; then
+            cat "${cached}"
+            return
+        fi
         sha=$(fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' ' || true)
         if [ -z "${sha}" ]; then
             # Fall back to the digest header when no .sha256 sidecar is served.
             sha=$(curl -fsSLI "${AS_CURL_TIMEOUTS[@]}" "${link}" 2>/dev/null | tr -d '\r' |
                 awk 'tolower($1) == "x-checksum-sha256:" { print $2 }' | tail -1 || true)
+        fi
+        if [ -n "${cached}" ] && [[ "${sha}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            printf '%s' "${sha}" >"${cached}" 2>/dev/null || true
         fi
     fi
     if [ -n "${sha}" ] && [[ ! "${sha}" =~ ^[0-9a-fA-F]{64}$ ]]; then
@@ -1034,9 +882,8 @@ function fetch_sha_for_link() {
 # `sha256sum --strict --check` on the empty value and the RUN fails. Both the
 # generate and update paths call this, so the two cannot drift apart.
 #
-# The arch is dropped rather than the whole target: get_package_link composes a
-# tgz URL with no existence check, so when only one arch is published a
-# whole-target skip would lose the arch that does build.
+# The arch is dropped rather than the whole target: when only one arch is
+# published, a whole-target skip would lose the arch that does build.
 function drop_unchecksummed_arches() {
     if [[ "${x86_link:-}" == http* ]] && [ -z "${x86_sha:-}" ]; then
         log_warn "    No SHA256 for ${x86_link} - dropping amd64"
@@ -1055,15 +902,4 @@ function drop_unchecksummed_arches() {
         log_warn "    No SHA256 for ${asadm_arm_link} - arm64 asadm dropped"
         asadm_arm_link=""
     fi
-}
-
-# Fetch SHA256 checksum for a package (tgz)
-function fetch_package_sha() {
-    local link
-    link="$(get_package_link "$@")"
-    [ -z "${link}" ] && {
-        echo ""
-        return
-    }
-    fetch_sha_for_link "${link}"
 }

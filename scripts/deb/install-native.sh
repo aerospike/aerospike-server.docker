@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Ubuntu/Debian: install Aerospike server from a native .deb (no tools bundle).
-# Used when a TGZ bundle is not available (e.g. local pre-release or staging builds).
+# The only install path: images are built from native packages, by default from
+# the JFrog database-deb-prod-public-local repo.
 #
 # Two modes, selected at generation time by substituting the placeholders:
 #   Remote: __SERVER_URL_AMD64__ / __SERVER_SHA_AMD64__ are HTTP URLs+SHAs; the
@@ -10,8 +11,7 @@
 #
 # __ASADM_URL_AMD64__ / __ASADM_SHA_AMD64__ follow the same two modes for the
 # standalone aerospike-asadm package. They are substituted to empty strings when
-# asadm is not published for this distro/arch, which skips it entirely; the TGZ
-# install path never uses this script because aerospike-tools already ships asadm.
+# asadm is not published for this distro/arch, which skips it entirely.
 #
 # Tini 1.0.1 URLs and SHAs are hardcoded (fixed release).
 #
@@ -112,8 +112,14 @@ apt-get install -y --no-install-recommends "${pkgs[@]}"
 # Post-install housekeeping
 # ---------------------------------------------------------------------------
 mkdir -p /etc/aerospike /licenses /var/log/aerospike /var/run/aerospike
-if [ -f /tmp/aerospike/LICENSE ]; then
-    cp /tmp/aerospike/LICENSE /licenses/
+# The server package ships its license at /opt/aerospike/doc/LICENSE; the
+# image has always published it at /licenses/ (a Red Hat certification
+# requirement on UBI). Warn loudly rather than fail: an absent file means the
+# packaging changed, and the warning names the invariant to restore.
+if [ -f /opt/aerospike/doc/LICENSE ]; then
+    cp /opt/aerospike/doc/LICENSE /licenses/
+else
+    echo >&2 "warning: /opt/aerospike/doc/LICENSE not found - /licenses/ left empty"
 fi
 if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
     if [ -f /tmp/aerospike/features.conf ]; then

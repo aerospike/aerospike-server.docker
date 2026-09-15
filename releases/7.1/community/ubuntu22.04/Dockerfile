@@ -44,16 +44,27 @@ RUN \
     apt-get update; \
     apt-get install -y --no-install-recommends curl; \
     ARCH="$(dpkg --print-architecture)"; \
+    # Aerospike publishes some packages (notably aerospike-asadm) with the kernel \
+    # arch spelling rather than the dpkg one, so both are matched when collecting. \
+    if [ "${ARCH}" = "amd64" ]; then \
+        ALT_ARCH="x86_64"; \
+    elif [ "${ARCH}" = "arm64" ]; then \
+        ALT_ARCH="aarch64"; \
+    fi; \
     if [ "${ARCH}" = "amd64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-community/7.1.0.25/aerospike-server-community_7.1.0.25_tools-13.0.1_ubuntu22.04_x86_64.tgz'; \
-        pkgSha='15ab6bc159ca05b152c93bfe3b0501a007bfddff41b0d6d95e70ee03b08813fd'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-server-community/aerospike-server-community_7.1.0.25-5ubuntu22.04_amd64.deb'; \
+        serverSha='da92071b3254ee77a50aa905d37b4f4355003792e852b15f34c30a6454d355bd'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.0.3-5ubuntu22.04_amd64.deb'; \
+        asadmSha='6ed4c26d7cff26ffc16b0082642e0744c8244668de42862239cb4dc1241d56c3'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        pkgLink='https://download.aerospike.com/artifacts/aerospike-server-community/7.1.0.25/aerospike-server-community_7.1.0.25_tools-13.0.1_ubuntu22.04_aarch64.tgz'; \
-        pkgSha='d7c7a1546653db05356da9ec1f11a48c9324fbf9db4515adececc59c44d0eeac'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-server-community/aerospike-server-community_7.1.0.25-5ubuntu22.04_arm64.deb'; \
+        serverSha='28203aede74d8fce6be0de32bc403f79465cf7d3bb5891406122469176e03668'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.0.3-5ubuntu22.04_arm64.deb'; \
+        asadmSha='445088ab23441edddd6938c6e3616d557ef36ebde773e241ec55e0a11642bc25'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
@@ -66,33 +77,72 @@ RUN \
     chmod +x /usr/bin/as-tini-static; \
   }; \
   { \
-    # Fetch and unpack server package.
+    # Download server and asadm packages (remote builds only; local builds use COPY).
+    # Downloads are named to match the arch-qualified globs used by the install step \
+    # below, so remote and pre-staged packages are collected the same way. \
     mkdir -p /tmp/aerospike; \
-    curl -fL -o /tmp/aerospike/pkg.tgz "${pkgLink}"; \
-    echo "${pkgSha} */tmp/aerospike/pkg.tgz" | sha256sum --strict --check -; \
-    tar -xzf /tmp/aerospike/pkg.tgz --strip-components=1 -C /tmp/aerospike; \
+    if [ -n "${serverUrl}" ]; then \
+        curl -fL -o "/tmp/aerospike/aerospike-server-dl_${ARCH}.deb" "${serverUrl}"; \
+        echo "${serverSha} */tmp/aerospike/aerospike-server-dl_${ARCH}.deb" | sha256sum --strict --check -; \
+    fi; \
+    if [ -n "${asadmUrl}" ]; then \
+        curl -fL -o "/tmp/aerospike/aerospike-asadm-dl_${ARCH}.deb" "${asadmUrl}"; \
+        echo "${asadmSha} */tmp/aerospike/aerospike-asadm-dl_${ARCH}.deb" | sha256sum --strict --check -; \
+    fi; \
   }; \
   { \
-    # Install Aerospike server and tools.
-    # apt-get install ./deb resolves all dependencies (including libldap for \
-    # enterprise/federal) from the Ubuntu repos automatically — no need to \
-    # pre-install them manually, which risks version conflicts. \
-    apt-get install -y --no-install-recommends \
-        /tmp/aerospike/aerospike-server-*.deb \
-        /tmp/aerospike/aerospike-tools*.deb; \
+    # Install Aerospike server.
+    # Collect all arch-matching packages in /tmp/aerospike/: \
+    #   - aerospike-server-*_${ARCH}.deb  (required) \
+    #   - aerospike-tools-*_${ARCH}.deb   (optional; staged when server declares a \
+    #                                      hard Depends on aerospike-tools) \
+    #   - aerospike-asadm*_${ARCH}.deb    (optional; downloaded or staged above, \
+    #                                      including arch-independent _all.deb) \
+    # Installing them together lets apt resolve the dependencies inline. \
+    # (aerospike-tools may also declare a hard Depends on curl; in that case curl \
+    # stays installed after the autoremove at the end.) \
+    pkgs=(); \
+    serverFound=false; \
+    for f in /tmp/aerospike/aerospike-server-*_"${ARCH}".deb \
+        /tmp/aerospike/aerospike-server-*_"${ALT_ARCH}".deb; do \
+        if [ -f "${f}" ]; then \
+            pkgs+=("${f}"); \
+            serverFound=true; \
+        fi; \
+    done; \
+    # The server package is the only required one; asadm/tools alone must never \
+    # produce an image, so the guard tracks the server specifically. \
+    if [ "${serverFound}" = false ]; then \
+        echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"; \
+        exit 1; \
+    fi; \
+    for f in /tmp/aerospike/aerospike-tools-*_"${ARCH}".deb \
+        /tmp/aerospike/aerospike-tools-*_"${ALT_ARCH}".deb \
+        /tmp/aerospike/aerospike-asadm*_"${ARCH}".deb \
+        /tmp/aerospike/aerospike-asadm*_"${ALT_ARCH}".deb \
+        /tmp/aerospike/aerospike-asadm*_all.deb; do \
+        if [ -f "${f}" ]; then pkgs+=("${f}"); fi; \
+    done; \
+    apt-get install -y --no-install-recommends "${pkgs[@]}"; \
   }; \
   { \
     # Post-install housekeeping.
     mkdir -p /etc/aerospike /licenses /var/log/aerospike /var/run/aerospike; \
-    cp /tmp/aerospike/LICENSE /licenses/; \
+    # The server package ships its license at /opt/aerospike/doc/LICENSE; the \
+    # image has always published it at /licenses/ (a Red Hat certification \
+    # requirement on UBI). Warn loudly rather than fail: an absent file means the \
+    # packaging changed, and the warning names the invariant to restore. \
+    if [ -f /opt/aerospike/doc/LICENSE ]; then \
+        cp /opt/aerospike/doc/LICENSE /licenses/; \
+    else \
+        echo >&2 "warning: /opt/aerospike/doc/LICENSE not found - /licenses/ left empty"; \
+    fi; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
         if [ -f /tmp/aerospike/features.conf ]; then \
             cp /tmp/aerospike/features.conf /etc/aerospike/features.conf; \
         fi; \
     fi; \
     rm -rf /tmp/aerospike; \
-    # Mark curl as auto-installed so autoremove drops it if nothing else depends on it \
-    # (aerospike-tools may declare a hard Depends on curl; in that case curl stays). \
     apt-mark auto curl; \
     apt-get autoremove -y --purge; \
     rm -rf /var/lib/apt/lists/*; \

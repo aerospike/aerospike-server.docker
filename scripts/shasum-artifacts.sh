@@ -55,6 +55,6 @@ while IFS= read -r -d '' f; do
     ) >"${out}"
     echo "${out}"
     count=$((count + 1))
-done < <(find "${BASE}" -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.tgz' -o -name '*.tar.gz' \) -print0 2>/dev/null)
+done < <(find "${BASE}" -type f \( -name '*.deb' -o -name '*.rpm' \) -print0 2>/dev/null)
 
 echo "Created ${count} .sha256 file(s) under ${BASE}"

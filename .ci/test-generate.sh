@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Offline generation tests for the native .deb/.rpm package path.
 #
-# CI's build.yml only ever runs docker-build.sh against the default
-# download.aerospike.com URL, which resolves *.tgz bundles. Nothing there
-# reaches the native path -- no committed Dockerfile takes it -- so every
-# native-path behaviour would otherwise ship unexercised.
+# CI's build.yml runs docker-build.sh against the default JFrog repos, which
+# needs the network and only sees whatever happens to be published. This suite
+# pins the resolution behaviour itself, deterministically.
 #
 # No network, no docker, no published aerospike-asadm needed: package contents
 # are never read during generation (fetch_sha_for_link hashes a local file and
@@ -570,8 +569,11 @@ CURL_FAIL_ONCE="pool/noble/aerospike-asadm" CURL_FAIL_MARK="${WORK}/curlmark" \
 check "the blip does not fail the run" "exit code" "${rcT}" "0"
 check "the failed listing is re-probed" "asadm pool requests" \
     "$(grep -c "database-deb-prod-public-local-multi/pool/noble/aerospike-asadm/\$" "${CURL_LOG}" || true)" "2"
-check "the lineage that hit the blip has no asadm" "7.2 asadmUrl count" \
-    "$(grep -c "asadmUrl='http" "releases/7.2/enterprise/ubuntu24.04/Dockerfile" || true)" "0"
+# An explicitly named -A that cannot be read fails its target, so the lineage
+# that hit the blip keeps its committed Dockerfile rather than being rewritten
+# from a source that never answered.
+check "the lineage that hit the blip is left untouched" "7.2 vs committed" \
+    "$(git diff --quiet "releases/7.2/enterprise/ubuntu24.04/" && echo untouched || echo regenerated)" "untouched"
 check "a later lineage recovers on the retry" "8.0 asadmUrl count" \
     "$(grep -c "asadmUrl='http" "releases/8.0/enterprise/ubuntu24.04/Dockerfile" || true)" "2"
 check "and so does the next" "${LINEAGE} asadmUrl count" \
