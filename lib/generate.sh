@@ -164,37 +164,25 @@ function generate_dockerfiles() {
                         [ "${single_arch}" = "aarch64" ] && single_arch="arm64"
                     fi
 
+                    # All ten outputs of resolve_packages are declared here, not
+                    # the six update_dockerfile names directly: the asadm four
+                    # are read by _local_pkg_copy_glob and _build_subst_args, so
+                    # an undeclared one outlives the loop at global scope and a
+                    # previous distro's asadm URL can reach the next Dockerfile.
                     # shellcheck disable=SC2034  # set by resolve_packages, consumed by update_dockerfile
-                    local x86_link x86_sha arm_link arm_sha server_unreadable asadm_unreadable
+                    local x86_link x86_sha arm_link arm_sha
+                    # shellcheck disable=SC2034  # same
+                    local asadm_x86_link asadm_x86_sha asadm_arm_link asadm_arm_sha
+                    # shellcheck disable=SC2034  # same; read by target_is_buildable
+                    local server_unreadable asadm_unreadable
                     resolve_packages "${artifact_distro}" "${edition}" "${version}" "${single_arch}" "${pkg_type}"
 
-                    if [ "${server_unreadable}" = true ]; then
-                        log_warn "    Skipping ${edition}/${distro} - the server package source could not be read"
+                    # Whether this target can be built, and why not -- one
+                    # decision shared with the generate path (see emit.sh).
+                    target_is_buildable "${edition}" "${distro}" "${single_arch}" || {
                         G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
                         continue
-                    fi
-
-                    if [ "${asadm_unreadable}" = true ]; then
-                        log_warn "    Skipping ${edition}/${distro} - the asadm source given with -A could not be read"
-                        G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
-                        continue
-                    fi
-
-                    if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
-                        log_warn "    Skipping ${edition}/${distro} - package not available"
-                        G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
-                        continue
-                    fi
-
-                    # See emit.sh: bake targets both platforms on a multi-arch run.
-                    if [ -z "${single_arch}" ] && [ "${edition}" != "federal" ]; then
-                        if [ -z "${x86_link}" ]; then
-                            log_warn "    ${edition}/${distro}: no amd64 package - the linux/amd64 build will fail"
-                        fi
-                        if [ -z "${arm_link}" ]; then
-                            log_warn "    ${edition}/${distro}: no arm64 package - the linux/arm64 build will fail"
-                        fi
-                    fi
+                    }
 
                     update_dockerfile "${target}" "${version}" "${single_arch}"
                     G_GENERATED_COUNT=$((G_GENERATED_COUNT + 1))

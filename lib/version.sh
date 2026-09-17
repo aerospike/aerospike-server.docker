@@ -30,14 +30,21 @@ ASADM_DOMAIN_RPM=${ASADM_DOMAIN_RPM:="https://aerospike.jfrog.io/artifactory/dat
 ASADM_DOMAIN=${ASADM_DOMAIN:=""}
 ASADM_DISABLED=${ASADM_DISABLED:=false}
 
+# Pin asadm to one version (-V/--asadm-version). Empty means "newest published",
+# resolved per arch. A pin is what makes the two arches of a multi-arch manifest
+# carry the same asadm build when a release lands for one arch before the other.
+ASADM_VERSION=${ASADM_VERSION:=""}
+
 # Extract lineage (major.minor) from a full version string (e.g. 8.1.1.0 -> 8.1).
 function get_lineage_from_version() {
     echo "$1" | grep -oE '^[0-9]+\.[0-9]+'
 }
 
-# Check if URL is a direct edition URL (contains aerospike-server-<edition>)
+# Check if a base URL is a direct edition URL (contains aerospike-server-<edition>).
+# Takes the base as an argument rather than reading ARTIFACTS_DOMAIN, so the
+# per-format defaults go through the same shape decision an explicit -u does.
 function is_direct_url() {
-    [[ "${ARTIFACTS_DOMAIN}" =~ aerospike-server-(community|enterprise|federal) ]]
+    [[ "$1" =~ aerospike-server-(community|enterprise|federal) ]]
 }
 
 # Check if URL is a JFrog Artifactory repo. Two layouts, keyed off pkg type:
@@ -125,6 +132,14 @@ function pkg_name_matches_version() {
     name=$(basename "$1")
     version_re="[-_.]$(_ere_quote "$2")([^0-9.]|\.[^0-9]|$)"
     [[ "${name}" =~ ${version_re} ]]
+}
+
+# The version an aerospike-asadm package filename carries, or empty when the
+# name does not start with one. Both separators are accepted for the same reason
+# pkg_name_matches_arch accepts both arch spellings: asadm is published as
+# aerospike-asadm_5.0.3-... (deb) and aerospike-asadm-5.0.3-... (rpm).
+function asadm_version_from_name() {
+    basename "$1" | sed -nE 's/^aerospike-asadm[-_]([0-9]+(\.[0-9]+)*).*/\1/p'
 }
 
 # True when a package filename names any distro this tool knows how to build
@@ -333,20 +348,69 @@ function artifactory_repo_pkg_type() {
     esac
 }
 
-# Discover the latest version for a lineage in a JFrog repo by listing the
-# enterprise package directory for each distro the lineage supports.
+# Versions of a lineage's server packages in one JFrog repo, one per line.
+# Exit status is an AS_LIST_* code.
+function _artifactory_lineage_versions() {
+    local base=$1 lineage_re=$2 artifact_distro=$3 pkg_type=$4
+    local dir names rc=0
+    dir=$(artifactory_pkg_dir "${base}" "${artifact_distro}" "x86_64" "${pkg_type}" "aerospike-server-enterprise")
+    [ -z "${dir}" ] && return "${AS_LIST_OK}"
+    names=$(artifactory_list_names "${dir}") || rc=$?
+    [ "${rc}" -eq "${AS_LIST_ERROR}" ] && return "${AS_LIST_ERROR}"
+    printf '%s\n' "${names}" | grep -E "\\.${pkg_type}\$" |
+        grep -oE "${lineage_re}\\.[0-9]+\\.[0-9]+" || true
+}
+
+# Versions of a lineage under a plain listing or direct edition URL, one per
+# line. The layout is <base>[/aerospike-server-<edition>]/<version>/<packages>,
+# the same one get_server_package_link_native composes its download URL from.
+function _listing_lineage_versions() {
+    local base=$1 lineage_re=$2
+    local url
+    if is_direct_url "${base}"; then
+        url="${base}/"
+    else
+        url="${base}/aerospike-server-enterprise/"
+    fi
+    fetch "version" "${url}" 2>/dev/null |
+        grep -oE "\"${lineage_re}\\.[0-9]+\\.[0-9]+(-[a-z0-9]+(-[0-9]+(-g[a-f0-9]+)?)?)?/?\"" |
+        tr -d '"/' || true
+}
+
+# Discover the latest version for a lineage from the remote package sources, by
+# listing the enterprise packages for each distro the lineage supports.
+#
+# The source shape is decided per resolved base URL, not from the raw
+# ARTIFACTS_DOMAIN. The per-format defaults (ARTIFACTS_DOMAIN_DEB/_RPM) are only
+# ever seen here as a base, so reading ARTIFACTS_DOMAIN made a listing URL set
+# in one of them resolve nothing, while the identical URL passed as -u resolved.
 #
 # Returns AS_LIST_ERROR when a listing could not be read, so the caller can tell
 # "this lineage is not published" from "we could not find out" -- the second
 # must not silently drop a lineage from a release.
-function find_latest_version_for_lineage_artifactory() {
+function find_latest_version_for_lineage_remote() {
     local lineage=$1
     local lineage_re
     lineage_re=$(_ere_quote "${lineage}")
 
-    local versions="" distro artifact_distro pkg_type base repo_type dir names rc=0 failed=false
+    # Versions are tracked per package format and the answer is the *minimum* of
+    # the per-format maxima. The deb and rpm repos publish independently, so a
+    # maximum over their union resolves the lineage to a version one format does
+    # not carry yet: that format's targets are then skipped as "not available"
+    # while the other advances, committing a split-version lineage at exit 0.
+    # Holding the faster repo back to the slower one is what keeps a lineage
+    # coherent across every distro it builds for.
+    local versions_deb="" versions_rpm=""
+    local distro artifact_distro pkg_type base repo_type found rc=0 failed=false
+    # One fetch per distinct base: with an explicit -u every distro resolves to
+    # the same listing URL, whose version index does not vary by distro.
+    declare -A _seen=()
+    # The distros actually being built, not every distro the lineage supports:
+    # with -d ubuntu24.04 no rpm target is written, so holding the lineage back
+    # to the rpm repo would answer a question the run did not ask -- and would
+    # list a repo it never downloads from.
     # shellcheck disable=SC2086
-    for distro in $(support_distros "${lineage}"); do
+    for distro in $(support_distros_matching "${lineage}" "${DISTRO_FILTERS[*]:-}"); do
         pkg_type=$(support_distro_to_pkg_type "${distro}")
         base=$(server_domain_for_pkg_type "${pkg_type}")
         repo_type=$(artifactory_repo_pkg_type "${base}")
@@ -356,28 +420,46 @@ function find_latest_version_for_lineage_artifactory() {
         # package type to its own repo.
         [ -n "${repo_type}" ] && [ "${pkg_type}" != "${repo_type}" ] && continue
         artifact_distro=$(support_distro_to_artifact_name "${distro}")
-        dir=$(artifactory_pkg_dir "${base}" "${artifact_distro}" "x86_64" "${pkg_type}" "aerospike-server-enterprise")
-        [ -z "${dir}" ] && continue
+
         rc=0
-        names=$(artifactory_list_names "${dir}") || rc=$?
+        if is_artifactory_url "${base}"; then
+            found=$(_artifactory_lineage_versions "${base}" "${lineage_re}" \
+                "${artifact_distro}" "${pkg_type}") || rc=$?
+        elif [ -n "${_seen[${base}]+set}" ]; then
+            found="${_seen[${base}]}"
+        else
+            found=$(_listing_lineage_versions "${base}" "${lineage_re}")
+            _seen["${base}"]="${found}"
+        fi
         if [ "${rc}" -eq "${AS_LIST_ERROR}" ]; then
-            log_warn "Cannot read ${dir} - treating ${lineage} as unresolved rather than absent"
+            log_warn "Cannot read the ${pkg_type} source (${base}) - treating ${lineage} as unresolved rather than absent"
             failed=true
             continue
         fi
-        versions="${versions}
-$(printf '%s\n' "${names}" | grep -E "\\.${pkg_type}\$" |
-            grep -oE "${lineage_re}\\.[0-9]+\\.[0-9]+" || true)"
+        if [ "${pkg_type}" = "deb" ]; then
+            versions_deb+="${found}"$'\n'
+        else
+            versions_rpm+="${found}"$'\n'
+        fi
     done
 
     # || true: grep exits 1 when no version matched, which under set -e would
     # kill the caller's $(...) assignment instead of yielding an empty result.
-    echo "${versions}" | grep -vE '^$' | sort -V | tail -1 || true
+    local max_deb max_rpm
+    max_deb=$(printf '%s\n' "${versions_deb}" | grep -vE '^$' | sort -V | tail -1 || true)
+    max_rpm=$(printf '%s\n' "${versions_rpm}" | grep -vE '^$' | sort -V | tail -1 || true)
+    if [ -n "${max_deb}" ] && [ -n "${max_rpm}" ]; then
+        printf '%s\n%s\n' "${max_deb}" "${max_rpm}" | sort -V | head -1
+    else
+        # Only one format contributed -- a single-format -u, or a lineage whose
+        # distros are all one package type -- so its maximum is the answer.
+        printf '%s\n' "${max_deb}${max_rpm}"
+    fi
 
     # A version found despite one bad listing is still a real answer; only
     # report an error when nothing resolved and a listing failed, because that
     # is the case indistinguishable from "not published".
-    if [ "${failed}" = true ] && [ -z "$(echo "${versions}" | grep -vE '^$' || true)" ]; then
+    if [ "${failed}" = true ] && [ -z "${max_deb}${max_rpm}" ]; then
         return "${AS_LIST_ERROR}"
     fi
     return "${AS_LIST_OK}"
@@ -584,29 +666,13 @@ function find_latest_version_for_lineage_local() {
 # Find the latest version for a release lineage (e.g., 7.1 -> 7.1.0.20)
 function find_latest_version_for_lineage() {
     local lineage=$1
-    local url
 
     if is_local_artifacts_dir; then
         find_latest_version_for_lineage_local "${lineage}"
         return
     fi
 
-    # The default (no -u) is the JFrog repos, so discovery goes through the
-    # Artifactory listing whenever no other source shape was named.
-    if [ -z "${ARTIFACTS_DOMAIN}" ] || is_artifactory_url "${ARTIFACTS_DOMAIN}"; then
-        find_latest_version_for_lineage_artifactory "${lineage}"
-        return
-    fi
-
-    if is_direct_url; then
-        url="${ARTIFACTS_DOMAIN}/"
-    else
-        url="${ARTIFACTS_DOMAIN}/aerospike-server-enterprise/"
-    fi
-
-    fetch "version" "${url}" 2>/dev/null |
-        grep -oE "\"${lineage}\.[0-9]+\.[0-9]+(-[a-z0-9]+(-[0-9]+(-g[a-f0-9]+)?)?)?/?\"" |
-        tr -d '"/' | sort -V | tail -1 || true
+    find_latest_version_for_lineage_remote "${lineage}"
 }
 
 # Get the server package link (native .deb/.rpm).
@@ -665,7 +731,7 @@ function get_server_package_link_native() {
     fi
 
     local base_url
-    if is_direct_url; then
+    if is_direct_url "${base}"; then
         base_url="${base}"
     else
         base_url="${base}/aerospike-server-${edition}"
@@ -697,6 +763,7 @@ function find_local_asadm_package() {
     local candidates found qualified unqualified f
     candidates=$(find "${base_dir}" -type f -name "aerospike-asadm[-_]*.${ext}" 2>/dev/null |
         while read -r f; do
+            [ -n "${ASADM_VERSION}" ] && ! pkg_name_matches_version "${f}" "${ASADM_VERSION}" && continue
             pkg_name_matches_arch "${f}" "${arch}" && echo "${f}"
         done)
 
@@ -737,9 +804,11 @@ function find_local_asadm_package() {
 #
 # The source may be a direct package URL/path, a local directory, a JFrog repo,
 # or a plain HTTP directory index. The newest matching package wins, so with no
-# -A the latest published asadm is installed. Echoes empty when no package is
+# -A the latest published asadm is installed; -V/ASADM_VERSION pins it to one
+# version in every one of those shapes. Echoes empty when no package is
 # published for the requested distro/arch, which leaves asadm out rather than
-# failing the build.
+# failing the build -- unless a version was pinned, where resolve_packages turns
+# a one-arch answer into a named target failure rather than a mixed manifest.
 function get_asadm_package_link_native() {
     local artifact_distro=$1 arch=$2 pkg_type=$3
 
@@ -773,6 +842,9 @@ function get_asadm_package_link_native() {
         if [[ "${base}" != http* ]] && [ ! -f "${base}" ]; then
             log_warn "asadm package not found: ${base}"
             echo ""
+        elif [ -n "${ASADM_VERSION}" ] && ! pkg_name_matches_version "${base}" "${ASADM_VERSION}"; then
+            log_warn "asadm package ${base} is not version ${ASADM_VERSION}"
+            echo ""
         elif pkg_name_matches_arch "${base}" "${arch}"; then
             echo "${base}"
         else
@@ -799,11 +871,17 @@ function get_asadm_package_link_native() {
     # Distro-qualified match first, then any asadm package for this arch, so
     # plain directories that do not embed the distro in the filename still work.
     # Both patterns share one listing.
-    local link ext="deb" rc=0
+    #
+    # A -V pin narrows both patterns to that version rather than filtering after
+    # the fact, so "newest of the pinned version" still picks the highest package
+    # revision. The version is delimited on the right for the same reason
+    # pkg_name_matches_version delimits it: 5.0.30 must not satisfy 5.0.3.
+    local link ext="deb" rc=0 ver_re=""
     [ "${pkg_type}" = "rpm" ] && ext="rpm"
+    [ -n "${ASADM_VERSION}" ] && ver_re="$(_ere_quote "${ASADM_VERSION}")[-._]"
     link=$(artifactory_pick_latest_for_arch "${dir}" "${arch}" \
-        "^aerospike-asadm[-_].*${distro_re}.*\\.${ext}$" \
-        "^aerospike-asadm[-_].*\\.${ext}$") || rc=$?
+        "^aerospike-asadm[-_]${ver_re}.*${distro_re}.*\\.${ext}$" \
+        "^aerospike-asadm[-_]${ver_re}.*\\.${ext}$") || rc=$?
     echo "${link}"
 
     # A source the user named explicitly either yields a package or says why
@@ -852,11 +930,22 @@ function fetch_sha_for_link() {
         # cannot help - it keys directory indexes - so digests get their own
         # entries. Only a validated non-empty digest is cached: an empty
         # answer may be a transient failure, which must stay re-probeable.
+        # Validated on read, not only on write: the write is best-effort
+        # (2>/dev/null || true), so a truncated entry is reachable, and a
+        # prefix of a digest is non-empty enough to survive
+        # drop_unchecksummed_arches and land in serverSha='...'. A bad entry is
+        # treated as a miss so the URL stays re-probeable, the same reasoning
+        # the comment above gives for not caching empty answers.
         local cached
         cached=$(_list_cache_path "sha:${link}")
         if [ -n "${cached}" ] && [ -f "${cached}" ]; then
-            cat "${cached}"
-            return
+            sha=$(cat "${cached}" 2>/dev/null || true)
+            if [[ "${sha}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+                echo "${sha}"
+                return
+            fi
+            rm -f "${cached}" 2>/dev/null || true
+            sha=""
         fi
         sha=$(fetch "sha" "${link}.sha256" 2>/dev/null | cut -f1 -d' ' || true)
         if [ -z "${sha}" ]; then

@@ -126,13 +126,15 @@ rpm -i --excludedocs "${pkgs[@]}"
 mkdir -p /licenses /var/log/aerospike /var/run/aerospike
 # The server package ships its license at /opt/aerospike/doc/LICENSE; the
 # image has always published it at /licenses/ (a Red Hat certification
-# requirement on UBI). Warn loudly rather than fail: an absent file means the
-# packaging changed, and the warning names the invariant to restore.
-if [ -f /opt/aerospike/doc/LICENSE ]; then
-    cp /opt/aerospike/doc/LICENSE /licenses/
-else
-    echo >&2 "warning: /opt/aerospike/doc/LICENSE not found - /licenses/ left empty"
+# requirement on UBI). An absent file means the packaging changed, which is a
+# condition that stops a release rather than annotating it: the tgz path this
+# replaced had an unconditional cp in the same errexit chain, so a warning here
+# would be the one place the guarantee got weaker.
+if [ ! -f /opt/aerospike/doc/LICENSE ]; then
+    echo >&2 "error: /opt/aerospike/doc/LICENSE not found - the package no longer ships its license"
+    exit 1
 fi
+cp /opt/aerospike/doc/LICENSE /licenses/
 if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
     if [ -f /tmp/aerospike/features.conf ]; then
         mkdir -p /etc/aerospike

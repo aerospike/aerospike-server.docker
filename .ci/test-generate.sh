@@ -11,6 +11,11 @@
 # resolution is covered by a throwaway python http.server, rooted so that
 # is_artifactory_url matches and the real JFrog pool/ mapping is exercised.
 #
+# Not covered here: BSD/GNU sed parity. CI runs ubuntu-24.04 only, and the forms
+# this suite would exercise work under GNU sed either way, so a macOS-only
+# regression (BRE alternation, sed -i '' ) is invisible to it. The same goes for
+# anything that needs an image: /licenses/LICENSE is asserted by test.sh.
+#
 # Copyright 2014-2026 Aerospike, Inc. Licensed under Apache-2.0. See LICENSE.
 set -Eeuo pipefail
 
@@ -23,7 +28,7 @@ WORK=$(mktemp -d)
 SRV_PID=""
 FAILED=0
 SCENARIOS=0
-EXPECTED_SCENARIOS=25
+EXPECTED_SCENARIOS=36
 CURRENT_LOG="${WORK}/out.log"
 
 FORCE=false
@@ -489,8 +494,8 @@ scenario "an unreadable server source aborts instead of dropping a lineage"
 gen -e enterprise -d ubuntu24.04 \
     -u "http://127.0.0.1:${DEADPORT}/artifactory/database-deb-prod-public-local" && rcU=0 || rcU=$?
 check "run fails" "exit code" "${rcU}" "1"
-check "refuses rather than continuing" "warning present" \
-    "$(grep -q 'could not be read' "${CURRENT_LOG}" && echo yes || echo no)" "yes"
+check "refuses rather than continuing" "discovery-level warning" \
+    "$(grep -c 'Refusing to continue' "${CURRENT_LOG}" || true)" "1"
 check "releases/ intact" "Dockerfile count" \
     "$(dockerfile_count "releases/${LINEAGE}")" "$(git ls-files "releases/${LINEAGE}" | grep -c Dockerfile)"
 
@@ -649,6 +654,180 @@ check "its ubi9 tree survives the rebuild" "committed ubi9 Dockerfiles" \
     "$(dockerfile_count "releases/${OLD_LINEAGE}" | tr -d ' ')" "6"
 check "no committed file was deleted" "tracked deletions under releases/" \
     "$(git status --porcelain -- releases/ | grep -c '^ D' || true)" "0"
+
+scenario "an unreadable server source skips the target by name, not as absent"
+# The per-target block, which the discovery-level scenario above cannot reach:
+# with a version given, resolution runs and server_unreadable is what decides.
+# "Unreadable" must stay distinguishable from "absent" here too -- reporting a
+# timed-out listing as "no package published" sends the reader hunting for a
+# package that exists.
+gen "${VERSION}" -e enterprise -d ubuntu24.04 \
+    -u "http://127.0.0.1:${DEADPORT}/artifactory/database-deb-prod-public-local" && rcUT=0 || rcUT=$?
+check "run fails" "exit code" "${rcUT}" "1"
+check "skipped by name, as unreadable" "per-target warning" \
+    "$(grep -c 'Skipping enterprise/ubuntu24.04 - the server package source could not be read' "${CURRENT_LOG}" || true)" "1"
+check "not reported as absent" "\"no package published\" warning" \
+    "$(grep -c 'no package published' "${CURRENT_LOG}" || true)" "0"
+
+scenario "the update path emits byte-identical output to the generate path"
+# CI's no-diff gate only runs -g, so it cannot see update-path drift: a
+# divergence as small as a blank line makes every file an update run last
+# touched fail the gate on the next generation.
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" || true
+cp "${DF}" "${WORK}/generated.Dockerfile"
+PATH="${WORK}/stub:${PATH}" ./docker-build.sh -t "${VERSION}" -e enterprise -d ubuntu24.04 \
+    -u "${WORK}/a" >"${CURRENT_LOG}" 2>&1 || true
+check "update rewrote the file" "in-place update ran" \
+    "$(grep -c 'Updating in-place' "${CURRENT_LOG}" || true)" "1"
+check "identical to the generated file" "cmp" \
+    "$(cmp -s "${DF}" "${WORK}/generated.Dockerfile" && echo same || echo differs)" "same"
+
+scenario "a URL carrying sed metacharacters survives substitution intact"
+# & recalls the whole matched pattern in a sed replacement, so an unescaped one
+# turns asadmUrl into the placeholder text. The three characters _sed_rhs_quote
+# escapes are not reachable through a JFrog package name -- the index charset
+# filter rejects them -- so only the -u/-A half of the URL can carry one.
+AMP_POOL="${WORK}/repo/artifactory/database-deb-prod-public-local-a&b/pool/noble/aerospike-asadm"
+mk_pkg "${AMP_POOL}/aerospike-asadm_5.0.3-1ubuntu24.04_x86_64.deb"
+mk_pkg "${AMP_POOL}/aerospike-asadm_5.0.3-1ubuntu24.04_aarch64.deb"
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-a&b" || true
+check "the literal & reaches the Dockerfile" "asadmUrl with &" \
+    "$(grep -c "asadmUrl='http[^']*local-a&b/" "${DF}" || true)" "2"
+check "no placeholder text recalled into the value" "__ASADM_URL_ in asadmUrl" \
+    "$(grep -c "asadmUrl='[^']*__ASADM_URL_" "${DF}" || true)" "0"
+
+scenario "a link that cannot be safely emitted is dropped, not escaped"
+# The index charset filter covers the filename half of a resolved URL; the
+# directory half comes from -u/-A unfiltered. A quote there closes the
+# single-quoted assignment in the emitted Dockerfile, and escaping it for sed
+# would not help -- the destination quoting is what breaks.
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" \
+    -A "${BASE}/pool/noble/aerospike-asadm/aerospike-asadm_5.0.3-1'ubuntu24.04_amd64.deb" || true
+check "nothing unsafe emitted" "assignments that break their quoting" "$(unsafe_assigns)" "0"
+check "the link is dropped, not emitted" "asadmUrl count" \
+    "$(grep -c "asadmUrl='http" "${DF}" || true)" "0"
+check "and the flag it came from is named" "warning present" \
+    "$(grep -c 'link from -A/--asadm-url carries a character' "${CURRENT_LOG}" || true)" "1"
+check "the server still builds" "server files" "$(staged_count 'aerospike-server')" "2"
+
+scenario "the newest published asadm wins"
+# Every other fixture holds one version per arch, so `sort -V | tail -1` could
+# be `head -1` and nothing would fail.
+TWO_POOL="${WORK}/repo/artifactory/database-deb-prod-public-local-two/pool/noble/aerospike-asadm"
+for v in 5.0.3 5.0.4; do
+    mk_pkg "${TWO_POOL}/aerospike-asadm_${v}-1ubuntu24.04_x86_64.deb"
+    mk_pkg "${TWO_POOL}/aerospike-asadm_${v}-1ubuntu24.04_aarch64.deb"
+done
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-two" || true
+check "5.0.4 selected for both arches" "asadmUrl with 5.0.4" \
+    "$(grep -c "asadmUrl='http[^']*aerospike-asadm_5\.0\.4-" "${DF}" || true)" "2"
+check "5.0.3 not selected" "asadmUrl with 5.0.3" \
+    "$(grep -c "asadmUrl='http[^']*aerospike-asadm_5\.0\.3-" "${DF}" || true)" "0"
+
+scenario "a per-arch asadm skew is refused, and -V pins past it"
+# The two arches resolve asadm independently, so a release published for amd64
+# before arm64 puts two versions in one Dockerfile -- a multi-arch manifest
+# whose halves carry different asadm builds, both logged as success.
+SKEW_POOL="${WORK}/repo/artifactory/database-deb-prod-public-local-skew/pool/noble/aerospike-asadm"
+mk_pkg "${SKEW_POOL}/aerospike-asadm_5.0.4-1ubuntu24.04_x86_64.deb"
+mk_pkg "${SKEW_POOL}/aerospike-asadm_5.0.3-1ubuntu24.04_x86_64.deb"
+mk_pkg "${SKEW_POOL}/aerospike-asadm_5.0.3-1ubuntu24.04_aarch64.deb"
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-skew" && rcSk=0 || rcSk=$?
+check "run fails rather than emitting a mixed manifest" "exit code" "${rcSk}" "1"
+check "and names both versions" "warning present" \
+    "$(grep -c '5\.0\.4 for amd64 and 5\.0\.3 for arm64' "${CURRENT_LOG}" || true)" "1"
+check "nothing written" "Dockerfile vs committed" \
+    "$(git diff --quiet "${CTX}" && echo untouched || echo regenerated)" "untouched"
+git checkout -- releases/ 2>/dev/null || true
+git clean -fdxq releases/ 2>/dev/null || true
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-skew" -V 5.0.3 && rcPin=0 || rcPin=$?
+check "-V resolves both arches to the pin" "exit code" "${rcPin}" "0"
+check "both arches carry the pinned version" "asadmUrl with 5.0.3" \
+    "$(grep -c "asadmUrl='http[^']*aerospike-asadm_5\.0\.3-" "${DF}" || true)" "2"
+check "the newer build is not selected" "asadmUrl with 5.0.4" \
+    "$(grep -c '5\.0\.4' "${DF}" || true)" "0"
+
+scenario "a -V that is published for one arch only fails the target by name"
+# Without a pin, an asadm missing for one arch is a warning: the image simply
+# ships without it. With a pin the answer is half of what was asked for.
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-skew" -V 5.0.4 && rcHalf=0 || rcHalf=$?
+check "run fails" "exit code" "${rcHalf}" "1"
+check "and names the missing arch" "warning present" \
+    "$(grep -c 'asadm 5\.0\.4 is not published for arm64' "${CURRENT_LOG}" || true)" "1"
+
+# --- Per-format defaults ------------------------------------------------------
+# The headline behaviour of this change -- the server source defaulting to the
+# JFrog repo matching the package format -- is reached only with no -u at all,
+# which every scenario above passes. These drive it through
+# ARTIFACTS_DOMAIN_DEB/_RPM instead, which is the same code path with the
+# default values replaced by fixture URLs.
+DEB_REPO="${WORK}/repo/artifactory/database-deb-prod-public-local-fmt"
+RPM_REPO="${WORK}/repo/artifactory/database-rpm-prod-public-local-fmt"
+for v in 8.1.2.5 8.1.3.0; do
+    mk_pkg "${DEB_REPO}/pool/noble/aerospike-server-enterprise/aerospike-server-enterprise_${v}-1ubuntu24.04_amd64.deb"
+    mk_pkg "${DEB_REPO}/pool/noble/aerospike-server-enterprise/aerospike-server-enterprise_${v}-1ubuntu24.04_arm64.deb"
+done
+# The rpm repo is one release behind: a staggered publish, which is the normal
+# state of the two repos for the minutes or hours between them.
+for a in x86_64 aarch64; do
+    mk_pkg "${RPM_REPO}/el10/${a}/aerospike-server-enterprise-8.1.2.5-1.el10.${a}.rpm"
+done
+DEB_BASE="http://127.0.0.1:${PORT}/artifactory/database-deb-prod-public-local-fmt"
+RPM_BASE="http://127.0.0.1:${PORT}/artifactory/database-rpm-prod-public-local-fmt"
+
+scenario "each package format resolves from its own default repo"
+ARTIFACTS_DOMAIN_DEB="${DEB_BASE}" ARTIFACTS_DOMAIN_RPM="${RPM_BASE}" \
+    gen "8.1.2.5" -e enterprise -d ubuntu24.04 ubi10 --no-asadm && rcFmt=0 || rcFmt=$?
+check "run succeeds with no -u at all" "exit code" "${rcFmt}" "0"
+check "the deb target resolved from the deb repo" "serverUrl" \
+    "$(grep -c "serverUrl='http[^']*-fmt/pool/noble/[^']*_amd64\.deb" "${DF}" || true)" "1"
+check "the rpm target resolved from the rpm repo" "serverUrl" \
+    "$(grep -c "serverUrl='http[^']*database-rpm[^']*/el10/x86_64/[^']*\.rpm" \
+        "releases/${LINEAGE}/enterprise/ubi10/Dockerfile" || true)" "1"
+
+scenario "a lineage never advances past the slower of the two repos"
+# Version discovery lists both repos. A maximum over their union resolves the
+# lineage to a version one format does not carry, which skips that format's
+# targets as unavailable and commits a split-version lineage at exit 0.
+ARTIFACTS_DOMAIN_DEB="${DEB_BASE}" ARTIFACTS_DOMAIN_RPM="${RPM_BASE}" \
+    gen "${LINEAGE}" -e enterprise -d ubuntu24.04 ubi10 --no-asadm && rcSt=0 || rcSt=$?
+check "run succeeds" "exit code" "${rcSt}" "0"
+check "resolved to the version both repos carry" "lineage resolution" \
+    "$(grep -c '8\.1 -> 8\.1\.2\.5' "${CURRENT_LOG}" || true)" "1"
+check "no target was skipped as unavailable" "skip warnings" \
+    "$(grep -c 'no package published' "${CURRENT_LOG}" || true)" "0"
+check "both distros carry the same version" "image.version labels" \
+    "$(grep -c 'org.opencontainers.image.version="8.1.2.5"' \
+        "${DF}" "releases/${LINEAGE}/enterprise/ubi10/Dockerfile" | cut -d: -f2 | tr '\n' ' ')" "1 1 "
+
+scenario "a plain listing URL works in a per-format default, not just in -u"
+# The source shape is decided from the resolved base, so a listing URL set in
+# ARTIFACTS_DOMAIN_DEB takes the same branch it takes when passed as -u.
+# Reading the raw ARTIFACTS_DOMAIN instead sent it down the Artifactory branch,
+# where every probe 404s and the lineage reports NOT FOUND.
+LIST_ROOT="${WORK}/repo/plain/aerospike-server-enterprise/${VERSION}"
+mk_pkg "${LIST_ROOT}/aerospike-server-enterprise_${VERSION}ubuntu24.04_amd64.deb"
+mk_pkg "${LIST_ROOT}/aerospike-server-enterprise_${VERSION}ubuntu24.04_arm64.deb"
+PLAIN="http://127.0.0.1:${PORT}/plain"
+ARTIFACTS_DOMAIN_DEB="${PLAIN}" gen "${LINEAGE}" -e enterprise -d ubuntu24.04 --no-asadm && rcPl=0 || rcPl=$?
+check "the lineage resolves" "exit code" "${rcPl}" "0"
+check "through the listing layout" "serverUrl" \
+    "$(grep -c "serverUrl='http[^']*/plain/aerospike-server-enterprise/${VERSION}/" "${DF}" || true)" "2"
+gen "${LINEAGE}" -e enterprise -d ubuntu24.04 -u "${PLAIN}" --no-asadm || true
+check "and the same URL passed as -u agrees" "serverUrl via -u" \
+    "$(grep -c "serverUrl='http[^']*/plain/aerospike-server-enterprise/${VERSION}/" "${DF}" || true)" "2"
+
+scenario "push refuses a partial matrix"
+# -t builds the subset that resolved, which is the point of a local test run;
+# -p must not publish a release with a target missing. No scenario used -p at
+# all, so the refusal was unexercised.
+PATH="${WORK}/stub:${PATH}" ./docker-build.sh -g -p "${VERSION}" -e enterprise \
+    -d ubuntu24.04 ubi10 -u "${WORK}/a" -r testreg >"${CURRENT_LOG}" 2>&1 && rcP=0 || rcP=$?
+check "run fails" "exit code" "${rcP}" "1"
+check "and says why" "warning present" \
+    "$(grep -c 'refusing to push a partial matrix' "${CURRENT_LOG}" || true)" "1"
+check "nothing was pushed" "bake invoked" \
+    "$(grep -c 'Building and pushing' "${CURRENT_LOG}" || true)" "0"
 
 echo
 if [ "${SCENARIOS}" -ne "${EXPECTED_SCENARIOS}" ]; then

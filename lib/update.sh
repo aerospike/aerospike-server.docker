@@ -6,6 +6,13 @@
 
 set -Eeuo pipefail
 
+# Every awk rewrite pass below writes a temp file and commits it with an
+# explicit `|| { log_warn; return 1; }` rather than `awk ... && mv`. The
+# left-hand side of an `&&` is exempt from errexit, so that form skipped the mv
+# on a failed pass and still returned 0 -- which, on the install-block pass,
+# shipped a Dockerfile labelled with the new version and still installing the
+# old package, counted as generated, at exit 0.
+
 # Portable in-place sed (BSD sed on macOS vs GNU sed on Linux)
 _sed_i() {
     if [[ "$OSTYPE" == darwin* ]]; then
@@ -94,7 +101,11 @@ function _dockerfile_refresh_install_block() {
             exit 1
         }
     }
-    ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+    ' "${df}" >"${tmp}" || {
+        log_warn "    ${df}: install block could not be replaced - refusing to update"
+        return 1
+    }
+    mv "${tmp}" "${df}"
 
     # Step D: cleanup passes.
     # Remove BuildKit-only parser directive (DOI legacy builder does not use it).
@@ -110,7 +121,11 @@ function _dockerfile_refresh_install_block() {
     _sed_i '/^COPY server_/d' "${df}"
     # Collapse multiple consecutive blank lines to one (left by removed ARG blocks).
     awk 'prev=="" && /^$/ && blank { next } /^$/ { blank=1 } !/^$/ { blank=0 } { prev=$0; print }' \
-        "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+        "${df}" >"${tmp}" || {
+        log_warn "    ${df}: blank lines could not be collapsed - refusing to update"
+        return 1
+    }
+    mv "${tmp}" "${df}"
 
     # Step E: inject ENV AEROSPIKE_LINUX_BASE after ARG AEROSPIKE_EDITION if
     # missing. A blank line follows, matching the generated header: the update
@@ -128,7 +143,11 @@ function _dockerfile_refresh_install_block() {
                 next
             }
             { print }
-            ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+            ' "${df}" >"${tmp}" || {
+                log_warn "    ${df}: ENV AEROSPIKE_LINUX_BASE could not be injected - refusing to update"
+                return 1
+            }
+            mv "${tmp}" "${df}"
         fi
     fi
 
@@ -138,7 +157,11 @@ function _dockerfile_refresh_install_block() {
             print "STOPSIGNAL SIGTERM"
             print ""
             found = 1
-        } { print }' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+        } { print }' "${df}" >"${tmp}" || {
+            log_warn "    ${df}: STOPSIGNAL could not be inserted - refusing to update"
+            return 1
+        }
+        mv "${tmp}" "${df}"
     fi
 
     # Step G: ensure file starts with exactly one blank line; strip trailing whitespace.
@@ -146,7 +169,11 @@ function _dockerfile_refresh_install_block() {
         {
             printf '\n'
             cat
-        } >"${tmp}" && mv "${tmp}" "${df}"
+        } >"${tmp}" || {
+        log_warn "    ${df}: leading blank line could not be normalised - refusing to update"
+        return 1
+    }
+    mv "${tmp}" "${df}"
     _sed_i 's/[[:space:]]*$//' "${df}"
 }
 
@@ -180,7 +207,11 @@ function _dockerfile_sync_native_copy() {
             inserted = 1
         }
         { print }
-        ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+        ' "${df}" >"${tmp}" || {
+            log_warn "    ${df}: native-package COPY line could not be inserted - refusing to update"
+            return 1
+        }
+        mv "${tmp}" "${df}"
     else
         # Remote-URL mode: remove any native-copy line. Two expressions, not
         # BRE alternation: BSD sed has no \|.
@@ -188,7 +219,11 @@ function _dockerfile_sync_native_copy() {
             -e '/^COPY \*\.rpm \/tmp\/aerospike\//d' "${df}"
         # Collapse any resulting double blank line.
         awk 'prev=="" && /^$/ && blank { next } /^$/ { blank=1 } !/^$/ { blank=0 } { prev=$0; print }' \
-            "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+            "${df}" >"${tmp}" || {
+            log_warn "    ${df}: blank lines could not be collapsed - refusing to update"
+            return 1
+        }
+        mv "${tmp}" "${df}"
     fi
 }
 
@@ -220,7 +255,11 @@ function _dockerfile_remove_vendored_tini() {
     END {
         for (i = 1; i <= buf_n; i++) print buf[i]
     }
-    ' "${df}" >"${tmp}" && mv "${tmp}" "${df}"
+    ' "${df}" >"${tmp}" || {
+        log_warn "    ${df}: vendored-tini block could not be removed - refusing to update"
+        return 1
+    }
+    mv "${tmp}" "${df}"
 }
 
 # resolve_packages distro edition version single_arch pkg_type
@@ -285,7 +324,133 @@ function resolve_packages() {
         fi
     fi
 
+    drop_unsafe_links
     drop_unchecksummed_arches
+}
+
+# Drop any resolved package link carrying a character that cannot be safely
+# emitted, reading and writing the caller's x86_link/arm_link/asadm_*_link (the
+# same dynamic scoping resolve_packages uses).
+#
+# A link is substituted into a single-quoted shell assignment in the generated
+# Dockerfile (serverUrl='...', asadmUrl='...'). artifactory_list_names already
+# constrains the filename half to the package charset, precisely because a quote
+# there would break out of the quoting -- but the directory half comes from
+# -u/-A unfiltered, so the two halves of one emitted string were held to
+# different standards. _sed_rhs_quote escapes the three characters that matter
+# to sed; it cannot make a quote safe for the destination.
+#
+# Reject rather than sanitise, as fetch_sha_for_link does with a malformed
+# digest: a percent-encoded apostrophe is unaffected, and anything else is a
+# typo or a source this tool should not be composing URLs from. The arch is
+# dropped, so the existing "no package available" guard reports the target.
+function drop_unsafe_links() {
+    local _safe='^[][A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$'
+    local _var _val _flag _what
+    for _var in x86_link arm_link asadm_x86_link asadm_arm_link; do
+        _val="${!_var:-}"
+        [ -n "${_val}" ] || continue
+        [[ "${_val}" =~ ${_safe} ]] && continue
+        case "${_var}" in
+        asadm_*) _flag="-A/--asadm-url" ;;
+        *) _flag="-u/--url" ;;
+        esac
+        _what="${_var%_link}"
+        _what="${_what//x86/amd64}"
+        _what="${_what//arm/arm64}"
+        log_warn "    Dropping the ${_what//_/ } package: its link from ${_flag} carries a character that cannot be emitted safely"
+        printf -v "${_var}" '%s' ""
+    done
+}
+
+# Refuse a multi-arch target whose two arches resolved different asadm builds.
+#
+# The arches resolve asadm independently -- two get_asadm_package_link_native
+# calls, each taking its own newest -- so an asadm release that lands for amd64
+# before arm64 emits two versions into one Dockerfile, both logged as success,
+# producing a manifest whose halves carry different asadm builds. Nothing
+# downstream compares them: drop_unchecksummed_arches only checks for an empty
+# digest.
+#
+# Echoes the reason and returns 1 when the target must be refused. A pinned
+# version (-V) additionally makes a one-arch answer a refusal rather than a
+# warning: the pin exists so both arches carry the same build, and half of that
+# is not a weaker version of it.
+function asadm_arch_mismatch_reason() {
+    local single_arch=$1
+    [ -n "${single_arch}" ] && return 0
+    [ "${ASADM_DISABLED}" = true ] && return 0
+
+    local x86_v arm_v
+    if [ -n "${asadm_x86_link:-}" ] && [ -n "${asadm_arm_link:-}" ]; then
+        x86_v=$(asadm_version_from_name "${asadm_x86_link}")
+        arm_v=$(asadm_version_from_name "${asadm_arm_link}")
+        if [ "${x86_v}" != "${arm_v}" ]; then
+            echo "asadm resolved to ${x86_v} for amd64 and ${arm_v} for arm64 - pin one with -V/--asadm-version"
+            return 1
+        fi
+        return 0
+    fi
+
+    if [ -n "${ASADM_VERSION}" ] && [ -n "${asadm_x86_link:-}${asadm_arm_link:-}" ]; then
+        local missing="arm64"
+        [ -z "${asadm_x86_link:-}" ] && missing="amd64"
+        echo "asadm ${ASADM_VERSION} is not published for ${missing}"
+        return 1
+    fi
+    return 0
+}
+
+# target_is_buildable edition distro single_arch
+#
+# The one skip decision for a resolved target, shared by the generate and the
+# in-place update path -- which held two verbatim copies of these guards, in the
+# same order, differing only in the action and already drifting apart in their
+# wording. Reads the caller-scoped variables resolve_packages sets and does all
+# the logging; returns 1 when the target must be skipped.
+function target_is_buildable() {
+    local edition=$1 distro=$2 single_arch=$3
+
+    # An unreadable server source is not the same fact as an unpublished
+    # package: reporting it as "not available" would send the user hunting for
+    # a package that exists behind a listing that merely failed to answer.
+    if [ "${server_unreadable}" = true ]; then
+        log_warn "    Skipping ${edition}/${distro} - the server package source could not be read"
+        return 1
+    fi
+
+    # Only an explicit -A sets this: the user named a source that could not be
+    # read, so shipping an asadm-less image would answer a different question
+    # than the one they asked.
+    if [ "${asadm_unreadable}" = true ]; then
+        log_warn "    Skipping ${edition}/${distro} - the asadm source given with -A could not be read"
+        return 1
+    fi
+
+    # Nothing was readable-and-absent either: the listings answered, and no
+    # package for this version exists in them.
+    if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
+        log_warn "    Skipping ${edition}/${distro} - no package published for this distro/arch"
+        return 1
+    fi
+
+    local _reason=""
+    _reason=$(asadm_arch_mismatch_reason "${single_arch}") || {
+        log_warn "    Skipping ${edition}/${distro} - ${_reason}"
+        return 1
+    }
+
+    # A multi-arch run still bakes both platforms, so an arch with no package
+    # fails at docker build time rather than here. Name it now.
+    if [ -z "${single_arch}" ] && [ "${edition}" != "federal" ]; then
+        if [ -z "${x86_link}" ]; then
+            log_warn "    ${edition}/${distro}: no amd64 package - the linux/amd64 build will fail (use -a arm64)"
+        fi
+        if [ -z "${arm_link}" ]; then
+            log_warn "    ${edition}/${distro}: no arm64 package - the linux/arm64 build will fail (use -a amd64)"
+        fi
+    fi
+    return 0
 }
 
 # _local_pkg_copy_glob pkg_type

@@ -60,6 +60,12 @@ OPTIONS:
                         Default: the JFrog repo matching the package format;
                         the newest published version is picked.
                         See PACKAGE SOURCES below.
+    -V, --asadm-version V
+                        Pin aerospike-asadm to version V (e.g. 5.0.3) for every
+                        arch, instead of taking the newest published one per
+                        arch. Without it, an asadm released for one arch before
+                        the other makes the two halves of a multi-arch manifest
+                        carry different asadm builds, which is refused by name.
     --no-asadm          Do not install a standalone aerospike-asadm package.
     -e, --edition ED    Filter edition(s): community, enterprise, federal
                         Can specify multiple: -e enterprise community
@@ -156,6 +162,9 @@ PACKAGE SOURCES (-u for the server, -A for asadm):
     Both arch spellings are accepted throughout (amd64/x86_64, arm64/aarch64).
     When no asadm package is found the image is built without it - a warning,
     not an error. A local -A path that does not exist is reported by name.
+    -V/--asadm-version narrows every shape above to one version, and turns
+    "published for one arch only" into a named target failure rather than a
+    half-asadm manifest.
 
 ENVIRONMENT (each is the default for the matching flag):
     ARTIFACTS_DOMAIN        same as -u (overrides both per-format defaults)
@@ -163,6 +172,7 @@ ENVIRONMENT (each is the default for the matching flag):
                             only; local paths and single files need -u)
     ARTIFACTS_DOMAIN_RPM    server default for .rpm builds (same constraint)
     ASADM_DOMAIN            same as -A
+    ASADM_VERSION           same as -V
     ASADM_DOMAIN_DEB        asadm default for .deb builds
     ASADM_DOMAIN_RPM        asadm default for .rpm builds
     ASADM_DISABLED=true     same as --no-asadm
@@ -240,6 +250,8 @@ EXAMPLES:
        -u ~/Downloads/aerospike-server-enterprise_8.1.2.5-9ubuntu24.04_arm64.deb
 
     # --- Choosing where asadm comes from (default: latest from the JFrog repo) ---
+    # Pin an asadm version for every arch (multi-arch safe)
+    $0 -t 8.1 -e enterprise -d ubuntu24.04 -V 5.0.3
     # Pin a specific asadm version with a direct package URL
     $0 -t 8.1 -e enterprise -d ubuntu24.04 -a amd64 \\
        -A https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-asadm/aerospike-asadm_5.0.3-5ubuntu24.04_amd64.deb
@@ -257,7 +269,7 @@ EOF
 # Main
 #------------------------------------------------------------------------------
 function main() {
-    local mode="" custom_url="" asadm_url="" version_or_lineage=""
+    local mode="" custom_url="" asadm_url="" asadm_version="" version_or_lineage=""
     local no_asadm=false
     local generate_only=false
     local full_generate=false
@@ -295,6 +307,10 @@ function main() {
             ;;
         -A | --asadm-url)
             asadm_url="$2"
+            shift 2
+            ;;
+        -V | --asadm-version)
+            asadm_version="$2"
             shift 2
             ;;
         --no-asadm)
@@ -391,7 +407,21 @@ function main() {
     [ ${#REGISTRY_PREFIXES[@]} -eq 0 ] && REGISTRY_PREFIXES=("aerospike")
     [ -n "${custom_url}" ] && export ARTIFACTS_DOMAIN="${custom_url}"
     [ -n "${asadm_url}" ] && export ASADM_DOMAIN="${asadm_url}"
+    [ -n "${asadm_version}" ] && export ASADM_VERSION="${asadm_version}"
     [ "${no_asadm}" = true ] && export ASADM_DISABLED=true
+
+    # The per-format server defaults are only ever consumed as a base URL:
+    # source-shape detection runs on -u/ARTIFACTS_DOMAIN alone, so a local
+    # directory or a single file set here would surface as "NOT FOUND" rather
+    # than as the misconfiguration it is.
+    local _v
+    for _v in ARTIFACTS_DOMAIN_DEB ARTIFACTS_DOMAIN_RPM; do
+        if [[ "${!_v}" != http* ]]; then
+            log_warn "${_v} must be an http(s) repo or listing URL (got: ${!_v})."
+            log_warn "Use -u/--url for a local directory or a single package file."
+            exit 1
+        fi
+    done
 
     # When using -t or -p without -g, combinable: generate_only stays false,
     # full_generate stays false -> in-place update mode.

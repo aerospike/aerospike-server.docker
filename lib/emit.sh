@@ -47,40 +47,14 @@ function generate_dockerfile() {
     local x86_link x86_sha arm_link arm_sha
     # shellcheck disable=SC2034  # same
     local asadm_x86_link asadm_x86_sha asadm_arm_link asadm_arm_sha
+    # shellcheck disable=SC2034  # same; read by target_is_buildable
     local server_unreadable asadm_unreadable
     resolve_packages "${artifact_distro}" "${edition}" "${version}" "${single_arch}" "${pkg_type}"
 
-    # An unreadable server source is not the same fact as an unpublished
-    # package: reporting it as "not available" would send the user hunting for
-    # a package that exists behind a listing that merely failed to answer.
-    if [ "${server_unreadable}" = true ]; then
-        log_warn "    Skipping ${edition}/${distro} - the server package source could not be read"
+    # Whether this target can be built, and why not -- one decision shared with
+    # the in-place update path, which used to hold a verbatim copy of it.
+    if ! target_is_buildable "${edition}" "${distro}" "${single_arch}"; then
         return 1
-    fi
-
-    # Only an explicit -A sets this: the user named a source that could not be
-    # read, so shipping an asadm-less image would answer a different question
-    # than the one they asked.
-    if [ "${asadm_unreadable}" = true ]; then
-        log_warn "    Skipping - the asadm source given with -A could not be read"
-        return 1
-    fi
-
-    # Skip when no package is available for any arch still being built
-    if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
-        log_warn "    Skipping - package not available"
-        return 1
-    fi
-
-    # A multi-arch run still bakes both platforms, so an arch with no package
-    # fails at docker build time rather than here. Name it now.
-    if [ -z "${single_arch}" ] && [ "${edition}" != "federal" ]; then
-        if [ -z "${x86_link}" ]; then
-            log_warn "    No amd64 package - the linux/amd64 build will fail (use -a arm64)"
-        fi
-        if [ -z "${arm_link}" ]; then
-            log_warn "    No arm64 package - the linux/arm64 build will fail (use -a amd64)"
-        fi
     fi
 
     # Reported per arch: a concatenation test would log "Including asadm" when
