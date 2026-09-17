@@ -14,12 +14,17 @@ function generate_dockerfiles() {
     local full_generate=${2:-false}
 
     log_info "=== Generating Dockerfiles ==="
-    log_info "Fetching versions from ${ARTIFACTS_DOMAIN}..."
+    if [ -n "${ARTIFACTS_DOMAIN}" ]; then
+        log_info "Fetching versions from ${ARTIFACTS_DOMAIN}..."
+    else
+        log_info "Fetching versions from ${ARTIFACTS_DOMAIN_DEB} (deb)"
+        log_info "                   and ${ARTIFACTS_DOMAIN_RPM} (rpm)..."
+    fi
     [ ${#EDITION_FILTERS[@]} -gt 0 ] && log_info "  Editions: ${EDITION_FILTERS[*]}"
     [ ${#DISTRO_FILTERS[@]} -gt 0 ] && log_info "  Distros: ${DISTRO_FILTERS[*]}"
     echo ""
 
-    declare -A VERSION_MAP TOOLS_MAP
+    declare -A VERSION_MAP
     declare -ag LINEAGES_TO_BUILD=()
     # Counts targets actually written; a run that produces none must not fall
     # through to a build against whatever stale Dockerfiles are in releases/.
@@ -35,20 +40,14 @@ function generate_dockerfiles() {
     # --- Resolve version(s) ---
     if [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; then
         local version="${version_or_lineage}"
-        local lineage tools_version
+        local lineage
         lineage=$(get_lineage_from_version "${version}")
-        tools_version=$(find_tools_version "${version}")
         VERSION_MAP["${lineage}"]="${version}"
-        TOOLS_MAP["${lineage}"]="${tools_version:-}"
         LINEAGES_TO_BUILD=("${lineage}")
-        if [ -z "${tools_version}" ]; then
-            log_warn "${version} -> tools NOT FOUND (will try native .rpm/.deb only, no tools)"
-        else
-            log_info "  ${version} (lineage: ${lineage}, tools: ${tools_version})"
-        fi
+        log_info "  ${version} (lineage: ${lineage})"
     elif [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+$ ]]; then
         local lineage="${version_or_lineage}"
-        local version tools_version
+        local version
         local _rc=0
         version=$(find_latest_version_for_lineage "${lineage}") || _rc=$?
         if [ "${_rc}" -eq "${AS_LIST_ERROR}" ]; then
@@ -59,19 +58,13 @@ function generate_dockerfiles() {
             log_warn "${lineage} -> NOT FOUND"
             exit 1
         }
-        tools_version=$(find_tools_version "${version}")
         VERSION_MAP["${lineage}"]="${version}"
-        TOOLS_MAP["${lineage}"]="${tools_version:-}"
         LINEAGES_TO_BUILD=("${lineage}")
-        if [ -z "${tools_version}" ]; then
-            log_warn "${lineage} -> ${version} (tools NOT FOUND; will try native .rpm/.deb only, no tools)"
-        else
-            log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
-        fi
+        log_info "  ${lineage} -> ${version}"
     else
         # shellcheck disable=SC2086
         for lineage in $(support_releases); do
-            local version tools_version
+            local version
             # An unreadable source is not the same fact as an unpublished
             # lineage. Continuing on the first silently drops a lineage from an
             # all-lineages run while the survivors keep the count non-zero, so
@@ -88,15 +81,9 @@ function generate_dockerfiles() {
                 G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
                 continue
             }
-            tools_version=$(find_tools_version "${version}")
             VERSION_MAP["${lineage}"]="${version}"
-            TOOLS_MAP["${lineage}"]="${tools_version:-}"
             LINEAGES_TO_BUILD+=("${lineage}")
-            if [ -z "${tools_version}" ]; then
-                log_warn "${lineage} -> ${version} (tools NOT FOUND; will try native .rpm/.deb only)"
-            else
-                log_info "  ${lineage} -> ${version} (tools: ${tools_version})"
-            fi
+            log_info "  ${lineage} -> ${version}"
         done
     fi
 
@@ -133,7 +120,6 @@ function generate_dockerfiles() {
     # --- Per-lineage / edition / distro loop ---
     for lineage in "${LINEAGES_TO_BUILD[@]}"; do
         local version="${VERSION_MAP[${lineage}]:-}"
-        local tools_version="${TOOLS_MAP[${lineage}]:-}"
         [ -z "${version}" ] && continue
 
         local distros_lineage
@@ -159,7 +145,7 @@ function generate_dockerfiles() {
 
                 if [ "${full_generate}" = true ] || [ ! -f "${target}/Dockerfile" ]; then
                     # Full generate (or Dockerfile missing -- auto-fallback)
-                    if generate_dockerfile "${lineage}" "${distro}" "${edition}" "${version}" "${tools_version}"; then
+                    if generate_dockerfile "${lineage}" "${distro}" "${edition}" "${version}"; then
                         G_GENERATED_COUNT=$((G_GENERATED_COUNT + 1))
                         G_GENERATED_TARGETS+=("${target}")
                     else
@@ -178,33 +164,25 @@ function generate_dockerfiles() {
                         [ "${single_arch}" = "aarch64" ] && single_arch="arm64"
                     fi
 
+                    # All ten outputs of resolve_packages are declared here, not
+                    # the six update_dockerfile names directly: the asadm four
+                    # are read by _local_pkg_copy_glob and _build_subst_args, so
+                    # an undeclared one outlives the loop at global scope and a
+                    # previous distro's asadm URL can reach the next Dockerfile.
                     # shellcheck disable=SC2034  # set by resolve_packages, consumed by update_dockerfile
-                    local x86_link x86_sha arm_link arm_sha pkg_format asadm_unreadable
-                    resolve_packages "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${single_arch}" "${pkg_type}"
+                    local x86_link x86_sha arm_link arm_sha
+                    # shellcheck disable=SC2034  # same
+                    local asadm_x86_link asadm_x86_sha asadm_arm_link asadm_arm_sha
+                    # shellcheck disable=SC2034  # same; read by target_is_buildable
+                    local server_unreadable asadm_unreadable
+                    resolve_packages "${artifact_distro}" "${edition}" "${version}" "${single_arch}" "${pkg_type}"
 
-                    if [ "${asadm_unreadable}" = true ]; then
-                        log_warn "    Skipping ${edition}/${distro} - the asadm source given with -A could not be read"
+                    # Whether this target can be built, and why not -- one
+                    # decision shared with the generate path (see emit.sh).
+                    target_is_buildable "${edition}" "${distro}" "${single_arch}" || {
                         G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
                         continue
-                    fi
-
-                    if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
-                        log_warn "    Skipping ${edition}/${distro} - package not available"
-                        G_SKIPPED_COUNT=$((G_SKIPPED_COUNT + 1))
-                        continue
-                    fi
-
-                    # See emit.sh: bake targets both platforms on a multi-arch run.
-                    if [ -z "${single_arch}" ] && [ "${edition}" != "federal" ]; then
-                        if [ -z "${x86_link}" ]; then
-                            log_warn "    ${edition}/${distro}: no amd64 package - the linux/amd64 build will fail"
-                        fi
-                        if [ -z "${arm_link}" ]; then
-                            log_warn "    ${edition}/${distro}: no arm64 package - the linux/arm64 build will fail"
-                        fi
-                    fi
-
-                    [ "${pkg_format}" != "tgz" ] && log_info "    Using native ${pkg_format} (tgz not found)"
+                    }
 
                     update_dockerfile "${target}" "${version}" "${single_arch}"
                     G_GENERATED_COUNT=$((G_GENERATED_COUNT + 1))

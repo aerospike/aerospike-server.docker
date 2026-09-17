@@ -50,9 +50,9 @@ jobs:
           done
       - name: Should not change anything
         run: '[ -z "$(git diff --stat)" ] || (git diff --stat; exit 1)'
-      # The steps above only exercise the default *.tgz path. This drives the
-      # native .deb/.rpm path offline, with fixture packages and a local http
-      # server -- no network, no docker, no published aerospike-asadm.
+      # The steps above exercise the default JFrog path over the network. This
+      # drives the .deb/.rpm resolution offline, with fixture packages and a
+      # local http server -- no network, no docker, no published aerospike-asadm.
       - name: Native-path generation tests
         run: ./.ci/test-generate.sh
 

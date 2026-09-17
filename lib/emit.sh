@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dockerfile generation: emit header + base-deps RUN block + inlined install RUN block + footer.
-# Install logic lives in scripts/deb/install.sh and scripts/rpm/install.sh and is
+# Install logic lives in scripts/deb/install-native.sh and scripts/rpm/install-native.sh and is
 # converted to a RUN \ continuation block by _sh_to_dockerfile_run (lib/sh_to_dockerfile_run.sh).
 # Package URL/SHA placeholders in the install scripts are substituted with actual
 # values fetched from the artifact server at generation time (no ARG indirection).
@@ -10,16 +10,16 @@
 
 set -Eeuo pipefail
 
-# generate_dockerfile lineage distro edition version tools_version
+# generate_dockerfile lineage distro edition version
 #
 # Emits a Dockerfile with two RUN blocks:
 #   1. Base runtime deps (apt-get/microdnf; ca-certificates, procps).
 #   2. All install logic inlined as a RUN \ block with hardcoded package URLs
-#      and SHAs (substituted from placeholders in scripts/{deb,rpm}/install.sh).
-# No COPY of install.sh: DOI's bashbrew build context only includes files committed
-# in the upstream directory; install.sh is not among them.
+#      and SHAs (substituted from placeholders in scripts/{deb,rpm}/install-native.sh).
+# No COPY of the install script: DOI's bashbrew build context only includes files
+# committed in the upstream directory; the install scripts are not among them.
 function generate_dockerfile() {
-    local lineage=$1 distro=$2 edition=$3 version=$4 tools_version=$5
+    local lineage=$1 distro=$2 edition=$3 version=$4
     local target="releases/${lineage}/${edition}/${distro}"
 
     log_info "  Generating ${edition}/${distro}"
@@ -39,44 +39,27 @@ function generate_dockerfile() {
 
     # --- Resolve package links and SHAs ---
     # resolve_packages is the one implementation, shared with the in-place
-    # update path: tgz first, native .deb/.rpm as fallback, asadm on the native
-    # path only, the unused arch cleared for a single-arch build, and any arch
+    # update path: native .deb/.rpm for the server plus the latest published
+    # asadm, the unused arch cleared for a single-arch build, and any arch
     # whose remote package has no usable checksum dropped. It sets the variables
     # below in this scope.
     # shellcheck disable=SC2034  # set by resolve_packages, read by _build_subst_args and _stage_local_packages via dynamic scoping
-    local x86_link x86_sha arm_link arm_sha pkg_format use_native
+    local x86_link x86_sha arm_link arm_sha
     # shellcheck disable=SC2034  # same
-    local asadm_x86_link asadm_x86_sha asadm_arm_link asadm_arm_sha asadm_unreadable
-    resolve_packages "${artifact_distro}" "${edition}" "${version}" "${tools_version}" "${single_arch}" "${pkg_type}"
+    local asadm_x86_link asadm_x86_sha asadm_arm_link asadm_arm_sha
+    # shellcheck disable=SC2034  # same; read by target_is_buildable
+    local server_unreadable asadm_unreadable
+    resolve_packages "${artifact_distro}" "${edition}" "${version}" "${single_arch}" "${pkg_type}"
 
-    # Only an explicit -A sets this: the user named a source that could not be
-    # read, so shipping an asadm-less image would answer a different question
-    # than the one they asked.
-    if [ "${asadm_unreadable}" = true ]; then
-        log_warn "    Skipping - the asadm source given with -A could not be read"
+    # Whether this target can be built, and why not -- one decision shared with
+    # the in-place update path, which used to hold a verbatim copy of it.
+    if ! target_is_buildable "${edition}" "${distro}" "${single_arch}"; then
         return 1
-    fi
-
-    # Skip when no package is available for any arch still being built
-    if [ -z "${x86_link}" ] && [ -z "${arm_link}" ]; then
-        log_warn "    Skipping - package not available"
-        return 1
-    fi
-
-    # A multi-arch run still bakes both platforms, so an arch with no package
-    # fails at docker build time rather than here. Name it now.
-    if [ -z "${single_arch}" ] && [ "${edition}" != "federal" ]; then
-        if [ -z "${x86_link}" ]; then
-            log_warn "    No amd64 package - the linux/amd64 build will fail (use -a arm64)"
-        fi
-        if [ -z "${arm_link}" ]; then
-            log_warn "    No arm64 package - the linux/arm64 build will fail (use -a amd64)"
-        fi
     fi
 
     # Reported per arch: a concatenation test would log "Including asadm" when
     # only one arch resolved, while the other image silently shipped without it.
-    if "${use_native}" && [ "${ASADM_DISABLED}" != true ]; then
+    if [ "${ASADM_DISABLED}" != true ]; then
         local _asadm_src
         _asadm_src=$(asadm_source_for_pkg_type "${pkg_type}")
         if [ -n "${x86_link}" ]; then
@@ -108,10 +91,9 @@ function generate_dockerfile() {
     cp template/7/aerospike.template.conf "${target}/"
 
     # --- Resolve install script and stage local packages ---
-    # Both shared with the in-place update path.
-    local install_script
-    install_script=$(_install_script_for "${pkg_type}" "${use_native}")
-    _stage_local_packages "${target}" "${pkg_type}" "${use_native}"
+    # Staging shared with the in-place update path.
+    local install_script="${SCRIPT_DIR}/scripts/${pkg_type}/install-native.sh"
+    _stage_local_packages "${target}" "${pkg_type}"
 
     local base_name_label="${base_image}"
     [[ "${base_image}" == ubuntu:* ]] && base_name_label="docker.io/library/${base_image}"
@@ -142,7 +124,7 @@ RUN \
     # Shared with the in-place update path, so the two cannot disagree about
     # which placeholders exist.
     local -a SUBST_ARGS=()
-    _build_subst_args "${pkg_type}" "${use_native}"
+    _build_subst_args "${pkg_type}"
 
     # --- Emit Dockerfile ---
     # Written outside releases/, where none of the tree's globbers can see it.
@@ -184,24 +166,17 @@ HEADER
         echo "${base_deps_run}"
         echo ""
 
-        # For local native package builds, COPY the pre-staged package file into
+        # For local package builds, COPY the pre-staged package file into
         # /tmp/aerospike/ before the install RUN block (the install script detects
         # an empty serverUrl and skips the curl download, using the COPY'd file).
-        if "${use_native}"; then
-            local copy_glob=""
-            [ "${pkg_type}" = "deb" ] && copy_glob="*.deb"
-            [ "${pkg_type}" = "rpm" ] && copy_glob="*.rpm"
-            # asadm counts here too: -A may point at a local directory while the
-            # server comes from a remote URL, and the staged asadm packages still
-            # need a COPY to reach the build.
-            local has_local=false _pkg
-            for _pkg in "${x86_link}" "${arm_link}" "${asadm_x86_link}" "${asadm_arm_link}"; do
-                [[ "${_pkg}" != http* ]] && [ -n "${_pkg}" ] && has_local=true
-            done
-            if "${has_local}"; then
-                echo "COPY ${copy_glob} /tmp/aerospike/"
-                echo ""
-            fi
+        # asadm counts here too: -A may point at a local directory while the
+        # server comes from a remote URL, and the staged asadm packages still
+        # need a COPY to reach the build.
+        local copy_glob
+        copy_glob=$(_local_pkg_copy_glob "${pkg_type}")
+        if [ -n "${copy_glob}" ]; then
+            echo "COPY ${copy_glob} /tmp/aerospike/"
+            echo ""
         fi
 
         # Inline all install logic directly as a RUN \ block.

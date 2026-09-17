@@ -245,6 +245,18 @@ function check_container() {
     fi
     log_success "Container running"
 
+    # /licenses/LICENSE is a Red Hat UBI certification requirement and is
+    # copied from the package's /opt/aerospike/doc/LICENSE by the install
+    # script. Checked here rather than left to the install script alone: an
+    # image that silently ships an empty /licenses/ is indistinguishable from a
+    # good one on a green run, and this covers the deb images too.
+    if docker exec -t "${CONTAINER}" test -s /licenses/LICENSE; then
+        log_success "/licenses/LICENSE present"
+    else
+        log_failure "/licenses/LICENSE missing (Red Hat UBI certification)"
+        exit 1
+    fi
+
     # Check asinfo exists before using it (used for "asd running" check when procps not in image)
     local have_asinfo=false
     if docker exec -t "${CONTAINER}" bash -c 'command -v asinfo' >/dev/null 2>&1; then

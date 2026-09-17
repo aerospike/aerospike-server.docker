@@ -408,7 +408,7 @@ The build system uses a modular design:
 
 	docker-build.sh          Main entry point (usage, arg parsing, mode selection)
 	lib/
-	  emit.sh                Generate Dockerfiles (COPY install.sh approach)
+	  emit.sh                Generate Dockerfiles (inlined install RUN block)
 	  update.sh              In-place update of existing Dockerfiles (sed patching)
 	  generate.sh            Orchestration loop (routes between update and generate)
 	  bake.sh                Generate bake-multi.hcl for Docker buildx
@@ -417,19 +417,21 @@ The build system uses a modular design:
 	  fetch.sh               HTTP fetch helper
 	  log.sh                 Colored logging functions
 	scripts/
-	  deb/install.sh         Single source of truth for DEB-based installs
-	  rpm/install.sh         Single source of truth for RPM-based installs
+	  deb/install-native.sh  Single source of truth for DEB-based installs
+	  rpm/install-native.sh  Single source of truth for RPM-based installs
 	  shasum-artifacts.sh    Create .sha256 for local package dirs
 
-Dockerfiles are **persistent** (checked into the repo) and compact. All installation logic lives in `scripts/deb/install.sh` and `scripts/rpm/install.sh`, which are `COPY`'d into the image and `RUN` during Docker build. This eliminates duplicated inline shell in Dockerfiles and makes the install logic independently testable.
+Dockerfiles are **persistent** (checked into the repo) and compact. All installation logic lives in `scripts/deb/install-native.sh` and `scripts/rpm/install-native.sh`, which are inlined into the Dockerfile as a `RUN \` block at generation time. This eliminates duplicated inline shell in Dockerfiles and makes the install logic independently testable. Images are built from the native `.deb`/`.rpm` packages of `aerospike-server` and `aerospike-asadm`, fetched by default from the JFrog `database-deb-prod-public-local` / `database-rpm-prod-public-local` repos.
+
+The images ship `asd` and `asadm` only. The `aerospike-tools` bundle (`aql`, `asbackup`, `asrestore`, and the rest) is no longer installed; run it from the `aerospike/aerospike-tools` image instead, as [Using asadm](#using-asadm) shows.
 
 ### Modes of Operation
 
-| Mode                 | Command                       | Behavior                                                                                                                                                                                   |
-|----------------------|-------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Update** (default) | `./docker-build.sh -t 8.1`    | Patches existing Dockerfiles in-place (ARG values, SHAs, links). Refreshes support files (entrypoint.sh, install.sh, config). Auto-falls back to full generation if Dockerfile is missing. |
-| **Generate**         | `./docker-build.sh -g 8.1`    | Full regeneration from scratch. Removes `releases/<lineage>/` for targeted lineages and writes fresh Dockerfiles. Use after structural changes (new distro, install script rewrite, etc.). |
-| **Generate + Build** | `./docker-build.sh -g -t 8.1` | Full regeneration, then builds locally. Combinable with `-p` for push.                                                                                                                     |
+| Mode                 | Command                       | Behavior                                                                                                                                                                                      |
+|----------------------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Update** (default) | `./docker-build.sh -t 8.1`    | Patches existing Dockerfiles in-place (version label, install block URLs/SHAs). Refreshes support files (entrypoint.sh, config). Auto-falls back to full generation if Dockerfile is missing. |
+| **Generate**         | `./docker-build.sh -g 8.1`    | Full regeneration from scratch. Removes `releases/<lineage>/` for targeted lineages and writes fresh Dockerfiles. Use after structural changes (new distro, install script rewrite, etc.).    |
+| **Generate + Build** | `./docker-build.sh -g -t 8.1` | Full regeneration, then builds locally. Combinable with `-p` for push.                                                                                                                        |
 
 ### Quick Start
 
@@ -462,11 +464,16 @@ Dockerfiles are **persistent** (checked into the repo) and compact. All installa
 ./docker-build.sh -t 8.1 -e enterprise -d ubuntu -a arm64 \
   -u ~/Downloads/aerospike-server-enterprise_8.1.3.0-97ubuntu24.04_arm64.deb
 
-# Build from the JFrog native-package repo (server, plus asadm once published there)
+# Build from a specific JFrog repo (the prod repos are already the default)
 ./docker-build.sh -t 8.1 -u https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local
 
-# Take asadm from a specific package instead of the default repo
-./docker-build.sh -t 8.1 -A https://example.com/pkgs/aerospike-asadm_4.1.0-1ubuntu24.04_amd64.deb
+# Pin asadm to one version for every arch
+./docker-build.sh -t 8.1 -V 5.0.3
+
+# Take asadm from a specific package instead of the default repo. A direct
+# package applies only to the arch its filename names, so pair it with -a.
+./docker-build.sh -t 8.1 -a amd64 \
+  -A https://example.com/pkgs/aerospike-asadm_4.1.0-1ubuntu24.04_amd64.deb
 
 # Leave asadm out
 ./docker-build.sh -t 8.1 --no-asadm
@@ -484,16 +491,24 @@ Dockerfiles are **persistent** (checked into the repo) and compact. All installa
 	OPTIONS:
 	    -r, --registry REG  Container registry for push mode.
 	                        Multiple: repeat -r (e.g. -r reg1 -r reg2). Default: aerospike.
-	    -u, --url URL       Server package source: artifacts URL, direct edition URL,
-	                        JFrog repo, local directory, or a single local .deb/.rpm
-	    -A, --asadm-url URL Source for the standalone aerospike-asadm package.
+	    -u, --url URL       Server package source: JFrog repo, artifacts URL, direct
+	                        edition URL, local directory, or a single local .deb/.rpm.
+	                        Default: the JFrog database-{deb,rpm}-prod-public-local
+	                        repo matching the package format.
+	    -A, --asadm-url URL Source for the standalone aerospike-asadm package; the
+	                        newest matching version is picked.
 	                        Default: the JFrog database-{deb,rpm}-prod-public-local repo,
 	                        unless -u is a local path, in which case only that path is
 	                        searched and nothing is fetched - even when it holds no
 	                        asadm package.
 	                        Accepts a repo URL, HTTP directory, local directory, or a
-	                        direct .deb/.rpm. Native .deb/.rpm builds only - the *.tgz
-	                        bundles already ship asadm inside aerospike-tools.
+	                        direct .deb/.rpm.
+	    -V, --asadm-version V
+	                        Pin aerospike-asadm to version V for every arch, instead
+	                        of the newest published one per arch. Without it, an asadm
+	                        released for one arch before the other would put two
+	                        versions in one multi-arch manifest, which is refused by
+	                        name.
 	    --no-asadm          Do not install a standalone aerospike-asadm package
 	    -e, --edition ED    Filter editions: community, enterprise, federal (multiple allowed)
 	    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10
@@ -509,7 +524,7 @@ Dockerfiles are **persistent** (checked into the repo) and compact. All installa
 	    8.1.1.0-rc2               Release candidate
 	    8.1.1.0-start-16          Development build
 
-Run `./docker-build.sh -h` for the full PACKAGE SOURCES reference: every form `-u` and `-A` accept, how the *.tgz bundle falls back to native `.deb`/`.rpm`, the asadm source precedence, and the environment variable for each flag.
+Run `./docker-build.sh -h` for the full PACKAGE SOURCES reference: every form `-u` and `-A` accept, the asadm source precedence, and the environment variable for each flag.
 
 ### Testing Images
 
