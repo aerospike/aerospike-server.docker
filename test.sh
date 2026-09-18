@@ -230,6 +230,21 @@ function try() {
     return 1
 }
 
+# Attempts for the asd-startup polls (one try attempt ~= one second). When the
+# image's architecture is not the host's — CI tests arm64 images on amd64
+# runners — asd starts through the qemu binfmt handler, which multiplies
+# startup time enough that the enterprise arm64 leg missed a 15s window while
+# the very same image passed its other checks seconds earlier. Native runs
+# keep the tight window so a genuinely broken image still fails fast.
+function asd_wait_attempts() {
+    local host image_arch="${PLATFORM#*/}"
+    host=$(uname -m)
+    case "${host}:${image_arch}" in
+    x86_64:amd64 | aarch64:arm64 | arm64:arm64 | "${host}:") echo 15 ;;
+    *) echo 60 ;;
+    esac
+}
+
 function check_container() {
     local version=$1
     local expected_edition=$2
@@ -267,16 +282,17 @@ function check_container() {
     fi
 
     # Verify asd is running: prefer asinfo -v status (works without procps); else pgrep; else TCP port 3000
-    local asd_ok=false
+    local asd_ok=false attempts
+    attempts=$(asd_wait_attempts)
     if [ "${have_asinfo}" = "true" ]; then
-        if try 15 docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' 2>/dev/null | grep -qE "^ok"; then
+        if try "${attempts}" docker exec -t "${CONTAINER}" bash -c 'asinfo -v status' 2>/dev/null | grep -qE "^ok"; then
             asd_ok=true
         fi
     fi
-    if [ "${asd_ok}" = false ] && try 15 docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd' >/dev/null 2>&1; then
+    if [ "${asd_ok}" = false ] && try "${attempts}" docker exec -t "${CONTAINER}" bash -c 'pgrep -x asd' >/dev/null 2>&1; then
         asd_ok=true
     fi
-    if [ "${asd_ok}" = false ] && try 15 docker exec -t "${CONTAINER}" bash -c 'echo >/dev/tcp/127.0.0.1/3000' 2>/dev/null; then
+    if [ "${asd_ok}" = false ] && try "${attempts}" docker exec -t "${CONTAINER}" bash -c 'echo >/dev/tcp/127.0.0.1/3000' 2>/dev/null; then
         asd_ok=true
     fi
     if [ "${asd_ok}" = false ]; then
@@ -395,7 +411,7 @@ function check_arg_passthrough() {
     local find_asd='for p in /proc/[0-9]*; do [ "$(cat "$p/comm" 2>/dev/null)" = asd ] && { tr "\0" " " <"$p/cmdline"; exit 0; }; done; exit 1'
 
     local cmdline=""
-    if try 15 docker exec "${probe}" bash -c "${find_asd}" >/dev/null 2>&1; then
+    if try "$(asd_wait_attempts)" docker exec "${probe}" bash -c "${find_asd}" >/dev/null 2>&1; then
         # "|| true": asd can exit between the probe above and this call. Without it,
         # errexit aborts before the cleanup below and leaks the probe container.
         cmdline=$(docker exec "${probe}" bash -c "${find_asd}" 2>/dev/null | tr -d '\r') || true
