@@ -642,7 +642,7 @@ check "the new lineage generates" "exit code" "${rc82}" "0"
 # One per edition, and no ubi tree: the fixture is a deb-only repo, so the two rpm
 # targets per edition resolve nothing and must be left exactly as committed.
 check "one Dockerfile per edition rewritten" "ubuntu24.04 Dockerfiles carrying the fixture build" \
-    "$(grep -lc "serverUrl='http[^']*${NEW_VERSION}-3ubuntu24.04" \
+    "$(grep -l "serverUrl='http[^']*${NEW_VERSION}-3ubuntu24.04" \
         releases/"${NEW_LINEAGE}"/*/ubuntu24.04/Dockerfile 2>/dev/null | wc -l | tr -d ' ')" "3"
 check "no ubi tree written" "ubi10 vs committed" \
     "$(git diff --quiet -- "releases/${NEW_LINEAGE}"/*/ubi10 && echo untouched || echo rewritten)" \
