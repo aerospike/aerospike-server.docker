@@ -58,8 +58,9 @@ OPTIONS:
                         See PACKAGE SOURCES below for every accepted form.
     -A, --asadm-url URL Where to get the standalone aerospike-asadm package.
                         Default: the JFrog repo matching the package format;
-                        the newest published version is picked.
-                        See PACKAGE SOURCES below.
+                        the newest published version is picked. asadm is
+                        required in every image (see PACKAGE SOURCES below);
+                        --no-asadm is the only way to build without it.
     -V, --asadm-version V
                         Pin aerospike-asadm to version V (e.g. 5.0.3) for every
                         arch, instead of taking the newest published one per
@@ -70,7 +71,7 @@ OPTIONS:
     -e, --edition ED    Filter edition(s): community, enterprise, federal
                         Can specify multiple: -e enterprise community
                         Default: all editions
-    -d, --distro DIST   Filter distro(s): ubuntu22.04, ubuntu24.04, ubi9, ubi10
+    -d, --distro DIST   Filter distro(s): ubuntu22.04, ubuntu24.04, ubuntu26.04, ubi9, ubi10
                         Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
                         Can specify multiple: -d ubuntu24.04 ubi9
                         Default: all distros supported by lineage
@@ -92,14 +93,14 @@ OPTIONS:
     --tag-latest        Always add extra tags: :latest or :latest-<distro_slug> on push targets,
                         and :latest-<arch> or :latest-<distro_slug>-<arch> on test targets.
     --auto-latest       Add those same extra tags only when the resolved build version equals
-                        the newest GA across the default lineages (7.2, 8.0, 8.1). Queries
+                        the newest GA across the default lineages (7.2, 8.0, 8.1, 8.2). Queries
                         artifact listings; use with -t or -p. Ignored if --tag-latest is set.
     --no-latest         Disable both (default). Use to override BAKE_TAG_LATEST_AUTO / FORCE env.
 
     -h, --help          Show this help message
 
 VERSION/LINEAGE:
-    (none)                         Build the default lineages (7.2, 8.0, 8.1)
+    (none)                         Build the default lineages (7.2, 8.0, 8.1, 8.2)
     8.1                            Lineage - auto-detects latest 8.1.x version
     8.1.1.0                        Specific release version
     8.1.1.0-rc2                    Release candidate
@@ -109,7 +110,8 @@ VERSION/LINEAGE:
 DISTRO SUPPORT BY LINEAGE (default: all distros below; primary UBI is ubi9):
     7.1:       ubuntu22.04, ubi9   (retired from the default set; build it by naming it)
     7.2, 8.0:  ubuntu24.04, ubi9
-    8.1+:      ubuntu24.04, ubi10
+    8.1:       ubuntu24.04, ubi10
+    8.2:       ubuntu26.04, ubi10
 
 PACKAGE SOURCES (-u for the server, -A for asadm):
 
@@ -155,16 +157,17 @@ PACKAGE SOURCES (-u for the server, -A for asadm):
 
   asadm source precedence:
     1. --no-asadm                          -> no asadm installed
-    2. -A URL                              -> that source
-    3. a local -u path, with no -A         -> that path only; nothing is fetched,
-                                              even when it holds no asadm package
+    2. -A URL                              -> that source, and only that source
+    3. a local -u path, with no -A         -> that path first; when it holds no
+                                              asadm for the target distro/arch,
+                                              the JFrog default is the fallback
+                                              (the server never falls back)
     4. otherwise                           -> the JFrog default for the package format
     Both arch spellings are accepted throughout (amd64/x86_64, arm64/aarch64).
-    When no asadm package is found the image is built without it - a warning,
-    not an error. A local -A path that does not exist is reported by name.
-    -V/--asadm-version narrows every shape above to one version, and turns
-    "published for one arch only" into a named target failure rather than a
-    half-asadm manifest.
+    asadm is required: a target with no matching asadm for its distro and every
+    built arch is skipped by name, and --no-asadm is the only way to build
+    without it. A local -A path that does not exist is reported by name.
+    -V/--asadm-version narrows every shape above to one version.
 
 ENVIRONMENT (each is the default for the matching flag):
     ARTIFACTS_DOMAIN        same as -u (overrides both per-format defaults)

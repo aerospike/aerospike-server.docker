@@ -457,7 +457,8 @@ The images ship `asd` and `asadm` only. The `aerospike-tools` bundle (`aql`, `as
 # Build and push to a specific container registry (e.g. Artifactory)
 ./docker-build.sh -p 8.1 -e enterprise -r artifact.aerospike.io/database-docker-dev-local
 
-# Build from local packages (no download)
+# Build from local packages (server from the directory, never downloaded;
+# asadm too when the directory holds one, else the JFrog default is the fallback)
 ./docker-build.sh -t 8.1.1.0 -e enterprise -u ./artifacts
 
 # Build from a single local package file
@@ -497,10 +498,12 @@ The images ship `asd` and `asadm` only. The `aerospike-tools` bundle (`aql`, `as
 	                        repo matching the package format.
 	    -A, --asadm-url URL Source for the standalone aerospike-asadm package; the
 	                        newest matching version is picked.
-	                        Default: the JFrog database-{deb,rpm}-prod-public-local repo,
-	                        unless -u is a local path, in which case only that path is
-	                        searched and nothing is fetched - even when it holds no
-	                        asadm package.
+	                        Default: the JFrog database-{deb,rpm}-prod-public-local repo.
+	                        A local -u path is searched first; when it holds no asadm
+	                        for the target distro/arch, the JFrog default is the
+	                        fallback (the server never falls back). asadm is required:
+	                        a target with no matching asadm is skipped by name, and
+	                        --no-asadm is the only way to build without it.
 	                        Accepts a repo URL, HTTP directory, local directory, or a
 	                        direct .deb/.rpm.
 	    -V, --asadm-version V
@@ -511,7 +514,7 @@ The images ship `asd` and `asadm` only. The `aerospike-tools` bundle (`aql`, `as
 	                        name.
 	    --no-asadm          Do not install a standalone aerospike-asadm package
 	    -e, --edition ED    Filter editions: community, enterprise, federal (multiple allowed)
-	    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10
+	    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubuntu26.04, ubi9, ubi10
 	                        Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
 	    -a, --arch ARCH     Filter architectures: amd64, arm64 (or x86_64, aarch64)
 	    -T, --timestamp TS  Fixed timestamp for push tags (YYYYMMDDHHMMSS)

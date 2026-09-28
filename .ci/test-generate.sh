@@ -28,7 +28,7 @@ WORK=$(mktemp -d)
 SRV_PID=""
 FAILED=0
 SCENARIOS=0
-EXPECTED_SCENARIOS=36
+EXPECTED_SCENARIOS=37
 CURRENT_LOG="${WORK}/out.log"
 
 FORCE=false
@@ -158,7 +158,7 @@ check "-A beats -u" "staged asadm version" \
     "$(staged | grep -o '9\.9\.9' | head -1)" "9.9.9"
 check "-u asadm not also staged" "5.0.3 files" "$(staged_count '5\.0\.3')" "0"
 
-scenario "a local -u makes no outbound request, with or without an asadm in it"
+scenario "a local -u resolves locally when it can; asadm alone falls back on a miss"
 mkdir -p "${WORK}/stub"
 cat >"${WORK}/stub/curl" <<'STUB'
 #!/bin/bash
@@ -188,16 +188,23 @@ STUB
 chmod +x "${WORK}/stub/docker"
 CURL_LOG="${WORK}/curl.log"
 export CURL_LOG
-# The pinning case. A -u dir that already holds an asadm returned from the local
-# branch even before the fix; only a dir with no asadm fell through to JFrog, so
-# that is the input the zero-request promise has to be measured against.
+# A dir holding an asadm resolves everything locally with no request at all. A
+# dir without one falls back for asadm -- and only for asadm: with the fallback
+# itself pointed at a local directory, the run still makes zero requests, which
+# pins that the server never falls anywhere and that the fallback honours the
+# configured default rather than a hardcoded host.
 mk_pkgs "${WORK}/noasadm" enterprise
+mk_asadm "${WORK}/fb"
 : >"${CURL_LOG}"
-PATH="${WORK}/stub:${PATH}" gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/noasadm" || true
-check "zero http requests (no asadm in -u)" "urls fetched" \
+PATH="${WORK}/stub:${PATH}" ASADM_DOMAIN_DEB="${WORK}/fb" \
+    gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/noasadm" || true
+check "zero http requests (asadm from a local fallback)" "urls fetched" \
     "$(wc -l <"${CURL_LOG}" | tr -d ' ')" "0"
-check "warning names the -u path, not a host never contacted" "JFrog in warning" \
-    "$(grep -c 'jfrog' "${CURRENT_LOG}" || true)" "0"
+check "the fallback is announced" "fallback warning" \
+    "$(grep -c 'falling back to' "${CURRENT_LOG}" || true)" "1"
+check "and names the -u dir it bypassed" "dir in warning" \
+    "$(grep -cF "No ubuntu24.04 asadm in ${WORK}/noasadm" "${CURRENT_LOG}" || true)" "1"
+check "asadm staged from the fallback" "asadm files" "$(staged_count asadm)" "2"
 : >"${CURL_LOG}"
 PATH="${WORK}/stub:${PATH}" gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" || true
 check "zero http requests (asadm in -u)" "urls fetched" \
@@ -214,7 +221,7 @@ check "releases/ intact" "Dockerfile count" "${after}" "${before}"
 scenario "promise 6: a single -u file is not handed to the wrong target"
 F="${WORK}/one/aerospike-server-enterprise_${VERSION}-1ubuntu24.04_amd64.deb"
 mk_pkg "${F}"
-gen "${VERSION}" -e enterprise -d ubuntu24.04 ubi10 -a amd64 -u "${F}" || true
+gen "${VERSION}" -e enterprise -d ubuntu24.04 ubi10 -a amd64 -u "${F}" --no-asadm || true
 check "deb target generated" "ubuntu24.04 staged deb" \
     "$(staged_count 'aerospike-server')" "1"
 check "rpm target skipped" "ubi10 unchanged vs committed" \
@@ -262,14 +269,19 @@ check "8.1.2.40 not used for 8.1.2.4 (single file)" "staged packages" \
 
 # find_local_asadm_package falls back past the distro-qualified tier. The
 # fallback must not accept a package built for another distro.
-scenario "an asadm built for another distro is never staged"
+scenario "an asadm built for another distro is never staged - the fallback is consulted instead"
 mk_pkgs "${WORK}/wrongdistro" enterprise
 mk_asadm "${WORK}/wrongdistro" 5.0.3 ubuntu22.04
-gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/wrongdistro" || true
-check "ubuntu22.04 asadm not staged into a ubuntu24.04 image" "asadm files" \
-    "$(staged_count asadm)" "0"
+ASADM_DOMAIN_DEB="${WORK}/fb" gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/wrongdistro" || true
+check "ubuntu22.04 asadm not staged into a ubuntu24.04 image" "wrong-distro asadm files" \
+    "$(staged | grep -c 'asadm.*ubuntu22\.04' || true)" "0"
+check "the passed-over package is named" "ignore warning" \
+    "$(grep -c 'Ignoring asadm built for another distro: aerospike-asadm_5.0.3-1ubuntu22.04' "${CURRENT_LOG}" || true)" "1"
+check "asadm staged from the fallback instead" "ubuntu24.04 asadm files" \
+    "$(staged | grep -c 'asadm.*ubuntu24\.04' || true)" "2"
 check "server still staged" "server files" "$(staged_count 'aerospike-server')" "2"
-# A package naming no distro at all is hand-built and stays usable.
+# A package naming no distro at all is hand-built and stays usable, with no
+# fallback consulted.
 git checkout -- releases/ 2>/dev/null || true
 git clean -fdxq releases/ 2>/dev/null || true
 mk_pkgs "${WORK}/nodistro" enterprise
@@ -277,6 +289,8 @@ mk_pkg "${WORK}/nodistro/aerospike-asadm_5.0.3_x86_64.deb"
 mk_pkg "${WORK}/nodistro/aerospike-asadm_5.0.3_aarch64.deb"
 gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/nodistro" || true
 check "distro-less asadm still staged" "asadm files" "$(staged_count asadm)" "2"
+check "no fallback consulted for a local hit" "fallback warning" \
+    "$(grep -c 'falling back to' "${CURRENT_LOG}" || true)" "0"
 
 # --- Remote fixtures ---------------------------------------------------------
 # Rooted at /artifactory/database-deb-prod-public-local so is_artifactory_url
@@ -367,29 +381,45 @@ check "amd64 checksum matches its package" "asadmSha #1" "$(df_val asadmSha 1)" 
 check "arm64 checksum matches its package" "asadmSha #2" "$(df_val asadmSha 2)" "${ARM_SHA}"
 check_ne "the two arches do not share a digest" "asadmSha" "${AMD_SHA}" "${ARM_SHA}"
 
+scenario "a local -u without an asadm falls back to the default repo over HTTP"
+# The default-repo shape of the fallback: the server stays bound to the local
+# dir while asadm resolves through the apt pool/<suite>/ mapping of the
+# per-format default, exactly as a run with no -u would.
+ASADM_DOMAIN_DEB="${BASE}" gen "${VERSION}" -e enterprise -d ubuntu24.04 \
+    -u "${WORK}/noasadm" && rcFb=0 || rcFb=$?
+check "run succeeds" "exit code" "${rcFb}" "0"
+check "asadm resolved through the fallback" "pool/noble in asadmUrl" \
+    "$(grep -c "asadmUrl='http://[^']*/pool/noble/aerospike-asadm/" "${DF}" || true)" "2"
+check "server still from the local dir" "server files" "$(staged_count 'aerospike-server')" "2"
+check "announced once, not per arch" "fallback warnings" \
+    "$(grep -c 'falling back to' "${CURRENT_LOG}" || true)" "1"
+
 scenario "a URL is never emitted next to an empty checksum"
-gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-nosha" || true
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-nosha" && rcNs=0 || rcNs=$?
 # `echo "" */tmp/x.deb | sha256sum --strict --check -` exits 1, which is fatal
-# under the generated SHELL. An unresolvable checksum must drop the package,
-# not ship a Dockerfile that cannot build.
-check "no asadm URL emitted" "asadmUrl count" \
-    "$(grep -c "asadmUrl='http" "${DF}" || true)" "0"
-check "no live URL beside an empty digest" "url-with-empty-sha pairs" \
-    "$(grep -A1 "asadmUrl='http" "${DF}" 2>/dev/null | grep -c "asadmSha=''" || true)" "0"
-check "server still builds" "serverUrl or staged package" \
-    "$(staged_count 'aerospike-server')" "2"
+# under the generated SHELL. An unresolvable checksum must drop the package --
+# and asadm is required, so the target is refused rather than built without it.
+check "run fails" "exit code" "${rcNs}" "1"
+check "dropped for the missing checksum" "drop warning" \
+    "$(grep -c 'No SHA256 for' "${CURRENT_LOG}" || true)" "2"
+check "the target is refused by name" "skip warning" \
+    "$(grep -c 'no asadm package for amd64 and arm64' "${CURRENT_LOG}" || true)" "1"
+check "nothing staged" "server files" "$(staged_count 'aerospike-server')" "0"
+check "committed Dockerfile untouched" "Dockerfile vs committed" \
+    "$(git diff --quiet "${CTX}" && echo untouched || echo regenerated)" "untouched"
 
 scenario "a malformed checksum is dropped, not substituted"
 rm -f "${WORK}/pwned"
-gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-badsha" || true
-check "payload never reaches the Dockerfile" "assignments that break their quoting" \
-    "$(unsafe_assigns)" "0"
-check "amd64 checksum left empty" "asadmSha #1" "$(df_val asadmSha 1)" ""
-check "arm64 checksum left empty" "asadmSha #2" "$(df_val asadmSha 2)" ""
-check "asadm dropped rather than emitted unchecked" "asadmUrl count" \
-    "$(grep -c "asadmUrl='http" "${DF}" || true)" "0"
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-badsha" && rcBs=0 || rcBs=$?
 check "malformed checksum reported" "warning present" \
     "$(grep -c 'malformed SHA256' "${CURRENT_LOG}" || true)" "2"
+check "the target is refused rather than emitted unchecked" "exit code" "${rcBs}" "1"
+check "and named" "skip warning" \
+    "$(grep -c 'no asadm package for amd64 and arm64' "${CURRENT_LOG}" || true)" "1"
+check "payload never reaches the Dockerfile" "assignments that break their quoting" \
+    "$(unsafe_assigns)" "0"
+check "committed Dockerfile untouched" "Dockerfile vs committed" \
+    "$(git diff --quiet "${CTX}" && echo untouched || echo regenerated)" "untouched"
 
 scenario "an injected index entry is rejected at the boundary"
 rm -f "${WORK}/pwned"
@@ -414,12 +444,12 @@ scenario "stale packages are purged from a target before it is rewritten"
 # what the first staged. COPY *.deb takes everything in the directory, so a
 # leftover package from an earlier version is installed alongside the new one.
 mk_pkgs "${WORK}/old" enterprise
-gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/old" || true
+gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/old" --no-asadm || true
 check "first run staged its packages" "server files" "$(staged_count 'aerospike-server')" "2"
 OLDV="8.1.2.4"
 mk_pkg "${WORK}/new/aerospike-server-enterprise_${OLDV}-1ubuntu24.04_amd64.deb"
 mk_pkg "${WORK}/new/aerospike-server-enterprise_${OLDV}-1ubuntu24.04_arm64.deb"
-gen "${OLDV}" -e enterprise -d ubuntu24.04 -u "${WORK}/new" || true
+gen "${OLDV}" -e enterprise -d ubuntu24.04 -u "${WORK}/new" --no-asadm || true
 check "previous version's packages purged" "8.1.3.0 files left" \
     "$(staged_count "${VERSION}")" "0"
 check "new version's packages staged" "8.1.2.4 files" "$(staged_count "${OLDV}")" "2"
@@ -465,14 +495,20 @@ check "omission reported" "warning present" \
     "$(grep -c 'Omitting releases/8.1/enterprise/ubi10' "${CURRENT_LOG}" || true)" "1"
 rm -f bake-multi.hcl
 
-scenario "a 404 asadm source is absent, not an error"
-# Promise 3's case: the package is authoritatively not published, so the image
-# is built without it and the run succeeds.
+scenario "an absent asadm refuses the target by name - asadm is required"
+# A 404 is an answer (authoritatively not published), not an error -- but asadm
+# is required in every image, so the target is refused rather than built
+# without it, and --no-asadm is the sanctioned way to build anyway.
 gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/noasadm" \
     -A "${BASE}-nosuchrepo" && rc404=0 || rc404=$?
-check "run succeeds" "exit code" "${rc404}" "0"
-check "target still generated" "server files" "$(staged_count 'aerospike-server')" "2"
-check "no asadm staged" "asadm files" "$(staged_count asadm)" "0"
+check "run fails" "exit code" "${rc404}" "1"
+check "refused as absent, by name" "skip warning" \
+    "$(grep -c 'no asadm package for amd64 and arm64 - asadm is required' "${CURRENT_LOG}" || true)" "1"
+check "not reported as unreadable" "\"could not be read\" warning" \
+    "$(grep -c 'could not be read' "${CURRENT_LOG}" || true)" "0"
+check "--no-asadm still builds it" "exit code" \
+    "$(gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/noasadm" \
+        -A "${BASE}-nosuchrepo" --no-asadm && echo 0 || echo 1)" "0"
 
 scenario "an unreadable -A fails the target instead of dropping asadm"
 # A source the user named explicitly either yields a package or says why not.
@@ -595,10 +631,10 @@ scenario "a new lineage builds for its own distros, and an unknown one is refuse
 # actually ships and keep ones its packages were never built for.
 NEW_LINEAGE="8.2"
 NEW_VERSION="8.2.0.0"
-L82="${WORK}/repo/artifactory/database-deb-prod-public-local-82/pool/noble"
+L82="${WORK}/repo/artifactory/database-deb-prod-public-local-82/pool/resolute"
 for ed in community enterprise federal; do
-    mk_pkg "${L82}/aerospike-server-${ed}/aerospike-server-${ed}_${NEW_VERSION}-3ubuntu24.04_amd64.deb"
-    mk_pkg "${L82}/aerospike-server-${ed}/aerospike-server-${ed}_${NEW_VERSION}-3ubuntu24.04_arm64.deb"
+    mk_pkg "${L82}/aerospike-server-${ed}/aerospike-server-${ed}_${NEW_VERSION}-3ubuntu26.04_amd64.deb"
+    mk_pkg "${L82}/aerospike-server-${ed}/aerospike-server-${ed}_${NEW_VERSION}-3ubuntu26.04_arm64.deb"
 done
 gen "${NEW_LINEAGE}" -u "${BASE}-82" --no-asadm && rc82=0 || rc82=$?
 check "the new lineage generates" "exit code" "${rc82}" "0"
@@ -608,14 +644,14 @@ check "the new lineage generates" "exit code" "${rc82}" "0"
 check "one Dockerfile per edition, no ubi tree" "Dockerfiles under the lineage" \
     "$(dockerfile_count "releases/${NEW_LINEAGE}")" "3"
 check "it resolves the discovered version" "serverUrl" \
-    "$(grep -c "serverUrl='http[^']*${NEW_VERSION}-3ubuntu24.04" \
-        "releases/${NEW_LINEAGE}/enterprise/ubuntu24.04/Dockerfile" || true)" "2"
+    "$(grep -c "serverUrl='http[^']*${NEW_VERSION}-3ubuntu26.04" \
+        "releases/${NEW_LINEAGE}/enterprise/ubuntu26.04/Dockerfile" || true)" "2"
 # ubi10, not ubi9: an 8.2 that silently inherited the fallback would build the
 # wrong UBI, and against a deb-only repo both are skipped, so the emitted tree
 # cannot tell them apart. The pruning list is where the difference shows.
 check "it is mapped to ubi10, not the fallback's ubi9" "support_distros ${NEW_LINEAGE}" \
     "$(bash -c 'source lib/log.sh; source lib/support.sh; support_distros "$1"' _ "${NEW_LINEAGE}")" \
-    "ubuntu24.04 ubi10"
+    "ubuntu26.04 ubi10"
 gen "9.9" -u "${BASE}-82" --no-asadm && rc99=0 || rc99=$?
 check "an unknown lineage fails" "exit code" "${rc99}" "1"
 check "and says why" "warning present" \
@@ -702,13 +738,12 @@ scenario "a link that cannot be safely emitted is dropped, not escaped"
 # single-quoted assignment in the emitted Dockerfile, and escaping it for sed
 # would not help -- the destination quoting is what breaks.
 gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" \
-    -A "${BASE}/pool/noble/aerospike-asadm/aerospike-asadm_5.0.3-1'ubuntu24.04_amd64.deb" || true
+    -A "${BASE}/pool/noble/aerospike-asadm/aerospike-asadm_5.0.3-1'ubuntu24.04_amd64.deb" && rcQ=0 || rcQ=$?
 check "nothing unsafe emitted" "assignments that break their quoting" "$(unsafe_assigns)" "0"
-check "the link is dropped, not emitted" "asadmUrl count" \
-    "$(grep -c "asadmUrl='http" "${DF}" || true)" "0"
 check "and the flag it came from is named" "warning present" \
     "$(grep -c 'link from -A/--asadm-url carries a character' "${CURRENT_LOG}" || true)" "1"
-check "the server still builds" "server files" "$(staged_count 'aerospike-server')" "2"
+check "the target is refused, not built without asadm" "exit code" "${rcQ}" "1"
+check "nothing staged" "server files" "$(staged_count 'aerospike-server')" "0"
 
 scenario "the newest published asadm wins"
 # Every other fixture holds one version per arch, so `sort -V | tail -1` could
@@ -748,8 +783,8 @@ check "the newer build is not selected" "asadmUrl with 5.0.4" \
     "$(grep -c '5\.0\.4' "${DF}" || true)" "0"
 
 scenario "a -V that is published for one arch only fails the target by name"
-# Without a pin, an asadm missing for one arch is a warning: the image simply
-# ships without it. With a pin the answer is half of what was asked for.
+# asadm missing for a built arch refuses the target either way; with a pin the
+# refusal names the version that was asked for and is only half-available.
 gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-skew" -V 5.0.4 && rcHalf=0 || rcHalf=$?
 check "run fails" "exit code" "${rcHalf}" "1"
 check "and names the missing arch" "warning present" \

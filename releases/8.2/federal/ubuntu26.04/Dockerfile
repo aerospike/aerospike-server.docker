@@ -5,15 +5,15 @@
 # https://github.com/aerospike/aerospike-server.docker
 #
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7
+FROM ubuntu:26.04
 
-LABEL org.opencontainers.image.title="Aerospike Community Server" \
+LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="registry.access.redhat.com/ubi9/ubi-minimal:9.7" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:26.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.0.0.20" \
+      org.opencontainers.image.version="8.2.0.0" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,54 +21,50 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="community"
+ARG AEROSPIKE_EDITION="federal"
 
-ENV AEROSPIKE_LINUX_BASE="registry.access.redhat.com/ubi9/ubi-minimal:9.7"
+ENV AEROSPIKE_LINUX_BASE="ubuntu:26.04"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
-# hadolint ignore=DL3041
+# hadolint ignore=DL3008
 RUN \
-  microdnf install -y --setopt=install_weak_deps=0 \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
     ca-certificates \
-    procps-ng \
+    procps \
   ; \
-  microdnf clean all; \
-  rm -rf /var/cache/yum /var/cache/dnf
+  rm -rf /var/lib/apt/lists/*
 
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3003,DL3008,DL3041,SC2015
 RUN \
   { \
     # Install curl and resolve arch-specific links.
-    ARCH="$(rpm --eval '%{_arch}')"; \
-    # Aerospike publishes some packages (notably aerospike-asadm) with the dpkg arch \
-    # spelling rather than the kernel one, so both are matched when collecting. \
-    if [ "${ARCH}" = "x86_64" ]; then \
-        ALT_ARCH="amd64"; \
-    elif [ "${ARCH}" = "aarch64" ]; then \
-        ALT_ARCH="arm64"; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl; \
+    ARCH="$(dpkg --print-architecture)"; \
+    # Aerospike publishes some packages (notably aerospike-asadm) with the kernel \
+    # arch spelling rather than the dpkg one, so both are matched when collecting. \
+    if [ "${ARCH}" = "amd64" ]; then \
+        ALT_ARCH="x86_64"; \
+    elif [ "${ARCH}" = "arm64" ]; then \
+        ALT_ARCH="aarch64"; \
     fi; \
-    # curl-minimal is preferred on ubi-minimal; fall back to full curl if absent. \
-    if ! command -v curl >/dev/null 2>&1; then \
-        if ! microdnf install -y curl-minimal; then \
-            microdnf install -y curl; \
-        fi; \
-    fi; \
-    if [ "${ARCH}" = "x86_64" ]; then \
+    if [ "${ARCH}" = "amd64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-server-community-8.0.0.20-15.el9.x86_64.rpm'; \
-        serverSha='4493a89d18c89feb1c7a6087a9b3088e2a4ef7dc25b4b0e9e06b1e8e01400f4a'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-asadm-5.1.0-2.el9.x86_64.rpm'; \
-        asadmSha='56da7c95cd23ac2c8f521f655c731ef0245aea25a2fee64ec736f7238383529b'; \
-    elif [ "${ARCH}" = "aarch64" ]; then \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/resolute/aerospike-server-federal/aerospike-server-federal_8.2.0.0-12ubuntu26.04_amd64.deb'; \
+        serverSha='9a49d719bc6ba678d59f664fa825e4da50e66dbd3342caa822028d37b6e13cc6'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/resolute/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu26.04_amd64.deb'; \
+        asadmSha='ae50b91e85c3d44dae382eae0d96c293ed7dab97a4db96dd1c35d063641f8224'; \
+    elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-server-community-8.0.0.20-15.el9.aarch64.rpm'; \
-        serverSha='1608bcba5ce4e40ed664cacad245c3fdf85ec616437b6ae99f82e1b688003850'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-asadm-5.1.0-2.el9.aarch64.rpm'; \
-        asadmSha='bf7adafd8eb1915cfa9bf1c9dc2e71406674401428895a940661c078d7f93fdd'; \
+        serverUrl=''; \
+        serverSha=''; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/resolute/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu26.04_arm64.deb'; \
+        asadmSha='ad12dbf0b1198639c67142b68c5006660e71be2c5853ab35ac62280e84a83500'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
@@ -82,35 +78,33 @@ RUN \
   }; \
   { \
     # Download server and asadm packages (remote builds only; local builds use COPY).
-    # shadow-utils: provides groupadd/useradd used by aerospike-server %post scriptlet. \
-    # findutils: provides find(1) used by aerospike-server %post scriptlet. \
     # Downloads are named to match the arch-qualified globs used by the install step \
     # below, so remote and pre-staged packages are collected the same way. \
-    microdnf install -y --setopt=install_weak_deps=0 findutils shadow-utils; \
     mkdir -p /tmp/aerospike; \
     if [ -n "${serverUrl}" ]; then \
-        curl -fL -o "/tmp/aerospike/aerospike-server-dl.${ARCH}.rpm" "${serverUrl}"; \
-        echo "${serverSha} */tmp/aerospike/aerospike-server-dl.${ARCH}.rpm" | sha256sum --strict --check -; \
+        curl -fL -o "/tmp/aerospike/aerospike-server-dl_${ARCH}.deb" "${serverUrl}"; \
+        echo "${serverSha} */tmp/aerospike/aerospike-server-dl_${ARCH}.deb" | sha256sum --strict --check -; \
     fi; \
     if [ -n "${asadmUrl}" ]; then \
-        curl -fL -o "/tmp/aerospike/aerospike-asadm-dl.${ARCH}.rpm" "${asadmUrl}"; \
-        echo "${asadmSha} */tmp/aerospike/aerospike-asadm-dl.${ARCH}.rpm" | sha256sum --strict --check -; \
+        curl -fL -o "/tmp/aerospike/aerospike-asadm-dl_${ARCH}.deb" "${asadmUrl}"; \
+        echo "${asadmSha} */tmp/aerospike/aerospike-asadm-dl_${ARCH}.deb" | sha256sum --strict --check -; \
     fi; \
   }; \
   { \
     # Install Aerospike server.
-    if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
-        microdnf install -y --setopt=install_weak_deps=0 openldap; \
-    fi; \
     # Collect all arch-matching packages in /tmp/aerospike/: \
-    #   - aerospike-server-*.${ARCH}.rpm  (required) \
-    #   - aerospike-tools-*.${ARCH}.rpm   (optional; staged when server declares a \
-    #                                      hard Requires on aerospike-tools) \
-    #   - aerospike-asadm-*.${ARCH}.rpm   (optional; downloaded or staged above, \
-    #                                      including arch-independent .noarch.rpm) \
+    #   - aerospike-server-*_${ARCH}.deb  (required) \
+    #   - aerospike-tools-*_${ARCH}.deb   (optional; staged when server declares a \
+    #                                      hard Depends on aerospike-tools) \
+    #   - aerospike-asadm*_${ARCH}.deb    (optional; downloaded or staged above, \
+    #                                      including arch-independent _all.deb) \
+    # Installing them together lets apt resolve the dependencies inline. \
+    # (aerospike-tools may also declare a hard Depends on curl; in that case curl \
+    # stays installed after the autoremove at the end.) \
     pkgs=(); \
     serverFound=false; \
-    for f in /tmp/aerospike/aerospike-server-*."${ARCH}".rpm; do \
+    for f in /tmp/aerospike/aerospike-server-*_"${ARCH}".deb \
+        /tmp/aerospike/aerospike-server-*_"${ALT_ARCH}".deb; do \
         if [ -f "${f}" ]; then \
             pkgs+=("${f}"); \
             serverFound=true; \
@@ -122,24 +116,18 @@ RUN \
         echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"; \
         exit 1; \
     fi; \
-    # aerospike-asadm* rather than aerospike-asadm-*: the resolver accepts both \
-    # separators (aerospike-asadm[-_]), so requiring the hyphen here would let a \
-    # locally staged aerospike-asadm_5.0.3-....rpm be resolved, logged as included \
-    # and copied in, then matched by none of these globs -- an image that ships \
-    # without asadm while the generation log says it has it. The server and tools \
-    # packages still cannot match: their names begin aerospike-server- / \
-    # aerospike-tools-. \
-    for f in /tmp/aerospike/aerospike-tools-*."${ARCH}".rpm \
-        /tmp/aerospike/aerospike-asadm*."${ARCH}".rpm \
-        /tmp/aerospike/aerospike-asadm*."${ALT_ARCH}".rpm \
-        /tmp/aerospike/aerospike-asadm*.noarch.rpm; do \
+    for f in /tmp/aerospike/aerospike-tools-*_"${ARCH}".deb \
+        /tmp/aerospike/aerospike-tools-*_"${ALT_ARCH}".deb \
+        /tmp/aerospike/aerospike-asadm*_"${ARCH}".deb \
+        /tmp/aerospike/aerospike-asadm*_"${ALT_ARCH}".deb \
+        /tmp/aerospike/aerospike-asadm*_all.deb; do \
         if [ -f "${f}" ]; then pkgs+=("${f}"); fi; \
     done; \
-    rpm -i --excludedocs "${pkgs[@]}"; \
+    apt-get install -y --no-install-recommends "${pkgs[@]}"; \
   }; \
   { \
     # Post-install housekeeping.
-    mkdir -p /licenses /var/log/aerospike /var/run/aerospike; \
+    mkdir -p /etc/aerospike /licenses /var/log/aerospike /var/run/aerospike; \
     # The server package ships its license at /opt/aerospike/doc/LICENSE; the \
     # image has always published it at /licenses/ (a Red Hat certification \
     # requirement on UBI). An absent file means the packaging changed, which is a \
@@ -153,13 +141,13 @@ RUN \
     cp /opt/aerospike/doc/LICENSE /licenses/; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
         if [ -f /tmp/aerospike/features.conf ]; then \
-            mkdir -p /etc/aerospike; \
             cp /tmp/aerospike/features.conf /etc/aerospike/features.conf; \
         fi; \
     fi; \
     rm -rf /tmp/aerospike; \
-    microdnf clean all; \
-    rm -rf /var/cache/yum /var/cache/dnf; \
+    apt-mark auto curl; \
+    apt-get autoremove -y --purge; \
+    rm -rf /var/lib/apt/lists/*; \
   }; \
   echo "done";
 

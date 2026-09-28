@@ -56,15 +56,15 @@ RUN \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
         serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-server-enterprise/aerospike-server-enterprise_8.0.0.20-15ubuntu24.04_amd64.deb'; \
         serverSha='69406d333b779a7608f7d4ff284225aa2edd57a02202a9e2a7e8213ea7397efc'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-asadm/aerospike-asadm_5.0.3-5ubuntu24.04_amd64.deb'; \
-        asadmSha='2ce43be9b1a3fa16a151daa35127641c8f089380d05e83625c595a03aa98d333'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu24.04_amd64.deb'; \
+        asadmSha='46c53b20166b19f44b55b80955287363187b377ee2e60ce5c2da7af094f997bc'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
         serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-server-enterprise/aerospike-server-enterprise_8.0.0.20-15ubuntu24.04_arm64.deb'; \
         serverSha='a64ed2712b80001f436c242217bc878c9741d4990a021cbe65468e29c3af9fa3'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-asadm/aerospike-asadm_5.0.3-5ubuntu24.04_arm64.deb'; \
-        asadmSha='f7052249615977668d3608e998b51dace08b600477575e6bb90b88e23bdecaf8'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu24.04_arm64.deb'; \
+        asadmSha='62950180530aca5dd5bffdfb4f5404dfd7bd76ad25464b4eb93ab0e4c671532e'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \

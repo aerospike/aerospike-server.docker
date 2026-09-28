@@ -5,15 +5,15 @@
 # https://github.com/aerospike/aerospike-server.docker
 #
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7
+FROM registry.access.redhat.com/ubi10/ubi-minimal:10.0
 
 LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="registry.access.redhat.com/ubi9/ubi-minimal:9.7" \
+      org.opencontainers.image.base.name="registry.access.redhat.com/ubi10/ubi-minimal:10.0" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.0.0.20" \
+      org.opencontainers.image.version="8.2.0.0" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -23,7 +23,7 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="community"
 
-ENV AEROSPIKE_LINUX_BASE="registry.access.redhat.com/ubi9/ubi-minimal:9.7"
+ENV AEROSPIKE_LINUX_BASE="registry.access.redhat.com/ubi10/ubi-minimal:10.0"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -58,17 +58,17 @@ RUN \
     if [ "${ARCH}" = "x86_64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-server-community-8.0.0.20-15.el9.x86_64.rpm'; \
-        serverSha='4493a89d18c89feb1c7a6087a9b3088e2a4ef7dc25b4b0e9e06b1e8e01400f4a'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-asadm-5.1.0-2.el9.x86_64.rpm'; \
-        asadmSha='56da7c95cd23ac2c8f521f655c731ef0245aea25a2fee64ec736f7238383529b'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el10/x86_64/aerospike-server-community-8.2.0.0-12.el10.x86_64.rpm'; \
+        serverSha='e0492d01808a482bac87879c74caf9729ba272249016835210f1d205249c1214'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el10/x86_64/aerospike-asadm-5.1.0-2.el10.x86_64.rpm'; \
+        asadmSha='26f3ba9755f47c0110a6cd06f6dfc7c56d6348389d6eb124d51ba4ec3d9a32d6'; \
     elif [ "${ARCH}" = "aarch64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-server-community-8.0.0.20-15.el9.aarch64.rpm'; \
-        serverSha='1608bcba5ce4e40ed664cacad245c3fdf85ec616437b6ae99f82e1b688003850'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-asadm-5.1.0-2.el9.aarch64.rpm'; \
-        asadmSha='bf7adafd8eb1915cfa9bf1c9dc2e71406674401428895a940661c078d7f93fdd'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el10/aarch64/aerospike-server-community-8.2.0.0-12.el10.aarch64.rpm'; \
+        serverSha='4355a41e1344552adaa0b9aa269505e4ea53acc7a2122f198a5742e3a7a2aa6f'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el10/aarch64/aerospike-asadm-5.1.0-2.el10.aarch64.rpm'; \
+        asadmSha='e9f1d814f49341d62a2b613aafba9e8e9ba5110ac354e63e58e51dff0d5e7bb2'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \

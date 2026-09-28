@@ -318,7 +318,7 @@ function resolve_packages() {
             asadm_arm_sha=$(fetch_sha_for_link "${asadm_arm_link}")
         fi
         if [ "${_arc}" -eq "${AS_LIST_ERROR}" ]; then
-            log_warn "The asadm source given with -A could not be read"
+            log_warn "The asadm source could not be read"
             # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
             asadm_unreadable=true
         fi
@@ -363,22 +363,25 @@ function drop_unsafe_links() {
     done
 }
 
-# Refuse a multi-arch target whose two arches resolved different asadm builds.
+# Refuse a target whose asadm resolution cannot satisfy the build: the two
+# arches of a multi-arch manifest resolved different asadm builds, or an arch
+# this target builds resolved a server package but no asadm. asadm is required
+# in every image -- --no-asadm is the only way to build without one -- so "no
+# asadm for this distro/arch" is a refusal by name, not a quiet omission.
 #
 # The arches resolve asadm independently -- two get_asadm_package_link_native
 # calls, each taking its own newest -- so an asadm release that lands for amd64
-# before arm64 emits two versions into one Dockerfile, both logged as success,
-# producing a manifest whose halves carry different asadm builds. Nothing
-# downstream compares them: drop_unchecksummed_arches only checks for an empty
-# digest.
+# before arm64 would emit two versions into one Dockerfile, a manifest whose
+# halves carry different asadm builds. Nothing downstream compares them:
+# drop_unchecksummed_arches only checks for an empty digest.
 #
-# Echoes the reason and returns 1 when the target must be refused. A pinned
-# version (-V) additionally makes a one-arch answer a refusal rather than a
-# warning: the pin exists so both arches carry the same build, and half of that
-# is not a weaker version of it.
-function asadm_arch_mismatch_reason() {
-    local single_arch=$1
-    [ -n "${single_arch}" ] && return 0
+# Only an arch that resolved a server package needs asadm: an arch with no
+# server package is already reported by the guards around this one, and federal
+# bakes amd64 only, so its arm64 half is never required.
+#
+# Echoes the reason and returns 1 when the target must be refused.
+function asadm_refusal_reason() {
+    local edition=$1 single_arch=$2
     [ "${ASADM_DISABLED}" = true ] && return 0
 
     local x86_v arm_v
@@ -392,13 +395,21 @@ function asadm_arch_mismatch_reason() {
         return 0
     fi
 
-    if [ -n "${ASADM_VERSION}" ] && [ -n "${asadm_x86_link:-}${asadm_arm_link:-}" ]; then
-        local missing="arm64"
-        [ -z "${asadm_x86_link:-}" ] && missing="amd64"
-        echo "asadm ${ASADM_VERSION} is not published for ${missing}"
-        return 1
+    local missing=""
+    if [ "${single_arch}" != "arm64" ] && [ -n "${x86_link:-}" ] && [ -z "${asadm_x86_link:-}" ]; then
+        missing="amd64"
     fi
-    return 0
+    if [ "${single_arch}" != "amd64" ] && [ "${edition}" != "federal" ] &&
+        [ -n "${arm_link:-}" ] && [ -z "${asadm_arm_link:-}" ]; then
+        missing="${missing:+${missing} and }arm64"
+    fi
+    [ -z "${missing}" ] && return 0
+    if [ -n "${ASADM_VERSION}" ]; then
+        echo "asadm ${ASADM_VERSION} is not published for ${missing}"
+    else
+        echo "no asadm package for ${missing} - asadm is required (--no-asadm builds without it)"
+    fi
+    return 1
 }
 
 # target_is_buildable edition distro single_arch
@@ -419,11 +430,11 @@ function target_is_buildable() {
         return 1
     fi
 
-    # Only an explicit -A sets this: the user named a source that could not be
-    # read, so shipping an asadm-less image would answer a different question
-    # than the one they asked.
+    # An explicit -A or the default repo (asadm's fallback behind a local -u):
+    # either way a source that could not be read is not "not published", and
+    # asadm is required, so the target is skipped rather than short-shipped.
     if [ "${asadm_unreadable}" = true ]; then
-        log_warn "    Skipping ${edition}/${distro} - the asadm source given with -A could not be read"
+        log_warn "    Skipping ${edition}/${distro} - the asadm source could not be read"
         return 1
     fi
 
@@ -435,7 +446,7 @@ function target_is_buildable() {
     fi
 
     local _reason=""
-    _reason=$(asadm_arch_mismatch_reason "${single_arch}") || {
+    _reason=$(asadm_refusal_reason "${edition}" "${single_arch}") || {
         log_warn "    Skipping ${edition}/${distro} - ${_reason}"
         return 1
     }
