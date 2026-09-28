@@ -373,6 +373,7 @@ These images are based on Ubuntu or Red Hat UBI depending on the variant:
 |-------------|---------------------------------------------------|
 | ubuntu22.04 | ubuntu:22.04                                      |
 | ubuntu24.04 | ubuntu:24.04                                      |
+| ubuntu26.04 | ubuntu:26.04                                      |
 | ubi9        | registry.access.redhat.com/ubi9/ubi-minimal:9.7   |
 | ubi10       | registry.access.redhat.com/ubi10/ubi-minimal:10.0 |
 
@@ -383,7 +384,8 @@ These images are based on Ubuntu or Red Hat UBI depending on the variant:
 | 7.1     | ubuntu22.04, ubi9  | community, enterprise, federal |
 | 7.2     | ubuntu24.04, ubi9  | community, enterprise, federal |
 | 8.0     | ubuntu24.04, ubi9  | community, enterprise, federal |
-| 8.1+    | ubuntu24.04, ubi10 | community, enterprise, federal |
+| 8.1     | ubuntu24.04, ubi10 | community, enterprise, federal |
+| 8.2     | ubuntu24.04, ubi10 | community, enterprise, federal |
 
 7.1 is retired from the default set: a bare `./docker-build.sh -g` no longer includes it. It is still fully supported when named explicitly (`./docker-build.sh -t 7.1`), and CI still generates and tests it, because CI discovers lineages from `releases/` rather than from the default set.
 

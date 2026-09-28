@@ -51,11 +51,8 @@ function support_distros() {
     7.2 | 8.0)
         echo "ubuntu24.04 ubi9"
         ;;
-    8.1)
+    8.1 | 8.2)
         echo "ubuntu24.04 ubi10"
-        ;;
-    8.2)
-        echo "ubuntu26.04 ubi10"
         ;;
     # An unknown lineage used to fall back to 7.1's distros. This function is
     # also what generate.sh prunes with: a -g of that lineage rm -rf's every

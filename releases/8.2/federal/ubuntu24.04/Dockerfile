@@ -5,12 +5,12 @@
 # https://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:26.04
+FROM ubuntu:24.04
 
 LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:26.04" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
       org.opencontainers.image.version="8.2.0.0" \
@@ -23,7 +23,7 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
 ARG AEROSPIKE_EDITION="federal"
 
-ENV AEROSPIKE_LINUX_BASE="ubuntu:26.04"
+ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -54,17 +54,17 @@ RUN \
     if [ "${ARCH}" = "amd64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/resolute/aerospike-server-federal/aerospike-server-federal_8.2.0.0-12ubuntu26.04_amd64.deb'; \
-        serverSha='9a49d719bc6ba678d59f664fa825e4da50e66dbd3342caa822028d37b6e13cc6'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/resolute/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu26.04_amd64.deb'; \
-        asadmSha='ae50b91e85c3d44dae382eae0d96c293ed7dab97a4db96dd1c35d063641f8224'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-server-federal/aerospike-server-federal_8.2.0.0-12ubuntu24.04_amd64.deb'; \
+        serverSha='2a8e8ef7b47a2c2c570459a1b2d16c4f2a927c144e1a28bcf8ac3744e2fb83ee'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu24.04_amd64.deb'; \
+        asadmSha='46c53b20166b19f44b55b80955287363187b377ee2e60ce5c2da7af094f997bc'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
         serverUrl=''; \
         serverSha=''; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/resolute/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu26.04_arm64.deb'; \
-        asadmSha='ad12dbf0b1198639c67142b68c5006660e71be2c5853ab35ac62280e84a83500'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu24.04_arm64.deb'; \
+        asadmSha='62950180530aca5dd5bffdfb4f5404dfd7bd76ad25464b4eb93ab0e4c671532e'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
