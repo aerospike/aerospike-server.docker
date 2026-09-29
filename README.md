@@ -383,7 +383,8 @@ These images are based on Ubuntu or Red Hat UBI depending on the variant:
 | 7.1     | ubuntu22.04, ubi9  | community, enterprise, federal |
 | 7.2     | ubuntu24.04, ubi9  | community, enterprise, federal |
 | 8.0     | ubuntu24.04, ubi9  | community, enterprise, federal |
-| 8.1+    | ubuntu24.04, ubi10 | community, enterprise, federal |
+| 8.1     | ubuntu24.04, ubi10 | community, enterprise, federal |
+| 8.2     | ubuntu24.04, ubi10 | community, enterprise, federal |
 
 7.1 is retired from the default set: a bare `./docker-build.sh -g` no longer includes it. It is still fully supported when named explicitly (`./docker-build.sh -t 7.1`), and CI still generates and tests it, because CI discovers lineages from `releases/` rather than from the default set.
 
@@ -457,7 +458,8 @@ The images ship `asd` and `asadm` only. The `aerospike-tools` bundle (`aql`, `as
 # Build and push to a specific container registry (e.g. Artifactory)
 ./docker-build.sh -p 8.1 -e enterprise -r artifact.aerospike.io/database-docker-dev-local
 
-# Build from local packages (no download)
+# Build from local packages (server from the directory, never downloaded;
+# asadm too when the directory holds one, else the JFrog default is the fallback)
 ./docker-build.sh -t 8.1.1.0 -e enterprise -u ./artifacts
 
 # Build from a single local package file
@@ -497,10 +499,12 @@ The images ship `asd` and `asadm` only. The `aerospike-tools` bundle (`aql`, `as
 	                        repo matching the package format.
 	    -A, --asadm-url URL Source for the standalone aerospike-asadm package; the
 	                        newest matching version is picked.
-	                        Default: the JFrog database-{deb,rpm}-prod-public-local repo,
-	                        unless -u is a local path, in which case only that path is
-	                        searched and nothing is fetched - even when it holds no
-	                        asadm package.
+	                        Default: the JFrog database-{deb,rpm}-prod-public-local repo.
+	                        A local -u path is searched first; when it holds no asadm
+	                        for the target distro/arch, the JFrog default is the
+	                        fallback (the server never falls back). asadm is required:
+	                        a target with no matching asadm is skipped by name, and
+	                        --no-asadm is the only way to build without it.
 	                        Accepts a repo URL, HTTP directory, local directory, or a
 	                        direct .deb/.rpm.
 	    -V, --asadm-version V

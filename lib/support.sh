@@ -22,8 +22,8 @@ source lib/log.sh
 #
 # A lineage joins this list only once its packages are published: an unresolvable
 # lineage here is skipped with a warning by -g/-t, but -p refuses to push a
-# partial matrix, so listing 8.2 early would break every all-lineage push.
-RELEASES="7.2 8.0 8.1"
+# partial matrix, so listing a lineage early would break every all-lineage push.
+RELEASES="7.2 8.0 8.1 8.2"
 
 # Supported editions
 EDITIONS="community enterprise federal"
@@ -95,6 +95,7 @@ function support_distro_to_base() {
     case "$1" in
     ubuntu22.04) echo "ubuntu:22.04" ;;
     ubuntu24.04) echo "ubuntu:24.04" ;;
+    ubuntu26.04) echo "ubuntu:26.04" ;;
     ubi9) echo "registry.access.redhat.com/ubi9/ubi-minimal:9.7" ;;
     ubi10) echo "registry.access.redhat.com/ubi10/ubi-minimal:10.0" ;;
     *)
@@ -120,6 +121,7 @@ function support_distro_to_artifact_name() {
     case "$1" in
     ubuntu22.04) echo "ubuntu22.04" ;;
     ubuntu24.04) echo "ubuntu24.04" ;;
+    ubuntu26.04) echo "ubuntu26.04" ;;
     ubi9) echo "el9" ;;
     ubi10) echo "el10" ;;
     *)
@@ -135,7 +137,7 @@ function support_distro_to_artifact_name() {
 # hand-named, distro-less package from one built for a different distro. Keep in
 # step with the case above and with support_distro_to_apt_suite.
 function support_artifact_distros() {
-    echo "ubuntu20.04 ubuntu22.04 ubuntu24.04 el8 el9 el10"
+    echo "ubuntu20.04 ubuntu22.04 ubuntu24.04 ubuntu26.04 el8 el9 el10"
 }
 
 # Map an artifact distro name to its Debian/Ubuntu apt suite (the codename used

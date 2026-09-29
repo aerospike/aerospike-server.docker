@@ -56,15 +56,15 @@ RUN \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
         serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-server-community/aerospike-server-community_7.1.0.25-5ubuntu22.04_amd64.deb'; \
         serverSha='da92071b3254ee77a50aa905d37b4f4355003792e852b15f34c30a6454d355bd'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.0.3-5ubuntu22.04_amd64.deb'; \
-        asadmSha='6ed4c26d7cff26ffc16b0082642e0744c8244668de42862239cb4dc1241d56c3'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu22.04_amd64.deb'; \
+        asadmSha='97f66a9742b38b1c2f1e4f9a50e822b88f38746a54a889a96a8b88da065238a6'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
         serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-server-community/aerospike-server-community_7.1.0.25-5ubuntu22.04_arm64.deb'; \
         serverSha='28203aede74d8fce6be0de32bc403f79465cf7d3bb5891406122469176e03668'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.0.3-5ubuntu22.04_arm64.deb'; \
-        asadmSha='445088ab23441edddd6938c6e3616d557ef36ebde773e241ec55e0a11642bc25'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu22.04_arm64.deb'; \
+        asadmSha='178df242b0fb46e59e7e69ac63cec9d89017243832a10abe62c37a698b387b97'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
@@ -96,8 +96,9 @@ RUN \
     #   - aerospike-server-*_${ARCH}.deb  (required) \
     #   - aerospike-tools-*_${ARCH}.deb   (optional; staged when server declares a \
     #                                      hard Depends on aerospike-tools) \
-    #   - aerospike-asadm*_${ARCH}.deb    (optional; downloaded or staged above, \
-    #                                      including arch-independent _all.deb) \
+    #   - aerospike-asadm*_${ARCH}.deb    (present unless built with --no-asadm; \
+    #                                      downloaded or staged above, including \
+    #                                      arch-independent _all.deb) \
     # Installing them together lets apt resolve the dependencies inline. \
     # (aerospike-tools may also declare a hard Depends on curl; in that case curl \
     # stays installed after the autoremove at the end.) \
@@ -110,8 +111,9 @@ RUN \
             serverFound=true; \
         fi; \
     done; \
-    # The server package is the only required one; asadm/tools alone must never \
-    # produce an image, so the guard tracks the server specifically. \
+    # The server package is the only one this script can require: --no-asadm is a \
+    # sanctioned build, so an absent asadm here is not proof of a broken one. asadm \
+    # or tools alone must never produce an image, hence a server-specific guard. \
     if [ "${serverFound}" = false ]; then \
         echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"; \
         exit 1; \

@@ -79,14 +79,13 @@ function asadm_domain_for_pkg_type() {
     _domain_for_pkg_type "${ASADM_DOMAIN}" "${ASADM_DOMAIN_DEB}" "${ASADM_DOMAIN_RPM}" "$1"
 }
 
-# The source get_asadm_package_link_native actually searched, for reporting.
-# It takes the local -u branch before consulting asadm_domain_for_pkg_type, so
-# using that function alone names a JFrog host the run never contacted -- which
-# is every local native build, since asadm is not published there yet. The
+# The source(s) get_asadm_package_link_native actually searched, for reporting.
+# A local -u is searched first with the default repo as the asadm fallback
+# behind it, so naming either alone would misreport what the run consulted. The
 # precedence lives here, beside the resolver that implements it.
 function asadm_source_for_pkg_type() {
     if [ -z "${ASADM_DOMAIN}" ] && is_local_artifacts_dir; then
-        echo "${ARTIFACTS_DOMAIN}"
+        echo "${ARTIFACTS_DOMAIN} (fallback: $(asadm_domain_for_pkg_type "$1"))"
     else
         asadm_domain_for_pkg_type "$1"
     fi
@@ -747,8 +746,12 @@ function get_server_package_link_native() {
 }
 
 # Find a local aerospike-asadm package; echo path if found, else empty.
+# With tier "rejected", echo instead the basenames of packages that matched the
+# arch (and any -V pin) but name a different distro -- the input to the
+# fallback warning, so a staged asadm that was passed over is named rather than
+# silently bypassed.
 function find_local_asadm_package() {
-    local base_dir=$1 artifact_distro=$2 arch=$3 pkg_type=$4
+    local base_dir=$1 artifact_distro=$2 arch=$3 pkg_type=$4 tier=${5:-match}
 
     [[ "${base_dir}" != /* ]] && base_dir="$(pwd)/${base_dir}"
     [ -d "${base_dir}" ] || {
@@ -773,14 +776,22 @@ function find_local_asadm_package() {
     # legitimate distro-less packages that merely live under rel9/ or model3/.
     qualified=""
     unqualified=""
+    local rejected=""
     while IFS= read -r f; do
         [ -n "${f}" ] || continue
         if [[ "$(basename "${f}")" == *"${artifact_distro}"* ]]; then
             qualified+="${f}"$'\n'
         elif ! pkg_name_names_a_distro "${f}"; then
             unqualified+="${f}"$'\n'
+        else
+            rejected+="$(basename "${f}")"$'\n'
         fi
     done <<<"${candidates}"
+
+    if [ "${tier}" = "rejected" ]; then
+        printf '%s' "${rejected}" | grep -vE '^$' | sort -u || true
+        return
+    fi
 
     # Distro-qualified match first, so an el10 (or ubuntu24.04) package is never
     # handed to an el9 (or ubuntu22.04) image. The fallback accepts only
@@ -797,18 +808,18 @@ function find_local_asadm_package() {
 #
 # Source precedence:
 #   1. --no-asadm            -> empty (asadm left out entirely)
-#   2. -A/--asadm-url        -> that source
-#   3. a local -u artifacts dir that already carries an asadm package, so local
-#      pre-release builds stay self-contained without needing -A
-#   4. the JFrog repo for this package format
+#   2. -A/--asadm-url        -> that source, and only that source
+#   3. a local -u artifacts dir that carries an asadm package for this
+#      distro/arch, so local pre-release builds stay self-contained
+#   4. the JFrog repo for this package format -- also, with a loud warning, the
+#      fallback behind a local -u that holds no matching asadm
 #
 # The source may be a direct package URL/path, a local directory, a JFrog repo,
 # or a plain HTTP directory index. The newest matching package wins, so with no
 # -A the latest published asadm is installed; -V/ASADM_VERSION pins it to one
-# version in every one of those shapes. Echoes empty when no package is
-# published for the requested distro/arch, which leaves asadm out rather than
-# failing the build -- unless a version was pinned, where resolve_packages turns
-# a one-arch answer into a named target failure rather than a mixed manifest.
+# version in every one of those shapes. asadm is required in every image:
+# echoing empty for a requested distro/arch makes target_is_buildable skip that
+# target by name, and --no-asadm is the only way to build without it.
 function get_asadm_package_link_native() {
     local artifact_distro=$1 arch=$2 pkg_type=$3
 
@@ -817,12 +828,19 @@ function get_asadm_package_link_native() {
         return
     fi
 
-    # A local -u is the whole answer: "build from local packages" must not make
-    # outbound requests to a host the user never named. Matches how
-    # get_server_package_link_native treats a local source.
+    # A local -u binds the server to it, not asadm: asadm is required in every
+    # image, so when the directory holds no asadm for this distro/arch the
+    # resolver falls back to the default repo rather than dooming the target.
+    # An explicit -A never falls back -- the source the user named is the
+    # whole answer.
     if [ -z "${ASADM_DOMAIN}" ] && is_local_artifacts_dir; then
-        find_local_asadm_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${arch}" "${pkg_type}"
-        return
+        local _local
+        _local=$(find_local_asadm_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${arch}" "${pkg_type}")
+        if [ -n "${_local}" ]; then
+            echo "${_local}"
+            return
+        fi
+        _warn_asadm_fallback "${artifact_distro}" "${arch}" "${pkg_type}"
     fi
 
     local base
@@ -884,16 +902,54 @@ function get_asadm_package_link_native() {
         "^aerospike-asadm[-_]${ver_re}.*\\.${ext}$") || rc=$?
     echo "${link}"
 
-    # A source the user named explicitly either yields a package or says why
-    # not. Silence is only acceptable for the default repo, where "not published
-    # yet" is the expected answer and building without asadm is sanctioned.
+    # Unreadable is not absent: an absent asadm already skips the target by
+    # name downstream (asadm is required), so a listing that failed to answer
+    # must be reported as its own fact -- otherwise the user hunts for a
+    # package that exists behind a listing that merely failed to answer.
     if [ "${rc}" -eq "${AS_LIST_ERROR}" ]; then
         if [ -n "${ASADM_DOMAIN}" ]; then
             log_warn "Cannot read the asadm source you gave with -A: ${dir}"
-            return "${AS_LIST_ERROR}"
+        else
+            log_warn "Cannot read the default asadm repo: ${dir}"
         fi
-        log_warn "Cannot read the default asadm repo (${dir}) - continuing without asadm"
+        return "${AS_LIST_ERROR}"
     fi
+}
+
+# Warn that a local -u directory is being bypassed for asadm, naming any staged
+# asadm that was rejected for naming another distro -- the user may believe the
+# asadm they staged is the one being built in. Once per run per -u/distro/arch
+# triple: the resolver runs per arch per target inside $( ), where a plain
+# variable cannot deduplicate across calls; a marker in the listing-cache dir
+# can. The arch is part of the key, and of the message, because the miss is per
+# arch -- a dir carrying only an amd64 asadm falls back for arm64 alone, and the
+# rejected list find_local_asadm_package returns is arch-filtered too, so a
+# distro-wide marker reported whichever arch happened to miss first as if it
+# were both.
+function _warn_asadm_fallback() {
+    local artifact_distro=$1 arch=$2 pkg_type=$3
+    local marker
+    marker=$(_list_cache_path "asadm-fallback:${ARTIFACTS_DOMAIN}:${artifact_distro}:${arch}")
+    [ -n "${marker}" ] && [ -f "${marker}" ] && return 0
+    [ -n "${marker}" ] && : >"${marker}"
+
+    # Named the way every other asadm log line names an arch, not the way the
+    # resolver was called.
+    local arch_label="${arch}"
+    [ "${arch}" = "x86_64" ] && arch_label="amd64"
+    [ "${arch}" = "aarch64" ] && arch_label="arm64"
+
+    # With -V the directory may well hold an asadm for this distro/arch and be
+    # bypassed only for being the wrong version, so the pin belongs in the line
+    # that says what was looked for.
+    local want="${artifact_distro}/${arch_label} asadm${ASADM_VERSION:+ ${ASADM_VERSION}}"
+    log_warn "No ${want} in ${ARTIFACTS_DOMAIN} - falling back to $(asadm_domain_for_pkg_type "${pkg_type}") (asadm is required; --no-asadm builds without it)"
+    local rejected
+    rejected=$(find_local_asadm_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${arch}" "${pkg_type}" rejected)
+    if [ -n "${rejected}" ]; then
+        log_warn "Ignoring ${arch_label} asadm built for another distro: $(printf '%s' "${rejected}" | tr '\n' ' ')"
+    fi
+    return 0
 }
 
 # Fetch SHA256 for any package URL or local file path (reads link.sha256 sidecar).
@@ -982,7 +1038,8 @@ function drop_unchecksummed_arches() {
         log_warn "    No SHA256 for ${arm_link} - dropping arm64"
         arm_link=""
     fi
-    # asadm is explicitly optional, so an absent one is not a build failure.
+    # asadm is required, but the refusal belongs to asadm_refusal_reason:
+    # clearing the link here is what lets that guard name the target.
     if [[ "${asadm_x86_link:-}" == http* ]] && [ -z "${asadm_x86_sha:-}" ]; then
         log_warn "    No SHA256 for ${asadm_x86_link} - amd64 asadm dropped"
         asadm_x86_link=""

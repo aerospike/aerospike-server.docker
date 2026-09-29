@@ -5,15 +5,15 @@
 # https://github.com/aerospike/aerospike-server.docker
 #
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
-LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
+LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.description="Aerospike is a real-time database with predictable performance at petabyte scale with microsecond latency over billions of transactions." \
       org.opencontainers.image.documentation="https://hub.docker.com/_/aerospike" \
-      org.opencontainers.image.base.name="docker.io/library/ubuntu:22.04" \
+      org.opencontainers.image.base.name="docker.io/library/ubuntu:24.04" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.1.0.25" \
+      org.opencontainers.image.version="8.2.0.0" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -21,9 +21,9 @@ LABEL org.opencontainers.image.title="Aerospike Enterprise Server" \
 # By selecting "community" you agree to the "COMMUNITY_LICENSE".
 # By selecting "enterprise" you agree to the "ENTERPRISE_LICENSE".
 # By selecting "federal" you agree to the "FEDERAL_LICENSE"
-ARG AEROSPIKE_EDITION="enterprise"
+ARG AEROSPIKE_EDITION="community"
 
-ENV AEROSPIKE_LINUX_BASE="ubuntu:22.04"
+ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
@@ -54,17 +54,17 @@ RUN \
     if [ "${ARCH}" = "amd64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-server-enterprise/aerospike-server-enterprise_7.1.0.25-5ubuntu22.04_amd64.deb'; \
-        serverSha='f02c3f70689a8e090c1c0048aa20c62ca84c3590d11fbdfe71da51f233489a81'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu22.04_amd64.deb'; \
-        asadmSha='97f66a9742b38b1c2f1e4f9a50e822b88f38746a54a889a96a8b88da065238a6'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-server-community/aerospike-server-community_8.2.0.0-12ubuntu24.04_amd64.deb'; \
+        serverSha='765928889fca6e22eee7c38887e2f962a973a2c3a7668501a6875c34ef93331f'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu24.04_amd64.deb'; \
+        asadmSha='46c53b20166b19f44b55b80955287363187b377ee2e60ce5c2da7af094f997bc'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-server-enterprise/aerospike-server-enterprise_7.1.0.25-5ubuntu22.04_arm64.deb'; \
-        serverSha='1e3459cedcefcc3ce106382d003760b3c8f7a372257d051f254501be0adf5aff'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu22.04_arm64.deb'; \
-        asadmSha='178df242b0fb46e59e7e69ac63cec9d89017243832a10abe62c37a698b387b97'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-server-community/aerospike-server-community_8.2.0.0-12ubuntu24.04_arm64.deb'; \
+        serverSha='ddfc4aa365f6adf48b4d42ade69356ace4f6482d3df001bdc075044cbbca657c'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/noble/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu24.04_arm64.deb'; \
+        asadmSha='62950180530aca5dd5bffdfb4f5404dfd7bd76ad25464b4eb93ab0e4c671532e'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \

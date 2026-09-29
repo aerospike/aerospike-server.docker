@@ -10,8 +10,9 @@
 #           in /tmp/aerospike/ via a Dockerfile COPY instruction before this block.
 #
 # __ASADM_URL_AMD64__ / __ASADM_SHA_AMD64__ follow the same two modes for the
-# standalone aerospike-asadm package. They are substituted to empty strings when
-# asadm is not published for this distro/arch, which skips it entirely.
+# standalone aerospike-asadm package. asadm is required in every image, so they
+# are substituted to empty strings only under --no-asadm: a target with no asadm
+# for an arch it builds is refused by the generator rather than emitted.
 #
 # Tini 1.0.1 URLs and SHAs are hardcoded (fixed release).
 #
@@ -79,8 +80,9 @@ fi
 #   - aerospike-server-*_${ARCH}.deb  (required)
 #   - aerospike-tools-*_${ARCH}.deb   (optional; staged when server declares a
 #                                      hard Depends on aerospike-tools)
-#   - aerospike-asadm*_${ARCH}.deb    (optional; downloaded or staged above,
-#                                      including arch-independent _all.deb)
+#   - aerospike-asadm*_${ARCH}.deb    (present unless built with --no-asadm;
+#                                      downloaded or staged above, including
+#                                      arch-independent _all.deb)
 # Installing them together lets apt resolve the dependencies inline.
 # (aerospike-tools may also declare a hard Depends on curl; in that case curl
 # stays installed after the autoremove at the end.)
@@ -93,8 +95,9 @@ for f in /tmp/aerospike/aerospike-server-*_"${ARCH}".deb \
         serverFound=true
     fi
 done
-# The server package is the only required one; asadm/tools alone must never
-# produce an image, so the guard tracks the server specifically.
+# The server package is the only one this script can require: --no-asadm is a
+# sanctioned build, so an absent asadm here is not proof of a broken one. asadm
+# or tools alone must never produce an image, hence a server-specific guard.
 if [ "${serverFound}" = false ]; then
     echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"
     exit 1

@@ -60,15 +60,15 @@ RUN \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
         serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-server-community-7.2.0.22-14.el9.x86_64.rpm'; \
         serverSha='a28f116d337b733191b5c19a862daf91110220c79df294366ecaf9e2a6a582b5'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-asadm-5.0.3-5.el9.x86_64.rpm'; \
-        asadmSha='acf4e3ac7cd59cc3b5fc26b0cc4dfbb0f8f7610e8a3cfb2dbe84a576a830a05d'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-asadm-5.1.0-2.el9.x86_64.rpm'; \
+        asadmSha='56da7c95cd23ac2c8f521f655c731ef0245aea25a2fee64ec736f7238383529b'; \
     elif [ "${ARCH}" = "aarch64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
         serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-server-community-7.2.0.22-14.el9.aarch64.rpm'; \
         serverSha='faf5c143ebc363410c5d9b32f5b481558ad88cd3cc544a20836c3655c7966179'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-asadm-5.0.3-5.el9.aarch64.rpm'; \
-        asadmSha='976726c1be67bb96ffea387cf57a9e76755c23a2854239a5ef1b55bb1c1a722b'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-asadm-5.1.0-2.el9.aarch64.rpm'; \
+        asadmSha='bf7adafd8eb1915cfa9bf1c9dc2e71406674401428895a940661c078d7f93fdd'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
@@ -106,8 +106,9 @@ RUN \
     #   - aerospike-server-*.${ARCH}.rpm  (required) \
     #   - aerospike-tools-*.${ARCH}.rpm   (optional; staged when server declares a \
     #                                      hard Requires on aerospike-tools) \
-    #   - aerospike-asadm-*.${ARCH}.rpm   (optional; downloaded or staged above, \
-    #                                      including arch-independent .noarch.rpm) \
+    #   - aerospike-asadm-*.${ARCH}.rpm   (present unless built with --no-asadm; \
+    #                                      downloaded or staged above, including \
+    #                                      arch-independent .noarch.rpm) \
     pkgs=(); \
     serverFound=false; \
     for f in /tmp/aerospike/aerospike-server-*."${ARCH}".rpm; do \
@@ -116,8 +117,9 @@ RUN \
             serverFound=true; \
         fi; \
     done; \
-    # The server package is the only required one; asadm/tools alone must never \
-    # produce an image, so the guard tracks the server specifically. \
+    # The server package is the only one this script can require: --no-asadm is a \
+    # sanctioned build, so an absent asadm here is not proof of a broken one. asadm \
+    # or tools alone must never produce an image, hence a server-specific guard. \
     if [ "${serverFound}" = false ]; then \
         echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"; \
         exit 1; \
