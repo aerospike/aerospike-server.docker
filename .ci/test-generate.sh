@@ -28,7 +28,7 @@ WORK=$(mktemp -d)
 SRV_PID=""
 FAILED=0
 SCENARIOS=0
-EXPECTED_SCENARIOS=37
+EXPECTED_SCENARIOS=38
 CURRENT_LOG="${WORK}/out.log"
 
 FORCE=false
@@ -200,10 +200,12 @@ PATH="${WORK}/stub:${PATH}" ASADM_DOMAIN_DEB="${WORK}/fb" \
     gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/noasadm" || true
 check "zero http requests (asadm from a local fallback)" "urls fetched" \
     "$(wc -l <"${CURL_LOG}" | tr -d ' ')" "0"
-check "the fallback is announced" "fallback warning" \
-    "$(grep -c 'falling back to' "${CURRENT_LOG}" || true)" "1"
-check "and names the -u dir it bypassed" "dir in warning" \
-    "$(grep -cF "No ubuntu24.04 asadm in ${WORK}/noasadm" "${CURRENT_LOG}" || true)" "1"
+check "the fallback is announced once per arch" "fallback warnings" \
+    "$(grep -c 'falling back to' "${CURRENT_LOG}" || true)" "2"
+check "and names the -u dir and the arch it missed" "amd64 warning" \
+    "$(grep -cF "No ubuntu24.04/amd64 asadm in ${WORK}/noasadm" "${CURRENT_LOG}" || true)" "1"
+check "the other arch is reported on its own" "arm64 warning" \
+    "$(grep -cF "No ubuntu24.04/arm64 asadm in ${WORK}/noasadm" "${CURRENT_LOG}" || true)" "1"
 check "asadm staged from the fallback" "asadm files" "$(staged_count asadm)" "2"
 : >"${CURL_LOG}"
 PATH="${WORK}/stub:${PATH}" gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" || true
@@ -275,8 +277,10 @@ mk_asadm "${WORK}/wrongdistro" 5.0.3 ubuntu22.04
 ASADM_DOMAIN_DEB="${WORK}/fb" gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/wrongdistro" || true
 check "ubuntu22.04 asadm not staged into a ubuntu24.04 image" "wrong-distro asadm files" \
     "$(staged | grep -c 'asadm.*ubuntu22\.04' || true)" "0"
-check "the passed-over package is named" "ignore warning" \
-    "$(grep -c 'Ignoring asadm built for another distro: aerospike-asadm_5.0.3-1ubuntu22.04' "${CURRENT_LOG}" || true)" "1"
+check "the passed-over package is named, per arch" "ignore warnings" \
+    "$(grep -c 'Ignoring amd64 asadm built for another distro: .*aerospike-asadm_5\.0\.3-1ubuntu22\.04_x86_64\.deb' "${CURRENT_LOG}" || true)" "1"
+check "and the other arch names its own" "arm64 ignore warning" \
+    "$(grep -c 'Ignoring arm64 asadm built for another distro: .*aerospike-asadm_5\.0\.3-1ubuntu22\.04_aarch64\.deb' "${CURRENT_LOG}" || true)" "1"
 check "asadm staged from the fallback instead" "ubuntu24.04 asadm files" \
     "$(staged | grep -c 'asadm.*ubuntu24\.04' || true)" "2"
 check "server still staged" "server files" "$(staged_count 'aerospike-server')" "2"
@@ -391,8 +395,8 @@ check "run succeeds" "exit code" "${rcFb}" "0"
 check "asadm resolved through the fallback" "pool/noble in asadmUrl" \
     "$(grep -c "asadmUrl='http://[^']*/pool/noble/aerospike-asadm/" "${DF}" || true)" "2"
 check "server still from the local dir" "server files" "$(staged_count 'aerospike-server')" "2"
-check "announced once, not per arch" "fallback warnings" \
-    "$(grep -c 'falling back to' "${CURRENT_LOG}" || true)" "1"
+check "announced once per arch, not once per target" "fallback warnings" \
+    "$(grep -c 'falling back to' "${CURRENT_LOG}" || true)" "2"
 
 scenario "a URL is never emitted next to an empty checksum"
 gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-nosha" && rcNs=0 || rcNs=$?
@@ -607,7 +611,6 @@ rm -f "${WORK}/curlmark"
 CURL_FAIL_ONCE="pool/noble/aerospike-asadm" CURL_FAIL_MARK="${WORK}/curlmark" \
     PATH="${WORK}/stub:${PATH}" gen -e enterprise -d ubuntu24.04 \
     -u "${BASE}-multi" -A "${BASE}-multi" && rcT=0 || rcT=$?
-check "the blip does not fail the run" "exit code" "${rcT}" "0"
 check "the failed listing is re-probed" "asadm pool requests" \
     "$(grep -c "database-deb-prod-public-local-multi/pool/noble/aerospike-asadm/\$" "${CURL_LOG}" || true)" "2"
 # An explicitly named -A that cannot be read fails its target, so the lineage
@@ -619,6 +622,13 @@ check "a later lineage recovers on the retry" "8.0 asadmUrl count" \
     "$(grep -c "asadmUrl='http" "releases/8.0/enterprise/ubuntu24.04/Dockerfile" || true)" "2"
 check "and so does the next" "${LINEAGE} asadmUrl count" \
     "$(grep -c "asadmUrl='http" "${DF}" || true)" "2"
+# The blip is survivable for every lineage after it, but the one it hit kept a
+# Dockerfile this -g did not rewrite. That is a stale commit waiting to happen,
+# so -g reports it rather than exiting 0 on a tree it only partly refreshed --
+# a flaky red that a re-run clears, in place of a silent green.
+check "but -g still reports the lineage it could not rewrite" "exit code" "${rcT}" "1"
+check "naming asadm as the reason" "stale warning" \
+    "$(grep -c 'skipped over asadm - their committed Dockerfiles are now stale' "${CURRENT_LOG}" || true)" "1"
 
 scenario "a new lineage builds for its own distros, and an unknown one is refused"
 # 8.2 is committed under releases/, so a count over the lineage would measure what
@@ -794,6 +804,42 @@ gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" -A "${BASE}-skew" -
 check "run fails" "exit code" "${rcHalf}" "1"
 check "and names the missing arch" "warning present" \
     "$(grep -c 'asadm 5\.0\.4 is not published for arm64' "${CURRENT_LOG}" || true)" "1"
+
+scenario "an asadm published for one arch only refuses a two-arch target, not a one-arch one"
+# The two unpinned branches of asadm_refusal_reason. Every other refusal fixture
+# is missing asadm for both arches, so the refusal always read "amd64 and arm64"
+# and neither the single-arch wording nor the "a target that builds one arch
+# needs asadm for that arch only" case was ever reached. Federal is that
+# one-arch target in production -- published for amd64 alone -- so the fixture
+# stages no arm64 federal server package.
+HALF="${WORK}/halfasadm"
+mk_pkg "${HALF}/aerospike-server-enterprise_${VERSION}-1ubuntu24.04_amd64.deb"
+mk_pkg "${HALF}/aerospike-server-enterprise_${VERSION}-1ubuntu24.04_arm64.deb"
+mk_pkg "${HALF}/aerospike-server-federal_${VERSION}-1ubuntu24.04_amd64.deb"
+mk_pkg "${HALF}/aerospike-asadm_5.0.3-1ubuntu24.04_x86_64.deb"
+# The arm64 miss falls back, so the fallback has to be local and equally without
+# an arm64 asadm -- otherwise the refusal under test resolves away over the wire.
+mk_pkg "${WORK}/fbamd64/aerospike-asadm_5.0.3-1ubuntu24.04_x86_64.deb"
+ASADM_DOMAIN_DEB="${WORK}/fbamd64" \
+    gen "${VERSION}" -e enterprise federal -d ubuntu24.04 -u "${HALF}" && rcHa=0 || rcHa=$?
+check "the run fails over the refused target" "exit code" "${rcHa}" "1"
+check "and -g says the committed Dockerfile is now stale" "stale warning" \
+    "$(grep -c 'skipped over asadm - their committed Dockerfiles are now stale' "${CURRENT_LOG}" || true)" "1"
+check "the two-arch target is refused, naming only the missing arch" "skip warning" \
+    "$(grep -c 'Skipping enterprise/ubuntu24\.04 - no asadm package for arm64 - asadm is required' \
+        "${CURRENT_LOG}" || true)" "1"
+check "not reported as missing both" "amd64 in the refusal" \
+    "$(grep -c 'no asadm package for amd64' "${CURRENT_LOG}" || true)" "0"
+check "and its committed Dockerfile is left alone" "enterprise vs committed" \
+    "$(git diff --quiet "${CTX}" && echo untouched || echo rewritten)" "untouched"
+# Federal bakes amd64 only, so an amd64-only asadm satisfies it. Staged packages
+# are gitignored and cleaned per scenario, so their presence is proof this run
+# wrote the target rather than `scenario` restoring it from git.
+FED="releases/${LINEAGE}/federal/ubuntu24.04"
+check "the one-arch target still builds" "federal staged packages" \
+    "$(find "${FED}" -maxdepth 1 -name '*.deb' | wc -l | tr -d ' ')" "2"
+check "and no arm64 asadm is resolved for it" "federal arm64 files" \
+    "$(find "${FED}" -maxdepth 1 -name '*.deb' | grep -c 'aarch64\|arm64' || true)" "0"
 
 # --- Per-format defaults ------------------------------------------------------
 # The headline behaviour of this change -- the server source defaulting to the

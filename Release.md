@@ -41,14 +41,15 @@ Example: `releases/8.1/enterprise/ubuntu24.04/`
 
 ### Supported Matrix
 
-| Lineage | Distros                  | Editions                       |
-|---------|--------------------------|--------------------------------|
-| 7.1     | ubuntu22.04, ubi9        | community, enterprise, federal |
-| 7.2     | ubuntu24.04, ubi9        | community, enterprise, federal |
-| 8.0     | ubuntu24.04, ubi9        | community, enterprise, federal |
-| 8.1+    | ubuntu24.04, ubi9, ubi10 | community, enterprise, federal |
+| Lineage | Distros            | Editions                       |
+|---------|--------------------|--------------------------------|
+| 7.1     | ubuntu22.04, ubi9  | community, enterprise, federal |
+| 7.2     | ubuntu24.04, ubi9  | community, enterprise, federal |
+| 8.0     | ubuntu24.04, ubi9  | community, enterprise, federal |
+| 8.1     | ubuntu24.04, ubi10 | community, enterprise, federal |
+| 8.2     | ubuntu24.04, ubi10 | community, enterprise, federal |
 
-(ubi10 for 8.1+ is optional; use `-d ubi10` to include it.)
+(7.1 is retired from the default set and still buildable by naming it: `-g 7.1`.)
 
 ### Version Format Support
 
@@ -177,8 +178,8 @@ Updated README.md with:
 -	**Native package fallback**  
 	When a tgz bundle is not found on the artifacts server, the build system falls back to native `.rpm` (el9/el10) or `.deb` (Ubuntu) from the same or configured server (e.g. JFrog Artifactory). Images can be built from either tgz bundles or native packages.
 
--	**Optional ubi10 for 8.1+**  
-	Distro `ubi10` is supported for lineage 8.1+ (base image `ubi10/ubi-minimal:10.0`, artifact name `el10`). Not included in the default distro list; use `-d ubi10` to build UBI 10 images.
+-	**ubi10 for 8.1 and 8.2**  
+	Distro `ubi10` (base image `ubi10/ubi-minimal:10.0`, artifact name `el10`) is the UBI distro for lineages 8.1 and 8.2, replacing `ubi9` rather than adding to it. It is built by default; `ubi9` remains the UBI distro for 7.1, 7.2 and 8.0.
 
 -	**Multiple registries in push mode**  
 	Push mode supports multiple `-r` registries (e.g. `-r reg1 -r reg2`). Each registry receives the same set of tags (lineage, version, version-timestamp, version-distro).
@@ -197,7 +198,7 @@ Updated README.md with:
 
 -	**Code organization (PR-ready)**
 
-	-	**Linear release dependencies:** `lib/support.sh` documents canonical lineage order (7.1, 7.2, 8.0, 8.1); `support_distros()` is the single source of truth for lineage → distros.  
+	-	**Linear release dependencies:** `lib/support.sh` documents canonical lineage order (7.1, 7.2, 8.0, 8.1, 8.2); `support_distros()` is the single source of truth for lineage → distros.  
 	-	**Shared helpers:** `get_lineage_from_version()` moved to `lib/version.sh` and used by both `docker-build.sh` and `test.sh`. New `support_distros_matching(lineage, filter)` in `lib/support.sh` centralizes distro filtering (exact/prefix); used by `docker-build.sh` (generate + bake) and `test.sh`.  
 	-	**File headers:** Each script has a short header with dependencies and purpose (`lib/log.sh`, `lib/fetch.sh`, `lib/support.sh`, `lib/version.sh`, `docker-build.sh`, `test.sh`).  
 	-	**Tag behaviour:** When only one distro is built, image tags omit the distro suffix (e.g. `7.1.0.21` instead of `7.1.0.21-ubuntu22.04`). When multiple distros: tags include distro (e.g. `7.1-ubuntu22.04`, `7.1.0.21-ubuntu22.04`, `7.1.0.21-ubuntu22.04-20260226123040`). Timestamp format `%Y%m%d%H%M%S` (no hyphen). Test fallback tries both `version-distro-arch` and `version-arch` when bake file is missing.

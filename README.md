@@ -373,7 +373,6 @@ These images are based on Ubuntu or Red Hat UBI depending on the variant:
 |-------------|---------------------------------------------------|
 | ubuntu22.04 | ubuntu:22.04                                      |
 | ubuntu24.04 | ubuntu:24.04                                      |
-| ubuntu26.04 | ubuntu:26.04                                      |
 | ubi9        | registry.access.redhat.com/ubi9/ubi-minimal:9.7   |
 | ubi10       | registry.access.redhat.com/ubi10/ubi-minimal:10.0 |
 
@@ -516,7 +515,7 @@ The images ship `asd` and `asadm` only. The `aerospike-tools` bundle (`aql`, `as
 	                        name.
 	    --no-asadm          Do not install a standalone aerospike-asadm package
 	    -e, --edition ED    Filter editions: community, enterprise, federal (multiple allowed)
-	    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubuntu26.04, ubi9, ubi10
+	    -d, --distro DIST   Filter distros: ubuntu22.04, ubuntu24.04, ubi9, ubi10
 	                        Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
 	    -a, --arch ARCH     Filter architectures: amd64, arm64 (or x86_64, aarch64)
 	    -T, --timestamp TS  Fixed timestamp for push tags (YYYYMMDDHHMMSS)

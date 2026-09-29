@@ -36,6 +36,14 @@ function generate_dockerfiles() {
     # the new version's tags carrying the previous build's contents.
     declare -ga G_GENERATED_TARGETS=()
     declare -g G_SKIPPED_COUNT=0
+    # Targets skipped over asadm specifically, counted by target_is_buildable.
+    # A target skipped for its *server* packages has always kept its committed
+    # Dockerfile, and a staggered publish across the two format repos is the
+    # normal state of a -g against one of them. asadm is the new skip: it used
+    # to emit an empty asadmUrl, which changed the Dockerfile and turned CI's
+    # "Should not change anything" red. A skip leaves the file untouched, so
+    # without this the same fault is green and surfaces only at the next push.
+    declare -g G_ASADM_REFUSED_COUNT=0
 
     # --- Resolve version(s) ---
     if [[ "${version_or_lineage}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; then
@@ -195,6 +203,16 @@ function generate_dockerfiles() {
     if [ "${G_GENERATED_COUNT}" -eq 0 ]; then
         log_warn "No Dockerfiles were generated - every target was skipped."
         log_warn "Check that -u points at packages matching the requested version, edition, distro and arch."
+        exit 1
+    fi
+
+    # -g is the mode that rewrites the committed tree, so a target it could not
+    # rewrite over asadm is an error here rather than a warning nobody reads.
+    # -t is left alone for the same reason -p is not: building the subset that
+    # resolved is the point of a local test run.
+    if [ "${full_generate}" = true ] && [ "${G_ASADM_REFUSED_COUNT}" -ne 0 ]; then
+        log_warn "${G_ASADM_REFUSED_COUNT} target(s) were skipped over asadm - their committed Dockerfiles are now stale."
+        log_warn "Fix the asadm source, or pass --no-asadm to build without it."
         exit 1
     fi
 

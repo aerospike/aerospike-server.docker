@@ -918,21 +918,36 @@ function get_asadm_package_link_native() {
 
 # Warn that a local -u directory is being bypassed for asadm, naming any staged
 # asadm that was rejected for naming another distro -- the user may believe the
-# asadm they staged is the one being built in. Once per run per -u/distro pair:
-# the resolver runs per arch per target inside $( ), where a plain variable
-# cannot deduplicate across calls; a marker in the listing-cache dir can.
+# asadm they staged is the one being built in. Once per run per -u/distro/arch
+# triple: the resolver runs per arch per target inside $( ), where a plain
+# variable cannot deduplicate across calls; a marker in the listing-cache dir
+# can. The arch is part of the key, and of the message, because the miss is per
+# arch -- a dir carrying only an amd64 asadm falls back for arm64 alone, and the
+# rejected list find_local_asadm_package returns is arch-filtered too, so a
+# distro-wide marker reported whichever arch happened to miss first as if it
+# were both.
 function _warn_asadm_fallback() {
     local artifact_distro=$1 arch=$2 pkg_type=$3
     local marker
-    marker=$(_list_cache_path "asadm-fallback:${ARTIFACTS_DOMAIN}:${artifact_distro}")
+    marker=$(_list_cache_path "asadm-fallback:${ARTIFACTS_DOMAIN}:${artifact_distro}:${arch}")
     [ -n "${marker}" ] && [ -f "${marker}" ] && return 0
     [ -n "${marker}" ] && : >"${marker}"
 
-    log_warn "No ${artifact_distro} asadm in ${ARTIFACTS_DOMAIN} - falling back to $(asadm_domain_for_pkg_type "${pkg_type}") (asadm is required; --no-asadm builds without it)"
+    # Named the way every other asadm log line names an arch, not the way the
+    # resolver was called.
+    local arch_label="${arch}"
+    [ "${arch}" = "x86_64" ] && arch_label="amd64"
+    [ "${arch}" = "aarch64" ] && arch_label="arm64"
+
+    # With -V the directory may well hold an asadm for this distro/arch and be
+    # bypassed only for being the wrong version, so the pin belongs in the line
+    # that says what was looked for.
+    local want="${artifact_distro}/${arch_label} asadm${ASADM_VERSION:+ ${ASADM_VERSION}}"
+    log_warn "No ${want} in ${ARTIFACTS_DOMAIN} - falling back to $(asadm_domain_for_pkg_type "${pkg_type}") (asadm is required; --no-asadm builds without it)"
     local rejected
     rejected=$(find_local_asadm_package "${ARTIFACTS_DOMAIN}" "${artifact_distro}" "${arch}" "${pkg_type}" rejected)
     if [ -n "${rejected}" ]; then
-        log_warn "Ignoring asadm built for another distro: $(printf '%s' "${rejected}" | tr '\n' ' ')"
+        log_warn "Ignoring ${arch_label} asadm built for another distro: $(printf '%s' "${rejected}" | tr '\n' ' ')"
     fi
     return 0
 }

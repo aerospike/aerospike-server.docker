@@ -307,21 +307,24 @@ function resolve_packages() {
         server_unreadable=true
     fi
 
-    if [ -n "${x86_link}" ] || [ -n "${arm_link}" ]; then
-        local _arc=0
-        if [ "${single_arch}" != "arm64" ]; then
-            asadm_x86_link=$(get_asadm_package_link_native "${artifact_distro}" "x86_64" "${pkg_type}") || _arc=$?
-            asadm_x86_sha=$(fetch_sha_for_link "${asadm_x86_link}")
-        fi
-        if [ "${single_arch}" != "amd64" ]; then
-            asadm_arm_link=$(get_asadm_package_link_native "${artifact_distro}" "aarch64" "${pkg_type}") || _arc=$?
-            asadm_arm_sha=$(fetch_sha_for_link "${asadm_arm_link}")
-        fi
-        if [ "${_arc}" -eq "${AS_LIST_ERROR}" ]; then
-            log_warn "The asadm source could not be read"
-            # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
-            asadm_unreadable=true
-        fi
+    # Only an arch that resolved a server package is probed for asadm. Federal
+    # bakes amd64 only, so resolving its aarch64 asadm emitted an asadm URL next
+    # to an empty serverUrl and put federal behind two refusals it can never
+    # build into: an asadm published for x86_64 before aarch64, and an unreadable
+    # aarch64 listing. The same holds for any target with one arch unpublished.
+    local _arc=0
+    if [ -n "${x86_link}" ]; then
+        asadm_x86_link=$(get_asadm_package_link_native "${artifact_distro}" "x86_64" "${pkg_type}") || _arc=$?
+        asadm_x86_sha=$(fetch_sha_for_link "${asadm_x86_link}")
+    fi
+    if [ -n "${arm_link}" ]; then
+        asadm_arm_link=$(get_asadm_package_link_native "${artifact_distro}" "aarch64" "${pkg_type}") || _arc=$?
+        asadm_arm_sha=$(fetch_sha_for_link "${asadm_arm_link}")
+    fi
+    if [ "${_arc}" -eq "${AS_LIST_ERROR}" ]; then
+        log_warn "The asadm source could not be read"
+        # shellcheck disable=SC2034  # consumed by caller (generate.sh) via dynamic scoping
+        asadm_unreadable=true
     fi
 
     drop_unsafe_links
@@ -375,13 +378,13 @@ function drop_unsafe_links() {
 # halves carry different asadm builds. Nothing downstream compares them:
 # drop_unchecksummed_arches only checks for an empty digest.
 #
-# Only an arch that resolved a server package needs asadm: an arch with no
-# server package is already reported by the guards around this one, and federal
-# bakes amd64 only, so its arm64 half is never required.
+# Every test is on the server link, which is what resolve_packages already gates
+# the asadm probe on: an arch with no server package is reported by the guards
+# around this one and needs no asadm, so federal (amd64 only) and any one-arch
+# build need no exemption of their own.
 #
 # Echoes the reason and returns 1 when the target must be refused.
 function asadm_refusal_reason() {
-    local edition=$1 single_arch=$2
     [ "${ASADM_DISABLED}" = true ] && return 0
 
     local x86_v arm_v
@@ -396,11 +399,10 @@ function asadm_refusal_reason() {
     fi
 
     local missing=""
-    if [ "${single_arch}" != "arm64" ] && [ -n "${x86_link:-}" ] && [ -z "${asadm_x86_link:-}" ]; then
+    if [ -n "${x86_link:-}" ] && [ -z "${asadm_x86_link:-}" ]; then
         missing="amd64"
     fi
-    if [ "${single_arch}" != "amd64" ] && [ "${edition}" != "federal" ] &&
-        [ -n "${arm_link:-}" ] && [ -z "${asadm_arm_link:-}" ]; then
+    if [ -n "${arm_link:-}" ] && [ -z "${asadm_arm_link:-}" ]; then
         missing="${missing:+${missing} and }arm64"
     fi
     [ -z "${missing}" ] && return 0
@@ -419,6 +421,9 @@ function asadm_refusal_reason() {
 # same order, differing only in the action and already drifting apart in their
 # wording. Reads the caller-scoped variables resolve_packages sets and does all
 # the logging; returns 1 when the target must be skipped.
+#
+# An asadm-caused skip also bumps G_ASADM_REFUSED_COUNT, which -g treats as
+# fatal: both call sites reach it through here, so the count needs no plumbing.
 function target_is_buildable() {
     local edition=$1 distro=$2 single_arch=$3
 
@@ -435,6 +440,7 @@ function target_is_buildable() {
     # asadm is required, so the target is skipped rather than short-shipped.
     if [ "${asadm_unreadable}" = true ]; then
         log_warn "    Skipping ${edition}/${distro} - the asadm source could not be read"
+        G_ASADM_REFUSED_COUNT=$((${G_ASADM_REFUSED_COUNT:-0} + 1))
         return 1
     fi
 
@@ -446,8 +452,9 @@ function target_is_buildable() {
     fi
 
     local _reason=""
-    _reason=$(asadm_refusal_reason "${edition}" "${single_arch}") || {
+    _reason=$(asadm_refusal_reason) || {
         log_warn "    Skipping ${edition}/${distro} - ${_reason}"
+        G_ASADM_REFUSED_COUNT=$((${G_ASADM_REFUSED_COUNT:-0} + 1))
         return 1
     }
 

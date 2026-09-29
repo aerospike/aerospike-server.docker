@@ -96,8 +96,9 @@ RUN \
     #   - aerospike-server-*_${ARCH}.deb  (required) \
     #   - aerospike-tools-*_${ARCH}.deb   (optional; staged when server declares a \
     #                                      hard Depends on aerospike-tools) \
-    #   - aerospike-asadm*_${ARCH}.deb    (optional; downloaded or staged above, \
-    #                                      including arch-independent _all.deb) \
+    #   - aerospike-asadm*_${ARCH}.deb    (present unless built with --no-asadm; \
+    #                                      downloaded or staged above, including \
+    #                                      arch-independent _all.deb) \
     # Installing them together lets apt resolve the dependencies inline. \
     # (aerospike-tools may also declare a hard Depends on curl; in that case curl \
     # stays installed after the autoremove at the end.) \
@@ -110,8 +111,9 @@ RUN \
             serverFound=true; \
         fi; \
     done; \
-    # The server package is the only required one; asadm/tools alone must never \
-    # produce an image, so the guard tracks the server specifically. \
+    # The server package is the only one this script can require: --no-asadm is a \
+    # sanctioned build, so an absent asadm here is not proof of a broken one. asadm \
+    # or tools alone must never produce an image, hence a server-specific guard. \
     if [ "${serverFound}" = false ]; then \
         echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"; \
         exit 1; \

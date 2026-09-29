@@ -71,7 +71,7 @@ OPTIONS:
     -e, --edition ED    Filter edition(s): community, enterprise, federal
                         Can specify multiple: -e enterprise community
                         Default: all editions
-    -d, --distro DIST   Filter distro(s): ubuntu22.04, ubuntu24.04, ubuntu26.04, ubi9, ubi10
+    -d, --distro DIST   Filter distro(s): ubuntu22.04, ubuntu24.04, ubi9, ubi10
                         Prefix match: -d ubuntu (all Ubuntu), -d ubi (all UBI)
                         Can specify multiple: -d ubuntu24.04 ubi9
                         Default: all distros supported by lineage
@@ -216,7 +216,7 @@ EXAMPLES:
     # Always add e.g. ...:latest or ...:latest-ubuntu24-04 on push, ...:latest-amd64 on test
     $0 -p 8.1 --tag-latest
     $0 -t 8.1 -e community -d ubuntu24.04 --tag-latest
-    # Add ...:latest* only if the built version equals newest GA across 7.2–8.1 (queries artifacts)
+    # Add ...:latest* only if the built version equals newest GA across 7.2–8.2 (queries artifacts)
     $0 -t 8.1 --auto-latest
     $0 -p 8.1 --auto-latest
     # Explicitly disable (default); overrides BAKE_TAG_LATEST_* env if set

@@ -106,8 +106,9 @@ RUN \
     #   - aerospike-server-*.${ARCH}.rpm  (required) \
     #   - aerospike-tools-*.${ARCH}.rpm   (optional; staged when server declares a \
     #                                      hard Requires on aerospike-tools) \
-    #   - aerospike-asadm-*.${ARCH}.rpm   (optional; downloaded or staged above, \
-    #                                      including arch-independent .noarch.rpm) \
+    #   - aerospike-asadm-*.${ARCH}.rpm   (present unless built with --no-asadm; \
+    #                                      downloaded or staged above, including \
+    #                                      arch-independent .noarch.rpm) \
     pkgs=(); \
     serverFound=false; \
     for f in /tmp/aerospike/aerospike-server-*."${ARCH}".rpm; do \
@@ -116,8 +117,9 @@ RUN \
             serverFound=true; \
         fi; \
     done; \
-    # The server package is the only required one; asadm/tools alone must never \
-    # produce an image, so the guard tracks the server specifically. \
+    # The server package is the only one this script can require: --no-asadm is a \
+    # sanctioned build, so an absent asadm here is not proof of a broken one. asadm \
+    # or tools alone must never produce an image, hence a server-specific guard. \
     if [ "${serverFound}" = false ]; then \
         echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"; \
         exit 1; \
