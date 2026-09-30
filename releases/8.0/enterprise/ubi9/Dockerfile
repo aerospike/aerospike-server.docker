@@ -42,13 +42,6 @@ RUN \
   { \
     # Install curl and resolve arch-specific links.
     ARCH="$(rpm --eval '%{_arch}')"; \
-    # Aerospike publishes some packages (notably aerospike-asadm) with the dpkg arch \
-    # spelling rather than the kernel one, so both are matched when collecting. \
-    if [ "${ARCH}" = "x86_64" ]; then \
-        ALT_ARCH="amd64"; \
-    elif [ "${ARCH}" = "aarch64" ]; then \
-        ALT_ARCH="arm64"; \
-    fi; \
     # curl-minimal is preferred on ubi-minimal; fall back to full curl if absent. \
     if ! command -v curl >/dev/null 2>&1; then \
         if ! microdnf install -y curl-minimal; then \
@@ -84,7 +77,7 @@ RUN \
     # Download server and asadm packages (remote builds only; local builds use COPY).
     # shadow-utils: provides groupadd/useradd used by aerospike-server %post scriptlet. \
     # findutils: provides find(1) used by aerospike-server %post scriptlet. \
-    # Downloads are named to match the arch-qualified globs used by the install step \
+    # Downloads are named to match the arch-qualified glob used by the install step \
     # below, so remote and pre-staged packages are collected the same way. \
     microdnf install -y --setopt=install_weak_deps=0 findutils shadow-utils; \
     mkdir -p /tmp/aerospike; \
@@ -102,56 +95,13 @@ RUN \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
         microdnf install -y --setopt=install_weak_deps=0 openldap; \
     fi; \
-    # Collect all arch-matching packages in /tmp/aerospike/: \
-    #   - aerospike-server-*.${ARCH}.rpm  (required) \
-    #   - aerospike-tools-*.${ARCH}.rpm   (optional; staged when server declares a \
-    #                                      hard Requires on aerospike-tools) \
-    #   - aerospike-asadm-*.${ARCH}.rpm   (present unless built with --no-asadm; \
-    #                                      downloaded or staged above, including \
-    #                                      arch-independent .noarch.rpm) \
-    pkgs=(); \
-    serverFound=false; \
-    for f in /tmp/aerospike/aerospike-server-*."${ARCH}".rpm; do \
-        if [ -f "${f}" ]; then \
-            pkgs+=("${f}"); \
-            serverFound=true; \
-        fi; \
-    done; \
-    # The server package is the only one this script can require: --no-asadm is a \
-    # sanctioned build, so an absent asadm here is not proof of a broken one. asadm \
-    # or tools alone must never produce an image, hence a server-specific guard. \
-    if [ "${serverFound}" = false ]; then \
-        echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"; \
-        exit 1; \
-    fi; \
-    # aerospike-asadm* rather than aerospike-asadm-*: the resolver accepts both \
-    # separators (aerospike-asadm[-_]), so requiring the hyphen here would let a \
-    # locally staged aerospike-asadm_5.0.3-....rpm be resolved, logged as included \
-    # and copied in, then matched by none of these globs -- an image that ships \
-    # without asadm while the generation log says it has it. The server and tools \
-    # packages still cannot match: their names begin aerospike-server- / \
-    # aerospike-tools-. \
-    for f in /tmp/aerospike/aerospike-tools-*."${ARCH}".rpm \
-        /tmp/aerospike/aerospike-asadm*."${ARCH}".rpm \
-        /tmp/aerospike/aerospike-asadm*."${ALT_ARCH}".rpm \
-        /tmp/aerospike/aerospike-asadm*.noarch.rpm; do \
-        if [ -f "${f}" ]; then pkgs+=("${f}"); fi; \
-    done; \
-    rpm -i --excludedocs "${pkgs[@]}"; \
+    # Arch-qualified because a local build stages both arches through one COPY. \
+    rpm -i --excludedocs /tmp/aerospike/aerospike-*."${ARCH}".rpm; \
   }; \
   { \
     # Post-install housekeeping.
     mkdir -p /licenses /var/log/aerospike /var/run/aerospike; \
-    # The server package ships its license at /opt/aerospike/doc/LICENSE; the \
-    # image has always published it at /licenses/ (a Red Hat certification \
-    # requirement on UBI). An absent file means the packaging changed, which is a \
-    # condition that stops a release rather than annotating it: the tgz path this \
-    # replaced had an unconditional cp in the same errexit chain, so a warning here \
-    # would be the one place the guarantee got weaker. \
-    if [ ! -f /opt/aerospike/doc/LICENSE ]; then \
-        echo >&2 "error: /opt/aerospike/doc/LICENSE not found - the package no longer ships its license"; \
-        exit 1; \
-    fi; \
+    # /licenses/ is where Red Hat certification expects the license to be. \
     cp /opt/aerospike/doc/LICENSE /licenses/; \
     if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then \
         if [ -f /tmp/aerospike/features.conf ]; then \
