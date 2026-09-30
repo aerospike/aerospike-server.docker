@@ -489,11 +489,52 @@ function _local_pkg_copy_glob() {
     echo ""
 }
 
+# _canonical_pkg_name name pkg_type arch
+#
+# A staged package's filename with its arch token rewritten to the one spelling
+# the container-side install glob matches. Aerospike publishes asadm with the
+# kernel arch spelling (aerospike-asadm_5.0.3-1ubuntu24.04_x86_64.deb) while the
+# server debs use the dpkg one (_amd64.deb), and `COPY *.deb` carries a local
+# package's published name through verbatim -- so without this rewrite an
+# install glob keyed to one spelling silently skips the other and the image
+# ships without asadm while the generation log says it has it. The remote path
+# normalises the same way, in the `curl -o` that names each download.
+#
+# Only the arch token changes: the version and distro substrings stay, because
+# .ci/test-generate.sh matches staged basenames on both. A name carrying no
+# recognised arch token is left alone rather than given an invented one.
+function _canonical_pkg_name() {
+    local name=$1 pkg_type=$2 arch=$3
+    local want
+
+    if [ "${pkg_type}" = "deb" ]; then
+        if [ "${arch}" = "x86_64" ]; then want="amd64"; else want="arm64"; fi
+        case "${name}" in
+        *_amd64.deb | *_arm64.deb | *_x86_64.deb | *_aarch64.deb | *_all.deb)
+            printf '%s_%s.deb' "${name%_*}" "${want}"
+            return
+            ;;
+        esac
+    else
+        if [ "${arch}" = "x86_64" ]; then want="x86_64"; else want="aarch64"; fi
+        case "${name}" in
+        *.x86_64.rpm | *.aarch64.rpm | *.amd64.rpm | *.arm64.rpm | *.noarch.rpm)
+            printf '%s.%s.rpm' "${name%.*.rpm}" "${want}"
+            return
+            ;;
+        esac
+    fi
+
+    printf '%s' "${name}"
+}
+
 # _stage_local_packages target pkg_type
 #
 # Purge stale packages from a build context and copy in the ones this run
 # resolved locally, so `COPY *.deb` picks up exactly the current set. Reads the
 # caller-scoped x86_link / arm_link / asadm_*_link that resolve_packages sets.
+# Each package is staged under _canonical_pkg_name, so the install step sees one
+# arch spelling whether the package was downloaded or pre-staged.
 #
 # The purge is unconditional: a remote build must not keep packages a local
 # build staged last run, and nothing else in the context matches these globs.
@@ -507,24 +548,27 @@ function _stage_local_packages() {
     # Stage the server package for each arch, plus any tools package sitting
     # beside it, so apt/rpm can satisfy a hard Depends/Requires on
     # aerospike-tools that the image would otherwise fail to install.
-    local _link _arch_glob _dir _tools_f
-    for _link in "${x86_link:-}" "${arm_link:-}"; do
+    local _arch _link _arch_glob _dir _tools_f
+    for _arch in x86_64 aarch64; do
+        if [ "${_arch}" = "x86_64" ]; then _link="${x86_link:-}"; else _link="${arm_link:-}"; fi
         [[ "${_link}" != http* ]] && [ -n "${_link}" ] && [ -f "${_link}" ] || continue
-        cp "${_link}" "${target}/"
+        cp "${_link}" "${target}/$(_canonical_pkg_name "$(basename "${_link}")" "${pkg_type}" "${_arch}")"
         _dir=$(dirname "${_link}")
-        if pkg_name_matches_arch "${_link}" "x86_64"; then
-            [ "${pkg_type}" = "deb" ] && _arch_glob="_amd64.deb" || _arch_glob=".x86_64.rpm"
+        if [ "${pkg_type}" = "deb" ]; then
+            [ "${_arch}" = "x86_64" ] && _arch_glob="_amd64.deb" || _arch_glob="_arm64.deb"
         else
-            [ "${pkg_type}" = "deb" ] && _arch_glob="_arm64.deb" || _arch_glob=".aarch64.rpm"
+            [ "${_arch}" = "x86_64" ] && _arch_glob=".x86_64.rpm" || _arch_glob=".aarch64.rpm"
         fi
         _tools_f=$(find "${_dir}" -maxdepth 1 -type f -name "aerospike-tools-*${_arch_glob}" 2>/dev/null | sort -V | tail -1)
-        [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] && cp "${_tools_f}" "${target}/"
+        [ -n "${_tools_f}" ] && [ -f "${_tools_f}" ] &&
+            cp "${_tools_f}" "${target}/$(_canonical_pkg_name "$(basename "${_tools_f}")" "${pkg_type}" "${_arch}")"
     done
 
     local _ad
-    for _ad in "${asadm_x86_link:-}" "${asadm_arm_link:-}"; do
+    for _arch in x86_64 aarch64; do
+        if [ "${_arch}" = "x86_64" ]; then _ad="${asadm_x86_link:-}"; else _ad="${asadm_arm_link:-}"; fi
         if [[ "${_ad}" != http* ]] && [ -n "${_ad}" ] && [ -f "${_ad}" ]; then
-            cp "${_ad}" "${target}/"
+            cp "${_ad}" "${target}/$(_canonical_pkg_name "$(basename "${_ad}")" "${pkg_type}" "${_arch}")"
         fi
     done
 }

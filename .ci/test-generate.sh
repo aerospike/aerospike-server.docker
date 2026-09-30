@@ -147,6 +147,26 @@ check "COPY emitted" "COPY *.deb present" \
     "$(grep -c '^COPY \*\.deb' "${DF}" || true)" "1"
 check "emitted with the committed file mode" "Dockerfile mode" "$(df_mode)" "644"
 
+# The install step names one arch spelling per arch, so a staged package the
+# glob cannot match is copied into the image and never installed -- a silent
+# miss that ships without asadm while the generation log says it was included.
+# Staging canonicalises the arch token to close that gap; assert it here,
+# because no CI job builds an image from a staged package.
+unselectable=0
+while IFS= read -r f; do
+    case "${f}" in
+    aerospike-*_amd64.deb | aerospike-*_arm64.deb) ;;
+    *) unselectable=$((unselectable + 1)) ;;
+    esac
+done < <(staged)
+check "no staged deb is invisible to the install glob" "unselectable files" \
+    "${unselectable}" "0"
+check "asadm staged under the canonical arch token" "canonical asadm files" \
+    "$(staged | grep -cE 'aerospike-asadm.*_(amd64|arm64)\.deb' || true)" "2"
+# shellcheck disable=SC2016  # ${ARCH} is Dockerfile text to match, not a shell expansion
+check "the install glob stays arch-qualified and name-anchored" "install lines" \
+    "$(grep -cF '/tmp/aerospike/aerospike-*_"${ARCH}".deb' "${DF}" || true)" "1"
+
 scenario "promise 2 negative: --no-asadm stages none"
 gen "${VERSION}" -e enterprise -d ubuntu24.04 -u "${WORK}/a" --no-asadm || true
 check "no asadm staged" "asadm files" "$(staged_count asadm)" "0"

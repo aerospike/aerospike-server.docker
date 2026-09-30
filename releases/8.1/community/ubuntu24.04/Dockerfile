@@ -71,7 +71,7 @@ RUN \
   }; \
   { \
     # Download server and asadm packages (remote builds only; local builds use COPY).
-    # Downloads are named to match the arch-qualified globs used by the install step \
+    # Downloads are named to match the arch-qualified glob used by the install step \
     # below, so remote and pre-staged packages are collected the same way. \
     mkdir -p /tmp/aerospike; \
     if [ -n "${serverUrl}" ]; then \
@@ -85,12 +85,11 @@ RUN \
   }; \
   { \
     # Install Aerospike server.
-    # Arch-qualified: a local build stages both arches' packages into \
-    # /tmp/aerospike/ through one COPY, and only this arch's may be installed. \
+    # Arch-qualified because a local build stages both arches through one COPY. \
     # Installing server, tools and asadm together lets apt resolve their \
     # dependencies inline. (aerospike-tools may declare a hard Depends on curl; in \
     # that case curl stays installed after the autoremove at the end.) \
-    apt-get install -y --no-install-recommends /tmp/aerospike/*_"${ARCH}".deb; \
+    apt-get install -y --no-install-recommends /tmp/aerospike/aerospike-*_"${ARCH}".deb; \
   }; \
   { \
     # Post-install housekeeping.

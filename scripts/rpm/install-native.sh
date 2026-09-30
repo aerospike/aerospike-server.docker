@@ -60,7 +60,7 @@ chmod +x /usr/bin/as-tini-static
 # ---------------------------------------------------------------------------
 # shadow-utils: provides groupadd/useradd used by aerospike-server %post scriptlet.
 # findutils: provides find(1) used by aerospike-server %post scriptlet.
-# Downloads are named to match the arch-qualified globs used by the install step
+# Downloads are named to match the arch-qualified glob used by the install step
 # below, so remote and pre-staged packages are collected the same way.
 microdnf install -y --setopt=install_weak_deps=0 findutils shadow-utils
 mkdir -p /tmp/aerospike
@@ -79,9 +79,8 @@ fi
 if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
     microdnf install -y --setopt=install_weak_deps=0 openldap
 fi
-# Arch-qualified: a local build stages both arches' packages into
-# /tmp/aerospike/ through one COPY, and only this arch's may be installed.
-rpm -i --excludedocs /tmp/aerospike/*."${ARCH}".rpm
+# Arch-qualified because a local build stages both arches through one COPY.
+rpm -i --excludedocs /tmp/aerospike/aerospike-*."${ARCH}".rpm
 
 # ---------------------------------------------------------------------------
 # Post-install housekeeping

@@ -249,6 +249,7 @@ function check_container() {
     local version=$1
     local expected_edition=$2
     local expected_arch=${3:-}
+    local dockerfile=${4:-}
 
     log_info "Verifying container..."
 
@@ -270,6 +271,20 @@ function check_container() {
     else
         log_failure "/licenses/LICENSE missing (Red Hat UBI certification)"
         exit 1
+    fi
+
+    # asadm is installed from its own package, selected by the install step's
+    # arch-qualified glob. A package that glob misses is copied in and skipped
+    # silently, so the image builds green without it. Asserted only when the
+    # Dockerfile names a remote asadm: --no-asadm is a sanctioned build, and a
+    # locally staged asadm leaves no trace in the Dockerfile to key on.
+    if [ -n "${dockerfile}" ] && grep -q "asadmUrl='http" "${dockerfile}" 2>/dev/null; then
+        if docker exec -t "${CONTAINER}" bash -c 'command -v asadm' >/dev/null 2>&1; then
+            log_success "asadm found"
+        else
+            log_failure "asadm missing, but ${dockerfile} installs it"
+            exit 1
+        fi
     fi
 
     # Check asinfo exists before using it (used for "asd running" check when procps not in image)
@@ -649,7 +664,8 @@ function test_from_releases() {
                 # Remove any previous container only
                 cleanup
                 run_docker
-                check_container "${version}" "${edition}" "${arch}"
+                check_container "${version}" "${edition}" "${arch}" \
+                    "releases/${lineage}/${edition}/${distro}/Dockerfile"
                 check_arg_passthrough
                 check_command_passthrough
                 run_snyk_scan "${IMAGE_TAG}" "${arch}" "releases/${lineage}/${edition}/${distro}/Dockerfile" "${edition}" "${version}" "${distro}"
