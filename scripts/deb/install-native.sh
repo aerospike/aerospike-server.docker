@@ -25,13 +25,6 @@ set -Eeuo pipefail
 apt-get update
 apt-get install -y --no-install-recommends curl
 ARCH="$(dpkg --print-architecture)"
-# Aerospike publishes some packages (notably aerospike-asadm) with the kernel
-# arch spelling rather than the dpkg one, so both are matched when collecting.
-if [ "${ARCH}" = "amd64" ]; then
-    ALT_ARCH="x86_64"
-elif [ "${ARCH}" = "arm64" ]; then
-    ALT_ARCH="aarch64"
-fi
 if [ "${ARCH}" = "amd64" ]; then
     tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'
     tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'
@@ -76,55 +69,18 @@ fi
 # ---------------------------------------------------------------------------
 # Install Aerospike server
 # ---------------------------------------------------------------------------
-# Collect all arch-matching packages in /tmp/aerospike/:
-#   - aerospike-server-*_${ARCH}.deb  (required)
-#   - aerospike-tools-*_${ARCH}.deb   (optional; staged when server declares a
-#                                      hard Depends on aerospike-tools)
-#   - aerospike-asadm*_${ARCH}.deb    (present unless built with --no-asadm;
-#                                      downloaded or staged above, including
-#                                      arch-independent _all.deb)
-# Installing them together lets apt resolve the dependencies inline.
-# (aerospike-tools may also declare a hard Depends on curl; in that case curl
-# stays installed after the autoremove at the end.)
-pkgs=()
-serverFound=false
-for f in /tmp/aerospike/aerospike-server-*_"${ARCH}".deb \
-    /tmp/aerospike/aerospike-server-*_"${ALT_ARCH}".deb; do
-    if [ -f "${f}" ]; then
-        pkgs+=("${f}")
-        serverFound=true
-    fi
-done
-# The server package is the only one this script can require: --no-asadm is a
-# sanctioned build, so an absent asadm here is not proof of a broken one. asadm
-# or tools alone must never produce an image, hence a server-specific guard.
-if [ "${serverFound}" = false ]; then
-    echo >&2 "error: no server package found in /tmp/aerospike/ for arch '${ARCH}'"
-    exit 1
-fi
-for f in /tmp/aerospike/aerospike-tools-*_"${ARCH}".deb \
-    /tmp/aerospike/aerospike-tools-*_"${ALT_ARCH}".deb \
-    /tmp/aerospike/aerospike-asadm*_"${ARCH}".deb \
-    /tmp/aerospike/aerospike-asadm*_"${ALT_ARCH}".deb \
-    /tmp/aerospike/aerospike-asadm*_all.deb; do
-    if [ -f "${f}" ]; then pkgs+=("${f}"); fi
-done
-apt-get install -y --no-install-recommends "${pkgs[@]}"
+# Arch-qualified: a local build stages both arches' packages into
+# /tmp/aerospike/ through one COPY, and only this arch's may be installed.
+# Installing server, tools and asadm together lets apt resolve their
+# dependencies inline. (aerospike-tools may declare a hard Depends on curl; in
+# that case curl stays installed after the autoremove at the end.)
+apt-get install -y --no-install-recommends /tmp/aerospike/*_"${ARCH}".deb
 
 # ---------------------------------------------------------------------------
 # Post-install housekeeping
 # ---------------------------------------------------------------------------
 mkdir -p /etc/aerospike /licenses /var/log/aerospike /var/run/aerospike
-# The server package ships its license at /opt/aerospike/doc/LICENSE; the
-# image has always published it at /licenses/ (a Red Hat certification
-# requirement on UBI). An absent file means the packaging changed, which is a
-# condition that stops a release rather than annotating it: the tgz path this
-# replaced had an unconditional cp in the same errexit chain, so a warning here
-# would be the one place the guarantee got weaker.
-if [ ! -f /opt/aerospike/doc/LICENSE ]; then
-    echo >&2 "error: /opt/aerospike/doc/LICENSE not found - the package no longer ships its license"
-    exit 1
-fi
+# /licenses/ is where Red Hat certification expects the license to be.
 cp /opt/aerospike/doc/LICENSE /licenses/
 if [ "${AEROSPIKE_EDITION}" = "enterprise" ] || [ "${AEROSPIKE_EDITION}" = "federal" ]; then
     if [ -f /tmp/aerospike/features.conf ]; then

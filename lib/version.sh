@@ -103,10 +103,10 @@ function _ere_quote() {
 }
 
 # True when a package filename names the given arch, under either spelling
-# (amd64/x86_64, arm64/aarch64), or is arch-independent. Both spellings are
-# accepted because Aerospike publishes asadm debs as _aarch64.deb while the
-# server debs use the dpkg _arm64.deb. The container-side counterparts are the
-# ALT_ARCH globs in scripts/{deb,rpm}/install-native.sh; keep all three in step.
+# (amd64/x86_64, arm64/aarch64), or is arch-independent. This is deliberately
+# looser than the container-side install glob in
+# scripts/{deb,rpm}/install-native.sh, which matches only the spelling each
+# package format actually publishes.
 function pkg_name_matches_arch() {
     local name=$1 arch=$2
     local deb_arch="${arch}"
