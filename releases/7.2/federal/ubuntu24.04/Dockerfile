@@ -29,6 +29,7 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # hadolint ignore=DL3008
 RUN \
+  set -eux; \
   apt-get update; \
   apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -39,6 +40,7 @@ RUN \
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3003,DL3008,DL3041,SC2015
 RUN \
+  set -eux; \
   { \
     # Install curl and resolve arch-specific links.
     apt-get update; \

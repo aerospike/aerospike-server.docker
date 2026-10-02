@@ -17,6 +17,7 @@
 #   # Install Aerospike Server and Tools
 #   # hadolint ignore=DL3003,...
 #   RUN \
+#     set -eux; \
 #     { \
 #       # Section name.
 #       stmt1; \
@@ -25,7 +26,10 @@
 #     echo "done";
 #
 # Conversion rules (per line):
-#   shebang / top-level `set -`    stripped entirely
+#   shebang                        stripped entirely
+#   top-level `set -`              stripped; the RUN header emits `set -eux`
+#                                  instead (docker-library requires the shell
+#                                  flags to be visible in the RUN itself)
 #   `function` keyword             stripped (e.g. `function _f()` -> `_f()`)
 #   file-header comment preamble   stripped (all-comment lines before first section)
 #   comment (#)                    append ` \`   (no semicolon; runs to EOL)
@@ -149,6 +153,7 @@ function _sh_to_dockerfile_run() {
         print "# Install Aerospike Server and Tools"
         print "# hadolint ignore=" hadolint
         print "RUN \\"
+        print "  set -eux; \\"
     }
 
     # Strip shebang line

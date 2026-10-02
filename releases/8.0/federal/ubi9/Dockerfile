@@ -29,6 +29,7 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
 # hadolint ignore=DL3041
 RUN \
+  set -eux; \
   microdnf install -y --setopt=install_weak_deps=0 \
     ca-certificates \
     procps-ng \
@@ -39,6 +40,7 @@ RUN \
 # Install Aerospike Server and Tools
 # hadolint ignore=DL3003,DL3008,DL3041,SC2015
 RUN \
+  set -eux; \
   { \
     # Install curl and resolve arch-specific links.
     ARCH="$(rpm --eval '%{_arch}')"; \

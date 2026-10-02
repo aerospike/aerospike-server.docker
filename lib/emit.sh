@@ -103,6 +103,7 @@ function generate_dockerfile() {
     if [ "${pkg_type}" = "deb" ]; then
         base_deps_run='# hadolint ignore=DL3008
 RUN \
+  set -eux; \
   apt-get update; \
   apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -112,6 +113,7 @@ RUN \
     else
         base_deps_run='# hadolint ignore=DL3041
 RUN \
+  set -eux; \
   microdnf install -y --setopt=install_weak_deps=0 \
     ca-certificates \
     procps-ng \
