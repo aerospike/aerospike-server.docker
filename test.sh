@@ -429,7 +429,7 @@ function check_arg_passthrough() {
     # second, unretried call failed the enterprise arm64 leg seconds into the
     # window (SERVER-2021).
     # shellcheck disable=SC2016
-    local find_asd='for p in /proc/[0-9]*; do [ "$(cat "$p/comm" 2>/dev/null)" = asd ] || continue; c=$(tr "\0" " " <"$p/cmdline" 2>/dev/null); [ -n "$c" ] && { printf "%s" "$c"; exit 0; }; done; exit 1'
+    local find_asd='for p in /proc/[0-9]*; do { read -r n <"$p/comm"; } 2>/dev/null || continue; [ "$n" = asd ] || continue; c=$(tr "\0" " " <"$p/cmdline" 2>/dev/null); [ -n "$c" ] && { printf "%s" "$c"; exit 0; }; done; exit 1'
 
     # The capture is the poll: one call both finds asd and reads its argv, retried
     # until it returns something. "|| true": a failed exec (asd not up yet, or
