@@ -422,15 +422,25 @@ function check_arg_passthrough() {
 
     # Single quotes are deliberate: this runs under "bash -c" inside the container,
     # so $p and the command substitution must reach it unexpanded.
+    #
+    # An asd whose cmdline is still empty counts as not found yet. Under qemu
+    # emulation the process can show comm "asd" before /proc/<pid>/cmdline is
+    # readable, so accepting the first comm match and reading the cmdline in a
+    # second, unretried call failed the enterprise arm64 leg seconds into the
+    # window (SERVER-2021).
     # shellcheck disable=SC2016
-    local find_asd='for p in /proc/[0-9]*; do [ "$(cat "$p/comm" 2>/dev/null)" = asd ] && { tr "\0" " " <"$p/cmdline"; exit 0; }; done; exit 1'
+    local find_asd='for p in /proc/[0-9]*; do { read -r n <"$p/comm"; } 2>/dev/null || continue; [ "$n" = asd ] || continue; c=$(tr "\0" " " <"$p/cmdline" 2>/dev/null); [ -n "$c" ] && { printf "%s" "$c"; exit 0; }; done; exit 1'
 
-    local cmdline=""
-    if try "$(asd_wait_attempts)" docker exec "${probe}" bash -c "${find_asd}" >/dev/null 2>&1; then
-        # "|| true": asd can exit between the probe above and this call. Without it,
-        # errexit aborts before the cleanup below and leaks the probe container.
+    # The capture is the poll: one call both finds asd and reads its argv, retried
+    # until it returns something. "|| true": a failed exec (asd not up yet, or
+    # exited) must not trip errexit before the cleanup below.
+    local cmdline="" attempt attempts
+    attempts=$(asd_wait_attempts)
+    for ((attempt = 0; attempt < attempts; attempt++)); do
         cmdline=$(docker exec "${probe}" bash -c "${find_asd}" 2>/dev/null | tr -d '\r') || true
-    fi
+        [ -n "${cmdline}" ] && break
+        sleep 1
+    done
 
     if [ -z "${cmdline}" ]; then
         # Most likely cause is asd rejecting the forwarded flag, so show the logs
