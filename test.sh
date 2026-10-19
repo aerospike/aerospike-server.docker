@@ -428,8 +428,13 @@ function check_arg_passthrough() {
     # readable, so accepting the first comm match and reading the cmdline in a
     # second, unretried call failed the enterprise arm64 leg seconds into the
     # window (SERVER-2021).
+    #
+    # So does the entrypoint's own "asd --version" edition probe, which runs before
+    # it execs the server: under emulation it lives long enough to be captured, and
+    # was, on both arm64 legs. A server argv never carries --version (asd prints
+    # and exits), so such a process is passed over and the poll goes on.
     # shellcheck disable=SC2016
-    local find_asd='for p in /proc/[0-9]*; do { read -r n <"$p/comm"; } 2>/dev/null || continue; [ "$n" = asd ] || continue; c=$(tr "\0" " " <"$p/cmdline" 2>/dev/null); [ -n "$c" ] && { printf "%s" "$c"; exit 0; }; done; exit 1'
+    local find_asd='for p in /proc/[0-9]*; do { read -r n <"$p/comm"; } 2>/dev/null || continue; [ "$n" = asd ] || continue; c=$(tr "\0" " " <"$p/cmdline" 2>/dev/null); case "$c" in "" | *" --version "*) continue ;; esac; printf "%s" "$c"; exit 0; done; exit 1'
 
     # The capture is the poll: one call both finds asd and reads its argv, retried
     # until it returns something. "|| true": a failed exec (asd not up yet, or
