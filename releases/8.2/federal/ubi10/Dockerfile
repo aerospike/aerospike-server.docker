@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Federal Server" \
       org.opencontainers.image.base.name="registry.access.redhat.com/ubi10/ubi-minimal:10.0" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="8.2.0.0" \
+      org.opencontainers.image.version="8.2.0.1" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -53,8 +53,8 @@ RUN \
     if [ "${ARCH}" = "x86_64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el10/x86_64/aerospike-server-federal-8.2.0.0-12.el10.x86_64.rpm'; \
-        serverSha='47ec37ad9dc92fd6fa99999cb7bc986c72a954215f81053895c69eb9705640cc'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el10/x86_64/aerospike-server-federal-8.2.0.1-10.el10.x86_64.rpm'; \
+        serverSha='8297d1037fdb532b6bfe1d8e4e4eeb2cb49f3888077d8f6e33217a0875e51834'; \
         asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el10/x86_64/aerospike-asadm-5.1.0-2.el10.x86_64.rpm'; \
         asadmSha='26f3ba9755f47c0110a6cd06f6dfc7c56d6348389d6eb124d51ba4ec3d9a32d6'; \
     elif [ "${ARCH}" = "aarch64" ]; then \
