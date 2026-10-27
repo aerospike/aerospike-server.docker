@@ -1,0 +1,156 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.1/community/ubi9
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.1/community/ubuntu22.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.1/enterprise/ubi9
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.1/enterprise/ubuntu22.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.1/federal/ubi9
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.1/federal/ubuntu22.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.2/community/ubi9
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.2/community/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.2/enterprise/ubi9
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.2/enterprise/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.2/federal/ubi9
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/7.2/federal/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.0/community/ubi9
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.0/community/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.0/enterprise/ubi9
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.0/enterprise/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.0/federal/ubi9
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.0/federal/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/community/ubi10
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/community/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/enterprise/ubi10
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/enterprise/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/federal/ubi10
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.1/federal/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.2/community/ubi10
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.2/community/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.2/enterprise/ubi10
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.2/enterprise/ubuntu24.04
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.2/federal/ubi10
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /releases/8.2/federal/ubuntu24.04
+    schedule:
+      interval: weekly
