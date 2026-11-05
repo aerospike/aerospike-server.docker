@@ -67,7 +67,7 @@ jobs:
           cond: ${{ github.event_name == 'pull_request' }}
           if_true: "github-pr-review"
           if_false: "github-check"
-      - uses: reviewdog/action-shfmt@d8f080930b9be5847b4f97e9f4122b81a82aaeac # v1.0.4
+      - uses: step-security/action-shfmt@2e0b6e4432fa48a9a633370b9066d14e04c110ae # v1.1.0
         with:
           shfmt_flags: ''
           level: warning
