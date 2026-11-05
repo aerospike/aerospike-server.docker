@@ -27,10 +27,13 @@ ENV AEROSPIKE_LINUX_BASE="ubuntu:24.04"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
-# hadolint ignore=DL3008
+# hadolint ignore=DL3005,DL3008
 RUN \
   set -eux; \
   apt-get update; \
+  # Base-image packages are frozen at the tag publish date; upgrade them so
+  # archive CVE fixes land without waiting for a new base-image tag.
+  apt-get upgrade -y; \
   apt-get install -y --no-install-recommends \
     ca-certificates \
     procps \

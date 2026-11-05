@@ -101,10 +101,13 @@ function generate_dockerfile() {
     # --- Base-deps RUN block (pkg-type specific) ---
     local base_deps_run=""
     if [ "${pkg_type}" = "deb" ]; then
-        base_deps_run='# hadolint ignore=DL3008
+        base_deps_run='# hadolint ignore=DL3005,DL3008
 RUN \
   set -eux; \
   apt-get update; \
+  # Base-image packages are frozen at the tag publish date; upgrade them so
+  # archive CVE fixes land without waiting for a new base-image tag.
+  apt-get upgrade -y; \
   apt-get install -y --no-install-recommends \
     ca-certificates \
     procps \
@@ -114,6 +117,8 @@ RUN \
         base_deps_run='# hadolint ignore=DL3041
 RUN \
   set -eux; \
+  # See the deb branch: refresh base-image packages for post-tag CVE fixes.
+  microdnf update -y; \
   microdnf install -y --setopt=install_weak_deps=0 \
     ca-certificates \
     procps-ng \
