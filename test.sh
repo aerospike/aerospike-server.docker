@@ -761,10 +761,9 @@ function check_feature_key_custom_config() {
     fi
     log_success "Custom config, no service context"
 
-    local schema=/opt/aerospike/schema/aerospike_config_schema.json
     _fk_case "other arguments unchanged and in order" custom.conf \
-        "asd --early-verbose --config-file ${new_conf} --schema-file ${schema} --fgdaemon" "${loaded}" \
-        -e "FEATURE_KEY_FILE=${key}" -- --early-verbose --config-file "${conf}" --schema-file "${schema}"
+        "asd --early-verbose --config-file ${new_conf} --cold-start --fgdaemon" "${loaded}" \
+        -e "FEATURE_KEY_FILE=${key}" -- --early-verbose --config-file "${conf}" --cold-start
 
     local -x FK_FEATURES_B64=""
     FK_FEATURES_B64=$(base64 <"${FK_KEY}" | tr -d '\n')
