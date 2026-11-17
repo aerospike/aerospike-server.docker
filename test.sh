@@ -55,7 +55,8 @@ TESTS PERFORMED:
     7. Default namespace 'test' exists
     8. Server arguments are forwarded to asd
     9. Non-option command is exec'd as given
-    10. Snyk container scan (optional, with -s/--snyk)
+    10. FEATURE_KEY_FILE is added to a custom --config-file (Enterprise/Federal only)
+    11. Snyk container scan (optional, with -s/--snyk)
 
 EXAMPLES:
     # Test a specific image (from any registry)
@@ -378,11 +379,60 @@ function check_container() {
     fi
 }
 
+# Print the argv of the asd server process running in container $1, polling
+# until it appears. Returns 1 when no asd server process is found in time.
+# PID 1 is tini, so asd is located by scanning /proc (procps may not be in image).
+function asd_argv() {
+    local container=$1
+
+    # Single quotes are deliberate: this runs under "bash -c" inside the container,
+    # so $p and the command substitution must reach it unexpanded.
+    #
+    # An asd whose cmdline is still empty counts as not found yet. Under qemu
+    # emulation the process can show comm "asd" before /proc/<pid>/cmdline is
+    # readable, so accepting the first comm match and reading the cmdline in a
+    # second, unretried call failed the enterprise arm64 leg seconds into the
+    # window (SERVER-2021).
+    #
+    # So does the entrypoint's own "asd --version" edition probe, which runs before
+    # it execs the server: under emulation it lives long enough to be captured, and
+    # was, on both arm64 legs. A server argv never carries --version (asd prints
+    # and exits), so such a process is passed over and the poll goes on.
+    # shellcheck disable=SC2016
+    local find_asd='for p in /proc/[0-9]*; do { read -r n <"$p/comm"; } 2>/dev/null || continue; [ "$n" = asd ] || continue; c=$(tr "\0" " " <"$p/cmdline" 2>/dev/null); case "$c" in "" | *" --version "*) continue ;; esac; printf "%s" "$c"; exit 0; done; exit 1'
+
+    # The capture is the poll: one call both finds asd and reads its argv, retried
+    # until it returns something. "|| true": a failed exec (asd not up yet, or
+    # exited) must not trip errexit before the caller's cleanup.
+    local cmdline="" attempt attempts
+    attempts=$(asd_wait_attempts)
+    for ((attempt = 0; attempt < attempts; attempt++)); do
+        cmdline=$(docker exec "${container}" bash -c "${find_asd}" 2>/dev/null | tr -d '\r') || true
+        [ -n "${cmdline}" ] && break
+        sleep 1
+    done
+
+    [ -n "${cmdline}" ] || return 1
+
+    # When the image's architecture is emulated (CI tests arm64 images on amd64
+    # runners), binfmt prefixes argv with the emulator and the target binary:
+    #   /usr/bin/qemu-aarch64 /usr/bin/asd asd --early-verbose --fgdaemon
+    # Strip that prefix so the comparison below still anchors on the real argv[0].
+    # Do not relax it to a substring match instead: "/usr/bin/asd --early-verbose"
+    # would satisfy a bare "asd --early-verbose" even with no asd prepended.
+    local argv="${cmdline}"
+    if [[ "${argv}" == /*qemu-* ]]; then
+        argv="${argv#* }" # drop emulator path
+        argv="${argv#* }" # drop target binary path
+    fi
+    while [[ "${argv}" == *" " ]]; do argv="${argv% }"; done # NUL->space left a trailer
+    printf '%s' "${argv}"
+}
+
 # Verify the entrypoint forwards server arguments to asd. This is a documented
 # interface (README: "Passing server command-line arguments") that container
 # orchestrators rely on to set server flags without replacing the entrypoint, so
 # it needs coverage against future entrypoint changes.
-# PID 1 is tini, so asd is located by scanning /proc (procps may not be in image).
 function check_arg_passthrough() {
     local probe="${CONTAINER}-args"
     # Two properties make this probe able to fail:
@@ -420,34 +470,8 @@ function check_arg_passthrough() {
         exit 1
     fi
 
-    # Single quotes are deliberate: this runs under "bash -c" inside the container,
-    # so $p and the command substitution must reach it unexpanded.
-    #
-    # An asd whose cmdline is still empty counts as not found yet. Under qemu
-    # emulation the process can show comm "asd" before /proc/<pid>/cmdline is
-    # readable, so accepting the first comm match and reading the cmdline in a
-    # second, unretried call failed the enterprise arm64 leg seconds into the
-    # window (SERVER-2021).
-    #
-    # So does the entrypoint's own "asd --version" edition probe, which runs before
-    # it execs the server: under emulation it lives long enough to be captured, and
-    # was, on both arm64 legs. A server argv never carries --version (asd prints
-    # and exits), so such a process is passed over and the poll goes on.
-    # shellcheck disable=SC2016
-    local find_asd='for p in /proc/[0-9]*; do { read -r n <"$p/comm"; } 2>/dev/null || continue; [ "$n" = asd ] || continue; c=$(tr "\0" " " <"$p/cmdline" 2>/dev/null); case "$c" in "" | *" --version "*) continue ;; esac; printf "%s" "$c"; exit 0; done; exit 1'
-
-    # The capture is the poll: one call both finds asd and reads its argv, retried
-    # until it returns something. "|| true": a failed exec (asd not up yet, or
-    # exited) must not trip errexit before the cleanup below.
-    local cmdline="" attempt attempts
-    attempts=$(asd_wait_attempts)
-    for ((attempt = 0; attempt < attempts; attempt++)); do
-        cmdline=$(docker exec "${probe}" bash -c "${find_asd}" 2>/dev/null | tr -d '\r') || true
-        [ -n "${cmdline}" ] && break
-        sleep 1
-    done
-
-    if [ -z "${cmdline}" ]; then
+    local argv=""
+    if ! argv=$(asd_argv "${probe}"); then
         # Most likely cause is asd rejecting the forwarded flag, so show the logs
         # before the container goes away.
         log_failure "Could not locate asd process in container"
@@ -457,19 +481,6 @@ function check_arg_passthrough() {
     fi
 
     docker rm -f "${probe}" >/dev/null 2>&1 || true
-
-    # When the image's architecture is emulated (CI tests arm64 images on amd64
-    # runners), binfmt prefixes argv with the emulator and the target binary:
-    #   /usr/bin/qemu-aarch64 /usr/bin/asd asd --early-verbose --fgdaemon
-    # Strip that prefix so the comparison below still anchors on the real argv[0].
-    # Do not relax it to a substring match instead: "/usr/bin/asd --early-verbose"
-    # would satisfy a bare "asd --early-verbose" even with no asd prepended.
-    local argv="${cmdline}"
-    if [[ "${argv}" == /*qemu-* ]]; then
-        argv="${argv#* }" # drop emulator path
-        argv="${argv#* }" # drop target binary path
-    fi
-    while [[ "${argv}" == *" " ]]; do argv="${argv% }"; done # NUL->space left a trailer
 
     # Compare the whole argv, not substrings. An exact match is what proves the
     # entrypoint prepended asd, forwarded our flag, and appended --fgdaemon -- and
@@ -508,6 +519,305 @@ function check_command_passthrough() {
     log_success "Non-option command exec'd as given"
 }
 
+# A custom --config-file gets the FEATURE_KEY_FILE the user set added on
+# Enterprise and Federal (README: "Advanced Configuration"), through a copy the
+# image owns, since the mounted file is often read-only. Every other case must
+# leave the server argv exactly as given. Configs are mounted read-only and
+# compared with their originals afterwards.
+FK_DIR=""
+FK_KEY=""
+FK_CONF_DIR=/opt/aerospike/etc
+FK_COPY=/var/run/aerospike/aerospike.conf
+
+function _fk_write_configs() {
+    cat >"${FK_DIR}/no-service.conf" <<'EOF'
+logging {
+	console {
+		context any info
+	}
+}
+
+network {
+	service {
+		address any
+		port 3000
+	}
+	heartbeat {
+		mode mesh
+		address local
+		port 3002
+	}
+	fabric {
+		address local
+		port 3001
+	}
+}
+
+namespace test {
+	replication-factor 1
+	storage-engine device {
+		file /opt/aerospike/data/test.dat
+		filesize 1G
+	}
+}
+EOF
+    {
+        printf 'service {\n\tcluster-name custom\n}\n\n'
+        cat "${FK_DIR}/no-service.conf"
+    } >"${FK_DIR}/custom.conf"
+    {
+        printf 'service {\n\tfeature-key-file %s/features.conf\n\tcluster-name custom\n}\n\n' "${FK_CONF_DIR}"
+        cat "${FK_DIR}/no-service.conf"
+    } >"${FK_DIR}/has-key.conf"
+
+    local f
+    for f in no-service custom has-key; do
+        cp "${FK_DIR}/${f}.conf" "${FK_DIR}/${f}.conf.orig"
+    done
+}
+
+# _fk_case NAME CONFIG EXPECTED_ARGV KEY_SOURCE [docker run options] -- [server args]
+# CONFIG is mounted read-only at ${FK_CONF_DIR}/aerospike.conf ("" mounts none).
+# KEY_SOURCE, when set, must appear in asd's "loaded feature key" log line. Log
+# lines about the feature key are never printed.
+function _fk_case() {
+    local name=$1 config=$2 expect=$3 key_source=$4
+    shift 4
+    local -a opts=()
+    while [ "$1" != -- ]; do
+        opts+=("$1")
+        shift
+    done
+    shift
+
+    local probe="${CONTAINER}-fk"
+    docker rm -f "${probe}" >/dev/null 2>&1 || true
+
+    local run_opts=(-d --name "${probe}" -e "DEFAULT_TTL=30d")
+    [ -n "${PLATFORM}" ] && run_opts+=("--platform=${PLATFORM}")
+    [ -n "${config}" ] && run_opts+=(-v "${FK_DIR}/${config}:${FK_CONF_DIR}/aerospike.conf:ro")
+    run_opts+=(-v "${FK_KEY}:${FK_CONF_DIR}/features.conf:ro")
+
+    if ! docker run "${run_opts[@]}" "${opts[@]}" "${IMAGE_TAG}" "$@" >/dev/null 2>&1; then
+        log_failure "Custom config, ${name}: container failed to start"
+        exit 1
+    fi
+
+    local argv=""
+    if ! argv=$(asd_argv "${probe}"); then
+        log_failure "Custom config, ${name}: could not locate asd process in container"
+        docker logs "${probe}" 2>&1 | grep -iv feature | tail -20 || true
+        exit 1
+    fi
+
+    if [ "${argv}" != "${expect}" ]; then
+        log_failure "Custom config, ${name}: unexpected asd argv"
+        log_failure "  expected: ${expect}"
+        log_failure "  actual:   ${argv}"
+        exit 1
+    fi
+
+    local attempt attempts serving=false
+    attempts=$(asd_wait_attempts)
+    for ((attempt = 0; attempt < attempts; attempt++)); do
+        if [[ "$(docker exec "${probe}" asinfo -v status 2>/dev/null)" == ok* ]]; then
+            serving=true
+            break
+        fi
+        sleep 1
+    done
+    if [ "${serving}" != true ]; then
+        log_failure "Custom config, ${name}: asd is not serving"
+        docker logs "${probe}" 2>&1 | grep -iv feature | tail -20 || true
+        exit 1
+    fi
+
+    if [ -n "${key_source}" ]; then
+        local loaded=false logs line
+        for ((attempt = 0; attempt < attempts; attempt++)); do
+            logs=$(docker logs "${probe}" 2>&1) || true
+            while IFS= read -r line; do
+                [[ "${line}" == *"loaded feature key "*" (${key_source})" ]] && loaded=true
+            done <<<"${logs}"
+            [ "${loaded}" = true ] && break
+            sleep 1
+        done
+        if [ "${loaded}" != true ]; then
+            log_failure "Custom config, ${name}: asd did not load the feature key from ${key_source}"
+            docker logs "${probe}" 2>&1 | grep -iv feature | tail -20 || true
+            exit 1
+        fi
+    fi
+
+    docker rm -f "${probe}" >/dev/null 2>&1 || true
+
+    if [ -n "${config}" ] && ! cmp -s "${FK_DIR}/${config}" "${FK_DIR}/${config}.orig"; then
+        log_failure "Custom config, ${name}: mounted config was modified"
+        exit 1
+    fi
+
+    log_success "Custom config, ${name}"
+}
+
+# _fk_run_to_exit CONFIG [docker run options] -- [server args]
+# Runs a case whose asd is expected to exit, and waits until it has.
+function _fk_run_to_exit() {
+    local config=$1
+    shift
+    local -a opts=()
+    while [ "$1" != -- ]; do
+        opts+=("$1")
+        shift
+    done
+    shift
+
+    local probe="${CONTAINER}-fk"
+    docker rm -f "${probe}" >/dev/null 2>&1 || true
+
+    local run_opts=(-d --name "${probe}")
+    [ -n "${PLATFORM}" ] && run_opts+=("--platform=${PLATFORM}")
+    [ -n "${config}" ] && run_opts+=(-v "${FK_DIR}/${config}:${FK_CONF_DIR}/aerospike.conf:ro")
+    docker run "${run_opts[@]}" "${opts[@]}" "${IMAGE_TAG}" "$@" >/dev/null 2>&1 || true
+
+    local attempt attempts
+    attempts=$(asd_wait_attempts)
+    for ((attempt = 0; attempt < attempts; attempt++)); do
+        [ "$(docker container inspect -f '{{.State.Running}}' "${probe}" 2>/dev/null)" = false ] && return 0
+        sleep 1
+    done
+    return 0
+}
+
+function check_feature_key_custom_config() {
+    log_info "Verifying FEATURE_KEY_FILE with a custom configuration file..."
+
+    local once_opts=(--rm)
+    [ -n "${PLATFORM}" ] && once_opts+=("--platform=${PLATFORM}")
+    local enterprise=true
+    if [[ "$(docker run "${once_opts[@]}" --entrypoint asd "${IMAGE_TAG}" --version 2>/dev/null)" == *Community* ]]; then
+        enterprise=false
+    fi
+
+    FK_DIR=$(mktemp -d)
+    # Resolved so a Docker VM that shares the host's real paths (macOS) can mount it.
+    FK_DIR=$(cd "${FK_DIR}" && pwd -P)
+    _fk_write_configs
+
+    # The key mounted for the cases: FEATURES_CONF_PATH, or else a copy of the
+    # image's own default key, which also tells whether asd has a default key
+    # to fall back on when FEATURE_KEY_FILE is unset.
+    local image_key=false
+    touch "${FK_DIR}/features.conf"
+    if [ "${enterprise}" = true ] &&
+        docker run "${once_opts[@]}" --entrypoint cat "${IMAGE_TAG}" /etc/aerospike/features.conf \
+            >"${FK_DIR}/features.conf" 2>/dev/null && [ -s "${FK_DIR}/features.conf" ]; then
+        image_key=true
+    fi
+    FK_KEY="${FEATURES_CONF_PATH:-${FK_DIR}/features.conf}"
+
+    local key="${FK_CONF_DIR}/features.conf" conf="${FK_CONF_DIR}/aerospike.conf"
+    local loaded="" default_loaded="" new_conf="${conf}"
+    if [ "${enterprise}" = true ]; then
+        new_conf="${FK_COPY}"
+        if [ -s "${FK_KEY}" ]; then
+            loaded="${key}"
+        else
+            log_warn "No feature key available (set FEATURES_CONF_PATH); not checking which key asd loads"
+        fi
+        [ "${image_key}" = true ] && default_loaded=/etc/aerospike/features.conf
+    fi
+
+    _fk_case "directive added, read-only config unchanged" custom.conf \
+        "asd --config-file ${new_conf} --fgdaemon" "${loaded}" \
+        -e "FEATURE_KEY_FILE=${key}" -- --config-file "${conf}"
+
+    _fk_case "--config-file= form" custom.conf \
+        "asd --config-file=${new_conf} --fgdaemon" "${loaded}" \
+        -e "FEATURE_KEY_FILE=${key}" -- "--config-file=${conf}"
+
+    # asd will not start without a service context (cluster-name belongs there),
+    # so the copy is read back from the exited container instead.
+    local probe="${CONTAINER}-fk"
+    _fk_run_to_exit no-service.conf -e "FEATURE_KEY_FILE=${key}" -- --config-file "${conf}"
+    rm -f "${FK_DIR}/copy.conf"
+    docker cp "${probe}:${FK_COPY}" "${FK_DIR}/copy.conf" >/dev/null 2>&1 || true
+    docker rm -f "${probe}" >/dev/null 2>&1 || true
+    if [ "${enterprise}" = true ]; then
+        {
+            cat "${FK_DIR}/no-service.conf"
+            printf '\nservice {\n\tfeature-key-file %s\n}\n' "${key}"
+        } >"${FK_DIR}/copy.expected"
+        if ! cmp -s "${FK_DIR}/copy.conf" "${FK_DIR}/copy.expected"; then
+            log_failure "Custom config, no service context: ${FK_COPY} lacks the appended service context"
+            exit 1
+        fi
+    elif [ -e "${FK_DIR}/copy.conf" ]; then
+        log_failure "Custom config, no service context: ${FK_COPY} written on Community"
+        exit 1
+    fi
+    if ! cmp -s "${FK_DIR}/no-service.conf" "${FK_DIR}/no-service.conf.orig"; then
+        log_failure "Custom config, no service context: mounted config was modified"
+        exit 1
+    fi
+    log_success "Custom config, no service context"
+
+    _fk_case "other arguments unchanged and in order" custom.conf \
+        "asd --early-verbose --config-file ${new_conf} --cold-start --fgdaemon" "${loaded}" \
+        -e "FEATURE_KEY_FILE=${key}" -- --early-verbose --config-file "${conf}" --cold-start
+
+    local -x FK_FEATURES_B64=""
+    FK_FEATURES_B64=$(base64 <"${FK_KEY}" | tr -d '\n')
+    local b64_loaded=""
+    [ -n "${loaded}" ] && b64_loaded="env-b64:FK_FEATURES_B64"
+    _fk_case "FEATURE_KEY_FILE=env-b64:" custom.conf \
+        "asd --config-file ${new_conf} --fgdaemon" "${b64_loaded}" \
+        -e FK_FEATURES_B64 -e "FEATURE_KEY_FILE=env-b64:FK_FEATURES_B64" -- --config-file "${conf}"
+
+    if [ "${enterprise}" = true ]; then
+        _fk_case "existing feature-key-file kept" has-key.conf \
+            "asd --config-file ${conf} --fgdaemon" "${loaded}" \
+            -e "FEATURE_KEY_FILE=${FK_CONF_DIR}/other-features.conf" -- --config-file "${conf}"
+    else
+        # Community rejects the directive, so asd exits naming it, and the
+        # entrypoint must not have made a copy.
+        _fk_run_to_exit has-key.conf -e "FEATURE_KEY_FILE=${FK_CONF_DIR}/other-features.conf" -- --config-file "${conf}"
+        local logs=""
+        logs=$(docker logs "${probe}" 2>&1) || true
+        rm -f "${FK_DIR}/copy.conf"
+        docker cp "${probe}:${FK_COPY}" "${FK_DIR}/copy.conf" >/dev/null 2>&1 || true
+        docker rm -f "${probe}" >/dev/null 2>&1 || true
+        if [[ "${logs}" != *"'feature-key-file' is enterprise-only"* ]] || [ -e "${FK_DIR}/copy.conf" ] ||
+            ! cmp -s "${FK_DIR}/has-key.conf" "${FK_DIR}/has-key.conf.orig"; then
+            log_failure "Custom config, existing feature-key-file kept: config not passed to asd unchanged"
+            exit 1
+        fi
+        log_success "Custom config, existing feature-key-file kept"
+    fi
+
+    _fk_case "FEATURE_KEY_FILE unset" custom.conf \
+        "asd --config-file ${conf} --fgdaemon" "${default_loaded}" \
+        -- --config-file "${conf}"
+
+    _fk_case "default template" "" \
+        "asd --config-file /etc/aerospike/aerospike.conf --fgdaemon" "${default_loaded}" \
+        -e "FEATURE_KEY_FILE=/etc/aerospike/features.conf" -- --config-file /etc/aerospike/aerospike.conf
+
+    # A missing config is left to asd, which names the path it was given.
+    local missing="${FK_CONF_DIR}/missing.conf"
+    _fk_run_to_exit "" -e "FEATURE_KEY_FILE=${key}" -- --config-file "${missing}"
+    local logs=""
+    logs=$(docker logs "${probe}" 2>&1) || true
+    docker rm -f "${probe}" >/dev/null 2>&1 || true
+    if [[ "${logs}" != *"couldn't open configuration file ${missing}"* ]]; then
+        log_failure "Custom config, missing config path: asd did not report ${missing}"
+        exit 1
+    fi
+    log_success "Custom config, missing config path left to asd"
+
+    rm -rf "${FK_DIR}"
+    FK_DIR=""
+}
+
 # Optional first arg: "full" = also remove image when CLEAN=true (use after test).
 # No arg = container only (use before run_docker so we don't remove the image we're about to run).
 function cleanup() {
@@ -515,6 +825,8 @@ function cleanup() {
     docker rm -f "${CONTAINER}" 2>/dev/null || true
     # check_arg_passthrough's probe container, so an interrupt cannot leak a server.
     docker rm -f "${CONTAINER}-args" 2>/dev/null || true
+    docker rm -f "${CONTAINER}-fk" 2>/dev/null || true
+    [ -n "${FK_DIR}" ] && rm -rf "${FK_DIR}"
     if [ "${1:-}" = "full" ] && [ "${CLEAN}" = "true" ]; then
         docker rmi -f "${IMAGE_TAG}" 2>/dev/null || true
     fi
@@ -589,6 +901,7 @@ function test_specific_image() {
     check_container "${version}" "${EDITION}" "${arch_display}"
     check_arg_passthrough
     check_command_passthrough
+    check_feature_key_custom_config
     run_snyk_scan "${IMAGE_TAG}" "${arch_display}" "" "${EDITION}" "${version}"
     cleanup full
 
@@ -683,6 +996,7 @@ function test_from_releases() {
                     "releases/${lineage}/${edition}/${distro}/Dockerfile"
                 check_arg_passthrough
                 check_command_passthrough
+                check_feature_key_custom_config
                 run_snyk_scan "${IMAGE_TAG}" "${arch}" "releases/${lineage}/${edition}/${distro}/Dockerfile" "${edition}" "${version}" "${distro}"
                 cleanup full
 

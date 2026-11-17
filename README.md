@@ -230,13 +230,32 @@ The namespace persistence `file` size. Default: *4*, the unit is always `G` (GB)
 
 You can override the default configuration file by providing your own aerospike.conf, as described in [Configuring Aerospike Database](https://aerospike.com/docs/database/manage/database/as-config).
 
-You should first `-v` map a local directory, which Docker will bind mount. Next, drop your aerospike.conf file into this directory. Finally, use the `--config-file` option to tell Aerospike where in the container the configuration file is (the default path is */etc/aerospike/aerospike.conf*). Remember that the feature key file is required, so use `feature-key-file` in your config file to point to a mounted path (such as */opt/aerospike/etc/feature.conf*).
+You should first `-v` map a local directory, which Docker will bind mount. Next, drop your aerospike.conf file into this directory. Finally, use the `--config-file` option to tell Aerospike where in the container the configuration file is (the default path is */etc/aerospike/aerospike.conf*).
 
 For example:
 
 ```sh
 docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ --name aerospike -p 3000-3002:3000-3002 container.aerospike.com/aerospike/aerospike-server-enterprise --config-file /opt/aerospike/etc/aerospike.conf
 ```
+
+#### Feature key file with a custom configuration file
+
+To use your own feature key file, either set `feature-key-file` in your config file to a mounted path (such as */opt/aerospike/etc/features.conf*), or set `FEATURE_KEY_FILE` and let the entrypoint add it:
+
+```sh
+docker run -d -v /opt/aerospike/etc/:/opt/aerospike/etc/ -e "FEATURE_KEY_FILE=/opt/aerospike/etc/features.conf" --name aerospike -p 3000-3002:3000-3002 container.aerospike.com/aerospike/aerospike-server-enterprise --config-file /opt/aerospike/etc/aerospike.conf
+```
+
+The entrypoint adds `feature-key-file ${FEATURE_KEY_FILE}` only when all of the following hold:
+
+-	The command runs `asd` and names the config with `--config-file <path>` or `--config-file=<path>`, and does not enable the `yaml-config` preview.
+-	The image is Enterprise or Federal. Community images are never changed.
+-	You set `FEATURE_KEY_FILE` yourself. Its default (*/etc/aerospike/features.conf*) is never added; without the directive, Enterprise uses the image's evaluation feature key.
+-	The config file exists, is readable, and has no `feature-key-file` directive outside comments. A file that already has one is used as is.
+
+Your file is never written to, so it can be mounted read-only. The entrypoint writes a copy to */var/run/aerospike/aerospike.conf*, with the directive added inside the first top-level `service` context whose `service {` stands on a line of its own, or with a `service` context holding it appended when there is no such line, and passes the copy's path to `asd` in place of yours. All other arguments reach `asd` unchanged and in the same order. Every `FEATURE_KEY_FILE` value the default configuration accepts works the same way, including `env-b64:NAME`. A missing or unreadable config path is passed through unchanged, for `asd` to report.
+
+Without `--config-file`, or with `--config-file /etc/aerospike/aerospike.conf` rendered from the template, `FEATURE_KEY_FILE` goes into the default configuration as described in [List of template variables](#list-of-template-variables).
 
 ### Passing server command-line arguments
 
