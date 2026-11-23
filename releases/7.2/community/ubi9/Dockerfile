@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Aerospike Community Server" \
       org.opencontainers.image.base.name="registry.access.redhat.com/ubi9/ubi-minimal:9.7" \
       org.opencontainers.image.source="https://github.com/aerospike/aerospike-server.docker" \
       org.opencontainers.image.vendor="Aerospike" \
-      org.opencontainers.image.version="7.2.0.22" \
+      org.opencontainers.image.version="7.2.0.23" \
       org.opencontainers.image.url="https://github.com/aerospike/aerospike-server.docker"
 
 # AEROSPIKE_EDITION - required - must be "community", "enterprise", or
@@ -55,17 +55,17 @@ RUN \
     if [ "${ARCH}" = "x86_64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static'; \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-server-community-7.2.0.22-14.el9.x86_64.rpm'; \
-        serverSha='a28f116d337b733191b5c19a862daf91110220c79df294366ecaf9e2a6a582b5'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-asadm-5.1.0-2.el9.x86_64.rpm'; \
-        asadmSha='56da7c95cd23ac2c8f521f655c731ef0245aea25a2fee64ec736f7238383529b'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-server-community-7.2.0.23-22.el9.x86_64.rpm'; \
+        serverSha='e964996ace8b937869938f1060ab9acd3519b30eeb95f9ed1f57cae5a316a6a7'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/x86_64/aerospike-asadm-5.2.0-1.el9.x86_64.rpm'; \
+        asadmSha='1f5a5ca6ea261d40f0ce62086a20f5d6368a2bce605134c10744e978b9cf1de8'; \
     elif [ "${ARCH}" = "aarch64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
-        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-server-community-7.2.0.22-14.el9.aarch64.rpm'; \
-        serverSha='faf5c143ebc363410c5d9b32f5b481558ad88cd3cc544a20836c3655c7966179'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-asadm-5.1.0-2.el9.aarch64.rpm'; \
-        asadmSha='bf7adafd8eb1915cfa9bf1c9dc2e71406674401428895a940661c078d7f93fdd'; \
+        serverUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-server-community-7.2.0.23-22.el9.aarch64.rpm'; \
+        serverSha='c79794afed69c85d2f47eae39315f940d3d96333b70c1d8672f1ef962235a704'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-rpm-prod-public-local/el9/aarch64/aerospike-asadm-5.2.0-1.el9.aarch64.rpm'; \
+        asadmSha='369b4ee3e45be52a809f7e5418eac9545b7b82619bf64c9bc2fd623759234607'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
