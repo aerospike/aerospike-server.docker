@@ -30,7 +30,8 @@ SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 # hadolint ignore=DL3041
 RUN \
   set -eux; \
-  # See the deb branch: refresh base-image packages for post-tag CVE fixes.
+  # UBI is outside official-images and gets no rebuild-on-base-update the way
+  # the Ubuntu images do; Red Hat certification expects applied errata.
   microdnf update -y; \
   microdnf install -y --setopt=install_weak_deps=0 \
     ca-certificates \

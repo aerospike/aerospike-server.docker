@@ -27,13 +27,10 @@ ENV AEROSPIKE_LINUX_BASE="ubuntu:22.04"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
-# hadolint ignore=DL3005,DL3008
+# hadolint ignore=DL3008
 RUN \
   set -eux; \
   apt-get update; \
-  # Base-image packages are frozen at the tag publish date; upgrade them so
-  # archive CVE fixes land without waiting for a new base-image tag.
-  apt-get upgrade -y; \
   apt-get install -y --no-install-recommends \
     ca-certificates \
     procps \
@@ -54,15 +51,15 @@ RUN \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
         serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-server-community/aerospike-server-community_7.1.0.25-5ubuntu22.04_amd64.deb'; \
         serverSha='da92071b3254ee77a50aa905d37b4f4355003792e852b15f34c30a6454d355bd'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu22.04_amd64.deb'; \
-        asadmSha='97f66a9742b38b1c2f1e4f9a50e822b88f38746a54a889a96a8b88da065238a6'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.2.0-1ubuntu22.04_amd64.deb'; \
+        asadmSha='d00c76f82279b0e10a0a85d34f10bae1d773e8af7bfa8cfc24e9d9e919c47097'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
         serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-server-community/aerospike-server-community_7.1.0.25-5ubuntu22.04_arm64.deb'; \
         serverSha='28203aede74d8fce6be0de32bc403f79465cf7d3bb5891406122469176e03668'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu22.04_arm64.deb'; \
-        asadmSha='178df242b0fb46e59e7e69ac63cec9d89017243832a10abe62c37a698b387b97'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.2.0-1ubuntu22.04_arm64.deb'; \
+        asadmSha='4c02284922df1f36266c020278099e6f838e938cb4c2e415fcc93509a2272809'; \
     else \
         echo >&2 "error: unsupported architecture '${ARCH}'"; \
         exit 1; \
