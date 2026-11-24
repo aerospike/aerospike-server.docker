@@ -27,13 +27,10 @@ ENV AEROSPIKE_LINUX_BASE="ubuntu:22.04"
 
 SHELL ["/bin/bash", "-Eeuo", "pipefail", "-c"]
 
-# hadolint ignore=DL3005,DL3008
+# hadolint ignore=DL3008
 RUN \
   set -eux; \
   apt-get update; \
-  # Base-image packages are frozen at the tag publish date; upgrade them so
-  # archive CVE fixes land without waiting for a new base-image tag.
-  apt-get upgrade -y; \
   apt-get install -y --no-install-recommends \
     ca-certificates \
     procps \
@@ -54,8 +51,8 @@ RUN \
         tiniSha='d1f6826dd70cdd88dde3d5a20d8ed248883a3bc2caba3071c8a3a9b0e0de5940'; \
         serverUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-server-federal/aerospike-server-federal_7.1.0.25-5ubuntu22.04_amd64.deb'; \
         serverSha='9e6a9e309f4bd95d7bc8bb6f4ba9e5a795a80395791449814c69d8712bb93cca'; \
-        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.1.0-2ubuntu22.04_amd64.deb'; \
-        asadmSha='97f66a9742b38b1c2f1e4f9a50e822b88f38746a54a889a96a8b88da065238a6'; \
+        asadmUrl='https://aerospike.jfrog.io/artifactory/database-deb-prod-public-local/pool/jammy/aerospike-asadm/aerospike-asadm_5.2.0-1ubuntu22.04_amd64.deb'; \
+        asadmSha='d00c76f82279b0e10a0a85d34f10bae1d773e8af7bfa8cfc24e9d9e919c47097'; \
     elif [ "${ARCH}" = "arm64" ]; then \
         tiniUrl='https://github.com/aerospike/tini/releases/download/1.0.1/as-tini-static-arm64'; \
         tiniSha='1c398e5283af2f33888b7d8ac5b01ac89f777ea27c85d25866a40d1e64d0341b'; \
